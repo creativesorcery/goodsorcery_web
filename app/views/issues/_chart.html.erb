@@ -1,0 +1,30 @@
+<section class="panel p-5 <%= 'rise rise-2' if animate %>">
+  <div class="flex items-center justify-between gap-4">
+    <h2 class="font-display text-[20px] text-ink-50">
+      Occurrences <span class="font-sans text-[13px] text-ink-400"><%= delimited(chart.total) %> in the last <%= chart.period %></span>
+    </h2>
+    <nav class="segmented" aria-label="Chart period">
+      <% IssueChart::PERIODS.each do |period| %>
+        <%= link_to period, project_issue_chart_path(project, issue, period:), aria: { current: ("true" if period == chart.period) } %>
+      <% end %>
+    </nav>
+  </div>
+
+  <div class="relative mt-5">
+    <div class="absolute inset-0 flex flex-col justify-between pointer-events-none" aria-hidden="true">
+      <div class="border-t border-dashed border-paper-700"></div>
+      <div class="border-t border-dashed border-paper-700"></div>
+      <div class="border-t border-paper-600"></div>
+    </div>
+    <div class="relative overflow-hidden">
+      <%= histogram_svg chart.values, color: issue_chart_color(issue), width: 860, height: 120, fluid: true,
+            highlight_last: issue.new? || issue.regressed?, titles: chart.titles %>
+    </div>
+  </div>
+
+  <div class="flex justify-between text-[11px] text-ink-400 font-mono mt-2">
+    <% chart.axis_labels.each do |label| %>
+      <span><%= label %></span>
+    <% end %>
+  </div>
+</section>

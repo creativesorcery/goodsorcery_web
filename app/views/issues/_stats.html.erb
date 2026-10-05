@@ -1,0 +1,24 @@
+<dl class="mt-7 grid grid-cols-2 md:grid-cols-5 divide-x divide-iris-500/10 border border-iris-500/10 rounded-xl bg-paper-900/60 <%= 'rise rise-1' if animate %>">
+  <div class="px-4 py-3">
+    <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Events</dt>
+    <dd class="font-display text-[24px] text-ink-50 mt-0.5"><%= delimited(issue.events_count) %></dd>
+  </div>
+  <div class="px-4 py-3">
+    <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Users</dt>
+    <dd class="font-display text-[24px] text-ink-50 mt-0.5"><%= delimited(issue.users_count) %></dd>
+  </div>
+  <div class="px-4 py-3">
+    <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">First seen</dt>
+    <dd class="text-[14px] text-ink-100 mt-2">
+      <%= clock_label(issue.first_seen_at) %> <span class="text-ink-400">· <%= time_ago_compact(issue.first_seen_at) %></span>
+    </dd>
+  </div>
+  <div class="px-4 py-3">
+    <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Last seen</dt>
+    <dd class="text-[14px] text-ink-100 mt-2" title="<%= clock_label(issue.last_seen_at) %>"><%= time_ago_compact(issue.last_seen_at) %></dd>
+  </div>
+  <div class="px-4 py-3 min-w-0">
+    <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Fingerprint</dt>
+    <dd class="text-[13px] mt-2 font-mono text-ink-300 truncate" title="<%= issue.fingerprint %>"><%= issue.fingerprint_label %></dd>
+  </div>
+</dl>

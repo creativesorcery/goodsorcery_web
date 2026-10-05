@@ -1,0 +1,74 @@
+<div class="relative z-10 flex flex-wrap items-start justify-between gap-8 rise">
+  <div class="min-w-0 flex-1">
+    <div class="flex flex-wrap items-center gap-2.5">
+      <%= issue_status_chip(issue) %>
+      <% issue.environments.each do |environment| %>
+        <%= chip environment %>
+      <% end %>
+      <%= level_chip(issue.level) %>
+    </div>
+    <h1 class="mt-4 font-mono text-[15px] tracking-tight break-all <%= issue_class_tone(issue) %>"><%= issue.exception_class %></h1>
+    <% if issue.message.present? %>
+      <p class="font-display text-[34px] leading-[1.15] text-ink-50 mt-1 max-w-4xl break-words"><%= issue_message_parts(issue.message) %></p>
+    <% else %>
+      <p class="font-display text-[34px] leading-[1.15] text-ink-400 mt-1">No message</p>
+    <% end %>
+    <p class="mt-3 text-[13px] text-ink-400 font-mono break-all"><%= issue_location(issue) %></p>
+  </div>
+
+  <div class="flex flex-col items-end gap-3 shrink-0">
+    <div class="flex items-center gap-2">
+      <div class="relative flex" data-controller="dropdown">
+        <% if issue.resolved? %>
+          <span class="btn btn-mint rounded-r-none cursor-default">✓ Resolved</span>
+        <% else %>
+          <%= button_to "✓ Resolve", project_issue_resolution_path(project, issue), class: "btn btn-mint rounded-r-none", form_class: "contents" %>
+        <% end %>
+        <button type="button" class="btn btn-mint rounded-l-none border-l-0 px-2" aria-label="More triage actions"
+                aria-haspopup="true" aria-expanded="false" data-dropdown-target="button" data-action="dropdown#toggle">▾</button>
+        <div class="menu right-0 top-full" data-dropdown-target="menu" hidden>
+          <% unless issue.unresolved? %>
+            <%= button_to "↺ Reopen", issue_reopen_path(project, issue), method: :delete, class: "menu-item" %>
+          <% end %>
+          <div class="px-3 pt-2 pb-1 text-[10.5px] uppercase tracking-[.2em] text-ink-400">Assign to…</div>
+          <% assignable_members.each do |member| %>
+            <%= button_to project_issue_assignment_path(project, issue), method: :patch, params: { assignee_id: member.id },
+                  class: "menu-item" do %>
+              <%= initials_avatar(member.name, size: :sm) %>
+              <span class="flex-1"><%= member.name %></span>
+              <% if issue.assignee_id == member.id %><%= icon :check, classes: "w-4 h-4 text-iris-300" %><% end %>
+            <% end %>
+          <% end %>
+          <% if issue.assignee_id %>
+            <%= button_to "Unassign", project_issue_assignment_path(project, issue), method: :delete, class: "menu-item text-ink-400" %>
+          <% end %>
+        </div>
+      </div>
+
+      <% if issue.ignored? %>
+        <%= button_to "Stop ignoring", project_issue_ignore_path(project, issue), method: :delete, class: "btn", form_class: "contents" %>
+      <% else %>
+        <%= button_to "Ignore", project_issue_ignore_path(project, issue), class: "btn", form_class: "contents" %>
+      <% end %>
+
+      <div class="relative" data-controller="dropdown">
+        <button type="button" class="btn" aria-label="More actions" aria-haspopup="true" aria-expanded="false"
+                data-dropdown-target="button" data-action="dropdown#toggle">⋯</button>
+        <div class="menu right-0 top-full" data-dropdown-target="menu" hidden>
+          <button type="button" class="menu-item" data-controller="clipboard"
+                  data-clipboard-text-value="<%= project_issue_url(project, issue) %>" data-action="clipboard#copy">Copy link</button>
+          <button type="button" class="menu-item" data-controller="clipboard"
+                  data-clipboard-text-value="<%= issue.short_id %>" data-action="clipboard#copy">Copy short ID</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 text-[12.5px] text-ink-400">
+      <% if issue.assignee %>
+        Assigned to <%= initials_avatar(issue.assignee.name, size: :sm) %><span class="text-ink-100"><%= issue.assignee.name %></span>
+      <% else %>
+        <%= empty_avatar(size: :sm) %> Unassigned
+      <% end %>
+    </div>
+  </div>
+</div>

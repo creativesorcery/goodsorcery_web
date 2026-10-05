@@ -1,0 +1,41 @@
+<%# Request / Params / Headers / Session / Environment. Values are already
+    scrubbed at ingest; "[FILTERED]" renders muted. %>
+<section class="rise rise-5" data-controller="tabs">
+  <div class="flex items-center gap-6 border-b border-paper-700" role="tablist" aria-label="Occurrence context">
+    <% IssueDetailHelper::CONTEXT_TABS.each_with_index do |(id, label), index| %>
+      <button type="button" class="tab" role="tab" id="context-tab-<%= id %>" aria-selected="<%= index.zero? %>"
+              aria-controls="context-<%= id %>" data-tabs-target="tab" data-action="tabs#select"><%= label %></button>
+    <% end %>
+  </div>
+
+  <div class="panel mt-4 p-5">
+    <div id="context-request" role="tabpanel" aria-labelledby="context-tab-request" data-tabs-target="panel">
+      <% rows = request_rows(occurrence) %>
+      <% if rows.any? %>
+        <div class="code grid grid-cols-[160px_minmax(0,1fr)] gap-y-2 text-[12.5px]">
+          <% rows.each do |label, value, tone| %>
+            <span class="text-ink-400 font-sans"><%= label %></span><span class="break-all"><%= context_value(value, tone: tone || "text-ink-50") %></span>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="text-[13px] text-ink-400">No request was captured with this occurrence.</p>
+      <% end %>
+    </div>
+
+    <div id="context-params" role="tabpanel" aria-labelledby="context-tab-params" data-tabs-target="panel" hidden>
+      <%= render "issues/context_json", value: occurrence.params, empty: "No params were captured." %>
+    </div>
+
+    <div id="context-headers" role="tabpanel" aria-labelledby="context-tab-headers" data-tabs-target="panel" hidden>
+      <%= render "issues/context_pairs", pairs: occurrence.headers, empty: "No headers were captured." %>
+    </div>
+
+    <div id="context-session" role="tabpanel" aria-labelledby="context-tab-session" data-tabs-target="panel" hidden>
+      <%= render "issues/context_json", value: occurrence.session_data, empty: "No session was captured." %>
+    </div>
+
+    <div id="context-environment" role="tabpanel" aria-labelledby="context-tab-environment" data-tabs-target="panel" hidden>
+      <%= render "issues/context_pairs", pairs: flatten_context(occurrence.context), empty: "No environment was captured." %>
+    </div>
+  </div>
+</section>

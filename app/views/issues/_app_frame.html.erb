@@ -1,0 +1,39 @@
+<%# An app frame: the top one is expanded with code context and locals; the
+    rest are rows that open with a native <details>. %>
+<% body = capture do %>
+  <% if frame.code? %>
+    <div class="bg-paper-950/70 py-2 overflow-x-auto">
+      <% frame.code_lines.each do |number, text, error_line| %>
+        <div class="<%= code_line_classes(error_line) %>"><span class="<%= code_number_classes(error_line) %>"><%= number %></span><span><%= text %></span></div>
+      <% end %>
+    </div>
+  <% end %>
+  <% if frame.locals? %>
+    <div class="px-4 py-2 border-t border-paper-700/70 font-sans text-[12px] text-ink-400">Locals: <%= frame_locals(frame.locals) %></div>
+  <% end %>
+  <% unless frame.code? || frame.locals? %>
+    <p class="px-4 py-2 border-t border-paper-700/70 font-sans text-[12px] text-ink-400">No code context was captured for this frame.</p>
+  <% end %>
+<% end %>
+
+<% if expanded %>
+  <div class="border-b border-paper-700">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 bg-iris-500/[.06]">
+      <span class="text-[10px] uppercase tracking-[.18em] font-sans font-semibold text-ink-50 bg-iris-400 rounded px-1.5 py-0.5">app</span>
+      <span class="text-ink-50 break-all"><%= frame.file %><% if frame.line %><span class="text-ink-400">:</span><span class="text-iris-300"><%= frame.line %></span><% end %></span>
+      <span class="text-ink-400">in</span><span class="text-lilac-300 break-all"><%= frame.method_name %></span>
+    </div>
+    <%= body %>
+  </div>
+<% else %>
+  <details class="group border-b border-paper-700/70">
+    <summary class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 hover:bg-paper-800/50 cursor-pointer">
+      <span class="text-[10px] uppercase tracking-[.18em] font-sans font-semibold text-iris-300 border border-iris-500/40 rounded px-1.5 py-0.5">app</span>
+      <span class="text-ink-100 break-all"><%= frame.file %><% if frame.line %>:<span class="text-iris-300"><%= frame.line %></span><% end %></span>
+      <span class="text-ink-400">in</span><span class="text-lilac-300 break-all"><%= frame.method_name %></span>
+      <span class="flex-1"></span>
+      <span class="text-ink-400 transition group-open:rotate-90" aria-hidden="true">▸</span>
+    </summary>
+    <%= body %>
+  </details>
+<% end %>

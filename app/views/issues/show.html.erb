@@ -1,0 +1,51 @@
+<%# Issue detail. Rendered by issues#show (latest occurrence) and issues/occurrences#show.
+    Shows decrypted occurrence data: never wrap any of this in a fragment cache. %>
+<% provide :title, [ @issue.exception_class, @issue.transaction_name ].compact.join(" in ") %>
+<% provide :nav, "issues" %>
+<% content_for :head, tag.meta(name: "turbo-cache-control", content: "no-cache") %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb @project.name %>
+<% breadcrumb "Issues", project_issues_path(@project) %>
+<% breadcrumb @issue.short_id %>
+
+<%= live_stream_from @issue %>
+
+<section class="relative border-b border-iris-500/10">
+  <div class="relative px-8 pt-8 pb-6 max-w-[1400px]">
+    <%= render "issues/hero", project: @project, issue: @issue %>
+
+    <%= turbo_frame_tag dom_id(@issue, :stats) do %>
+      <%= render "issues/stats", issue: @issue, animate: true %>
+    <% end %>
+  </div>
+</section>
+
+<%= turbo_frame_tag "occurrence", data: { turbo_action: "advance" } do %>
+  <div class="px-8 py-8 max-w-[1400px] grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8">
+    <div class="space-y-8 min-w-0">
+      <%= turbo_frame_tag dom_id(@issue, :chart) do %>
+        <%= render "issues/chart", project: @project, issue: @issue, chart: IssueChart.new(@issue), animate: true %>
+      <% end %>
+
+      <% if @occurrence %>
+        <%= render "issues/backtrace", backtrace: occurrence_backtrace(@issue, @occurrence) %>
+        <%= render "issues/breadcrumbs", issue: @issue, breadcrumbs: @occurrence.breadcrumbs %>
+        <%= render "issues/context_tabs", occurrence: @occurrence %>
+      <% else %>
+        <section class="panel p-8 text-center rise rise-3">
+          <h2 class="font-display text-[20px] text-ink-50">No stored occurrences</h2>
+          <p class="mt-2 text-[13.5px] text-ink-400">
+            The events for this issue are older than the project's retention period, so there is no backtrace or request to show.
+          </p>
+        </section>
+      <% end %>
+    </div>
+
+    <aside class="space-y-6 min-w-0">
+      <%= render "issues/navigator", project: @project, issue: @issue, navigator: occurrence_navigator %>
+      <%= render "issues/affected_user", project: @project, issue: @issue, occurrence: @occurrence %>
+      <%= render "issues/tags", issue: @issue %>
+      <%= render "issues/activity", project: @project, issue: @issue %>
+    </aside>
+  </div>
+<% end %>

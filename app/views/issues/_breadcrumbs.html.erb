@@ -1,0 +1,45 @@
+<section class="rise rise-4" data-controller="breadcrumb-filter">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+    <h2 class="font-display text-[22px] text-ink-50">Breadcrumbs <span class="text-[14px] text-ink-400 font-sans">— the trail leading here</span></h2>
+    <div class="flex gap-1.5 text-[12px]" role="group" aria-label="Filter breadcrumbs">
+      <button type="button" class="chip text-ink-400 aria-pressed:text-ink-200 aria-pressed:bg-paper-700" aria-pressed="true"
+              data-breadcrumb-filter-target="chip" data-breadcrumb-filter-category-param="all" data-action="breadcrumb-filter#filter">all <%= breadcrumbs.size %></button>
+      <% IssueDetailHelper::BREADCRUMB_FILTERS.each do |category| %>
+        <button type="button" class="chip text-ink-400 aria-pressed:text-ink-200 aria-pressed:bg-paper-700" aria-pressed="false"
+                title="<%= pluralize(breadcrumb_count(breadcrumbs, category), "#{category} breadcrumb") %>"
+                data-breadcrumb-filter-target="chip" data-breadcrumb-filter-category-param="<%= category %>" data-action="breadcrumb-filter#filter"><%= category %></button>
+      <% end %>
+    </div>
+  </div>
+
+  <ol class="panel p-5 relative">
+    <li class="absolute left-[129.5px] top-6 bottom-6 w-px bg-paper-700" aria-hidden="true"></li>
+    <% breadcrumbs.each do |crumb| %>
+      <% category = crumb["category"].presence || "custom" %>
+      <% tone = breadcrumb_tone(category) %>
+      <li class="relative grid grid-cols-[86px_24px_1fr] gap-3 items-start py-1.5" data-breadcrumb-filter-target="item" data-category="<%= category %>">
+        <span class="font-mono text-[11.5px] text-ink-400 text-right pt-0.5"><%= breadcrumb_offset(crumb["offset_ms"]) %></span>
+        <span class="w-2.5 h-2.5 mt-1.5 ml-[7px] rounded-full ring-4 ring-white <%= tone[:dot] %>" aria-hidden="true"></span>
+        <div class="text-[13px] min-w-0 break-words">
+          <span class="chip chip-sm mr-2 <%= tone[:chip] %>"><%= category %></span>
+          <% if (prefix = breadcrumb_level_prefix(crumb)) %><span class="text-coral-300"><%= prefix %></span><% end %>
+          <span class="font-mono text-ink-200"><%= crumb["message"] %></span>
+          <span class="font-mono text-ink-400"><%= breadcrumb_details(crumb) %></span>
+        </div>
+      </li>
+    <% end %>
+    <% if breadcrumbs.empty? %>
+      <li class="relative grid grid-cols-[86px_24px_1fr] gap-3 items-start py-1.5">
+        <span></span><span></span>
+        <span class="text-[13px] text-ink-400">No breadcrumbs were captured with this occurrence.</span>
+      </li>
+    <% end %>
+    <li class="relative grid grid-cols-[86px_24px_1fr] gap-3 items-start py-1.5">
+      <span class="font-mono text-[11.5px] text-coral-300 text-right pt-0.5">0ms</span>
+      <span class="w-3.5 h-3.5 mt-1 ml-[5px] rounded-full bg-coral-500 ring-4 ring-coral-500/20" aria-hidden="true"></span>
+      <div class="text-[13px]">
+        <span class="chip chip-sm chip-coral mr-2">error</span><span class="font-mono text-coral-300"><%= issue.exception_class %> raised</span>
+      </div>
+    </li>
+  </ol>
+</section>

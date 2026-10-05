@@ -1,0 +1,12 @@
+<%= form_with model: note, scope: :note, url: project_issue_notes_path(project, issue), method: :post,
+      id: dom_id(issue, :note_form), class: "mt-4" do |form| %>
+  <%= form.label :body, "Leave a note", class: "sr-only" %>
+  <%= form.text_area :body, rows: 2, maxlength: 2_000, required: true, placeholder: "Leave a note for the coven…",
+        class: "field px-3 py-2 text-[12.5px] resize-y", aria: { invalid: (note.errors.any? ? "true" : nil) } %>
+  <% if note.errors.any? %>
+    <p class="hint text-coral-300"><%= note.errors.full_messages.to_sentence %></p>
+  <% end %>
+  <div class="mt-2 flex justify-end">
+    <%= form.submit "Add note", class: "btn btn-sm" %>
+  </div>
+<% end %>

@@ -1,0 +1,9 @@
+<li id="<%= dom_id(activity) %>" class="flex gap-2">
+  <span aria-hidden="true"><%= activity_marker(activity) %></span>
+  <div class="min-w-0 text-ink-300">
+    <%= activity_sentence(activity) %> <span class="text-ink-400" title="<%= clock_label(activity.created_at) %>">· <%= time_ago_compact(activity.created_at) %></span>
+    <% if activity.note? %>
+      <p class="mt-1 text-ink-100 whitespace-pre-line break-words"><%= activity.body %></p>
+    <% end %>
+  </div>
+</li>

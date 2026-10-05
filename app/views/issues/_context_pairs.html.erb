@@ -1,0 +1,9 @@
+<% if pairs.any? %>
+  <div class="code grid grid-cols-[200px_minmax(0,1fr)] gap-y-2 text-[12.5px]">
+    <% pairs.each do |key, value| %>
+      <span class="text-ink-400 break-all pr-4"><%= key %></span><span class="break-all"><%= context_value(value) %></span>
+    <% end %>
+  </div>
+<% else %>
+  <p class="text-[13px] text-ink-400"><%= empty %></p>
+<% end %>

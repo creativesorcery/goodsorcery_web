@@ -1,0 +1,26 @@
+<%# Links navigate the enclosing "occurrence" frame, which advances the URL. %>
+<div class="panel p-4 rise rise-2">
+  <div class="text-[11px] uppercase tracking-[.18em] text-ink-400">Viewing occurrence</div>
+  <% occurrence = navigator.occurrence %>
+  <% if occurrence %>
+    <div class="flex items-center justify-between mt-2">
+      <%= occurrence_link "‹", project, issue, navigator.older_uuid, aria: { label: "Older occurrence" } %>
+      <span class="text-[13px] text-ink-100">
+        <span class="font-mono text-iris-300"><%= delimited(navigator.position) %></span> of <%= delimited(navigator.stored_count) %><%= " stored" if navigator.truncated? %>
+        <% if navigator.selected_shortcut %><span class="text-ink-400">· <%= navigator.selected_shortcut %></span><% end %>
+      </span>
+      <%= occurrence_link "›", project, issue, navigator.newer_uuid, aria: { label: "Newer occurrence" } %>
+    </div>
+    <div class="mt-2 text-[11.5px] text-ink-400 font-mono truncate">
+      <%= [ clock_label(occurrence.occurred_at), occurrence.environment, occurrence.release ].compact_blank.join(" · ") %>
+    </div>
+  <% else %>
+    <p class="mt-2 text-[12.5px] text-ink-400">No occurrences are stored for this issue.</p>
+  <% end %>
+  <div class="flex gap-2 mt-3 text-[12px]">
+    <% OccurrenceNavigator::SHORTCUTS.each do |shortcut| %>
+      <%= link_to shortcut.capitalize, project_issue_occurrence_path(project, issue, shortcut),
+            class: occurrence_shortcut_class(navigator, shortcut), aria: { current: ("true" if navigator.selected_shortcut == shortcut) } %>
+    <% end %>
+  </div>
+</div>

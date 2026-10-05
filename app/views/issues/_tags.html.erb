@@ -1,0 +1,31 @@
+<%# Tag values are decrypted here: rendered escaped, never cached. %>
+<% keys = IssueTagCount.distribution(issue) %>
+<div class="panel p-4 rise rise-4">
+  <div class="text-[11px] uppercase tracking-[.18em] text-ink-400">Tags</div>
+  <% if keys.any? %>
+    <div class="mt-3 space-y-4 text-[12.5px]">
+      <% keys.each do |key| %>
+        <div>
+          <div class="flex justify-between gap-3 text-ink-300">
+            <span class="font-mono truncate"><%= key.key %></span>
+            <span class="text-ink-400 shrink-0"><%= pluralize(key.distinct_count, "value") %></span>
+          </div>
+          <div class="mt-1.5"><%= stacked_bar_svg(tag_segments(key)) %></div>
+          <% if suspicious_tag?(key) %>
+            <div class="text-[11.5px] text-ink-400 mt-1.5 break-words">
+              <span class="text-coral-300"><%= share_percent(key.values.first.share) %></span> <%= key.values.first.value %> ← suspicious
+            </div>
+          <% else %>
+            <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-[11.5px] text-ink-400">
+              <% key.values.first(2).each do |value| %>
+                <span class="break-words"><span class="text-ink-100"><%= share_percent(value.share) %></span> <%= value.value %></span>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <p class="mt-3 text-[12.5px] text-ink-400">No tags yet.</p>
+  <% end %>
+</div>

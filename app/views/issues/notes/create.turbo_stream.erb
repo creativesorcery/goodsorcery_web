@@ -1,0 +1,8 @@
+<% if @note.persisted? %>
+  <%= turbo_stream.prepend dom_id(@issue, :activities), partial: "issues/activity_item", locals: { activity: @note } %>
+  <%= turbo_stream.replace dom_id(@issue, :note_form), partial: "issues/notes/form",
+        locals: { project: @project, issue: @issue, note: IssueActivity.new } %>
+<% else %>
+  <%= turbo_stream.replace dom_id(@issue, :note_form), partial: "issues/notes/form",
+        locals: { project: @project, issue: @issue, note: @note } %>
+<% end %>

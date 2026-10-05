@@ -1,0 +1,11 @@
+<div class="panel p-4 rise rise-5">
+  <div class="text-[11px] uppercase tracking-[.18em] text-ink-400">Activity</div>
+  <ul id="<%= dom_id(issue, :activities) %>" class="mt-3 space-y-3 text-[12.5px]">
+    <%= render partial: "issues/activity_item", collection: issue.activities.recent.includes(:user, :subject_user).limit(20), as: :activity %>
+    <li class="flex gap-2">
+      <span class="text-ink-400" aria-hidden="true">○</span>
+      <span class="text-ink-300">First seen <span class="text-ink-400">· <%= time_ago_compact(issue.first_seen_at) %></span></span>
+    </li>
+  </ul>
+  <%= render "issues/notes/form", project: project, issue: issue, note: IssueActivity.new %>
+</div>

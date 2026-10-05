@@ -1,0 +1,5 @@
+<% if value.any? %>
+  <pre class="code text-ink-200 whitespace-pre-wrap break-all"><%= pretty_json(value) %></pre>
+<% else %>
+  <p class="text-[13px] text-ink-400"><%= empty %></p>
+<% end %>
