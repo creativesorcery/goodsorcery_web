@@ -1,7 +1,9 @@
 # Server-side scrubbing, the second line of defence after the client's own
 # filter_parameters. Values under sensitive keys become "[FILTERED]", and
-# secrets embedded in any string (card numbers, bearer credentials, JWTs,
-# sensitive URL query parameters, URL passwords) are replaced in place.
+# secrets embedded in any string are replaced in place: card numbers,
+# credentials (Bearer, Basic, Digest, ApiKey, Token), JWTs, sensitive URL
+# query parameters, URL passwords, and sensitive keys written as free text
+# (`password=x`, `api_key: x`, `"token"=>"x"`, `"secret": "x"`).
 class Ingest::Scrubber
   FILTERED = "[FILTERED]".freeze
 
@@ -9,10 +11,19 @@ class Ingest::Scrubber
     credit[_-]?card|card[_-]?number|(?<![a-z])(?:cvv|cvc|ssn|otp)(?![a-z])|session[_-]?id/ix
 
   CARD_NUMBER = /(?<!\d)\d(?:[ -]?\d){12,18}(?!\d)/
-  CREDENTIAL = /\b(Bearer|Basic)\s+[^\s"',;]+/i
+  CREDENTIAL = /\b(Bearer|Basic|Digest|ApiKey)\s+[^\s"',;]+/i
+  # "Token" is also an ordinary word, so only token-like values (with a digit) go.
+  TOKEN_CREDENTIAL = /\b(Token)\s+(?=[^\s"',;]*\d)[^\s"',;]+/i
   JWT = /eyJ[\w-]+\.[\w-]+\.[\w-]+/
   QUERY_PARAM = /([?&;])([^=&#\s?;]+)=([^&#\s;"']*)/
-  URL_PASSWORD = %r{(\b[a-z][a-z0-9+.-]*://[^:/\s@]+:)[^@\s/]+@}i
+  URL_PASSWORD = %r{(\b[a-z][a-z0-9+.-]*://[^:/\s@]*:)[^@\s/]+@}i
+  # A free-text key (optionally quoted), =, => or a single colon, and the
+  # value: quoted, or bare up to a delimiter, with an optional credential
+  # scheme ("Authorization: Token abc"). Atomic groups keep matching linear.
+  FREE_TEXT_PAIR = /(?<key>(?<q>["']?)(?<![\w.-])(?<name>(?>[\w.-]+))\k<q>)(?<separator>\s*(?:=>|=(?!=)|(?<!:):(?!:))\s*)
+    (?<value>(?>"(?:[^"\\]|\\.)*")|(?>'[^']*')|(?:(?:Bearer|Basic|Digest|ApiKey|Token)\s+)?(?:\[FILTERED\]|(?>[^\s,;&}\])"']+)))/xi
+  # An unquoted CamelCase name is a class, as in "InvalidAuthenticityToken: Can't verify".
+  CLASS_NAME = /\A[A-Z]\w*[a-z][A-Z]/
 
   def initialize(extra_keys: [])
     @extra_keys = Array(extra_keys).map { |key| key.to_s.downcase }.compact_blank
@@ -30,9 +41,9 @@ class Ingest::Scrubber
 
   def scrub_text(text)
     text = text.gsub(CARD_NUMBER) { |digits| Ingest::Luhn.valid?(digits) ? FILTERED : digits }
-    text = text.gsub(CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(JWT, FILTERED)
-    text.gsub(QUERY_PARAM) { sensitive_key?($2) ? "#{$1}#{$2}=#{FILTERED}" : $& }
-        .gsub(URL_PASSWORD) { "#{$1}#{FILTERED}@" }
+    text = text.gsub(CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(TOKEN_CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(JWT, FILTERED)
+    text = text.gsub(QUERY_PARAM) { sensitive_key?($2) ? "#{$1}#{$2}=#{FILTERED}" : $& }
+    scrub_free_text_keys(text.gsub(URL_PASSWORD) { "#{$1}#{FILTERED}@" })
   end
 
   def sensitive_key?(key)
@@ -43,5 +54,20 @@ class Ingest::Scrubber
   private
     def scrub_hash(hash)
       hash.to_h { |key, value| [ key, sensitive_key?(key) ? FILTERED : scrub(value) ] }
+    end
+
+    # Keeps the key, separator and any quotes; replaces only the value.
+    def scrub_free_text_keys(text)
+      text.gsub(FREE_TEXT_PAIR) do
+        match = $~
+        next match[0] unless sensitive_free_text_key?(match)
+
+        quote = match[:value][0].then { |first| %w[" '].include?(first) ? first : "" }
+        "#{match[:key]}#{match[:separator]}#{quote}#{FILTERED}#{quote}"
+      end
+    end
+
+    def sensitive_free_text_key?(match)
+      sensitive_key?(match[:name]) && !(match[:q].empty? && match[:name].match?(CLASS_NAME))
     end
 end

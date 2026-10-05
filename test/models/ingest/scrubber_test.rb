@@ -35,7 +35,8 @@ class Ingest::ScrubberTest < ActiveSupport::TestCase
   end
 
   test "replaces bearer and basic credentials and JWTs" do
-    assert_equal "Authorization: Bearer [FILTERED]", @scrubber.scrub_text("Authorization: Bearer abc.def-123")
+    assert_equal "header Bearer [FILTERED]", @scrubber.scrub_text("header Bearer abc.def-123")
+    assert_equal "Authorization: [FILTERED]", @scrubber.scrub_text("Authorization: Bearer abc.def-123")
     assert_equal "basic [FILTERED] end", @scrubber.scrub_text("basic dXNlcjpwYXNz end")
     jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI1NTIxIn0.c2lnbmF0dXJl"
     assert_equal "jwt=[FILTERED]", @scrubber.scrub_text("jwt=#{jwt}")
@@ -46,6 +47,40 @@ class Ingest::ScrubberTest < ActiveSupport::TestCase
                  @scrubber.scrub_text("https://x.dev/a?page=2&token=abc&api_key=k1#top")
     assert_equal "https://x.dev/?loyalty_id=[FILTERED]", @scrubber.scrub_text("https://x.dev/?loyalty_id=7")
     assert_equal "postgres://shop:[FILTERED]@db:5432/shop", @scrubber.scrub_text("postgres://shop:s3cret@db:5432/shop")
+  end
+
+  test "replaces Token, Digest and ApiKey credentials but keeps the word token" do
+    assert_equal "Authorization: [FILTERED]", @scrubber.scrub_text("Authorization: Token abc123")
+    assert_equal "sent Token [FILTERED] and ApiKey [FILTERED]", @scrubber.scrub_text("sent Token abc123 and ApiKey k-x")
+    assert_equal "Token expired at noon", @scrubber.scrub_text("Token expired at noon")
+  end
+
+  test "filters URL passwords with an empty username" do
+    assert_equal "redis://:[FILTERED]@redis:6379/0", @scrubber.scrub_text("redis://:hunter2@redis:6379/0")
+  end
+
+  test "filters sensitive keys written as free text" do
+    assert_equal "login failed password=[FILTERED] api_key: [FILTERED]",
+                 @scrubber.scrub_text("login failed password=hunter2 api_key: sk_live_123")
+    assert_equal "Cookie: [FILTERED]; remember_token=[FILTERED]", @scrubber.scrub_text("Cookie: _session=abc; remember_token=xyz")
+    assert_equal 'Parameters: {"user"=>{"password"=>"[FILTERED]", "name"=>"Mara"}}',
+                 @scrubber.scrub_text('Parameters: {"user"=>{"password"=>"hunter2", "name"=>"Mara"}}')
+    assert_equal '{"secret": "[FILTERED]", "page": 2}', @scrubber.scrub_text('{"secret": "s3", "page": 2}')
+    assert_equal '#<User email: "m@x.io", password_digest: "[FILTERED]">',
+                 @scrubber.scrub_text('#<User email: "m@x.io", password_digest: "$2a$12$abc">')
+    assert_equal "loyalty_no=[FILTERED]", @scrubber.scrub_text("loyalty_no=LOY-1"), "project extra keys"
+  end
+
+  test "free-text filtering leaves code and class names alone" do
+    [ "ActionController::InvalidAuthenticityToken: Can't verify CSRF token authenticity.",
+      "Token::Invalid raised", "if token == expected", "undefined method `token' for nil",
+      "https://x.dev/a?token=[FILTERED]" ].each { |text| assert_equal text, @scrubber.scrub_text(text) }
+  end
+
+  test "free-text filtering stays linear on long input" do
+    long_word = "x" * 20_000
+    assert_equal long_word, @scrubber.scrub_text(long_word)
+    assert_equal 3_000, @scrubber.scrub_text("token: a " * 3_000).scan("[FILTERED]").size
   end
 
   test "leaves non-string scalars alone" do

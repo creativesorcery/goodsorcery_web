@@ -152,6 +152,24 @@ class Api::V1::EventsControllerTest < ActionDispatch::IntegrationTest
       assert_response :too_many_requests
     end
 
+    test "429 once an account exceeds its limit across all its keys" do
+      account_id = accounts(:acme).id
+      Rails.cache.increment("rate-limit:api/v1/events:account:#{account_id}", Ingest::Limits::RATE_PER_ACCOUNT, expires_in: 1.minute)
+
+      post_event FIXTURE_TOKENS[:storefront_staging]
+      assert_response :too_many_requests
+      post_event FIXTURE_TOKENS[:umbrella_production]
+      assert_response :accepted, "other accounts are unaffected"
+    end
+
+    test "429 quota_exceeded once the monthly quota is used up" do
+      accounts(:acme).update!(monthly_event_quota: 1)
+
+      assert_no_difference(-> { InboundEvent.count }) { post_event }
+      assert_response :too_many_requests
+      assert_equal({ "error" => "quota_exceeded" }, response.parsed_body)
+    end
+
     test "requests under the limits are counted and accepted" do
       2.times { post_event }
       assert_response :accepted

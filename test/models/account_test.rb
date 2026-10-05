@@ -31,4 +31,15 @@ class AccountTest < ActiveSupport::TestCase
 
     assert_nil accounts(:umbrella).event_quota_fraction
   end
+
+  test "over_quota? compares this month's events with the quota" do
+    account = accounts(:acme)
+    assert_not account.over_quota?, "no quota"
+
+    account.update!(monthly_event_quota: 1)
+    assert account.over_quota?
+    account.update!(monthly_event_quota: account.events_this_month + 1)
+    assert_not account.over_quota?
+    assert_not Account.over_quota?(account.id)
+  end
 end

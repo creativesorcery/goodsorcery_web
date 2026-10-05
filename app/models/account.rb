@@ -20,6 +20,15 @@ class Account < ApplicationRecord
     end
   end
 
+  # Ingest's quota gate, cached for a minute; only a boolean is stored.
+  def self.over_quota?(id)
+    Rails.cache.fetch([ "account_over_quota", id ], expires_in: 1.minute) { find_by(id:)&.over_quota? || false }
+  end
+
+  def over_quota?
+    monthly_event_quota.present? && events_this_month >= monthly_event_quota
+  end
+
   # 0..1, or nil when the account has no quota (self-hosted).
   def event_quota_fraction
     return if monthly_event_quota.nil?

@@ -33,7 +33,7 @@ class Ingest::Event
   end
 
   def redacted_message
-    @redacted_message ||= Ingest::MessageRedactor.new.redact(message)
+    @redacted_message ||= redactor.redact(message)
   end
 
   def frames
@@ -43,12 +43,19 @@ class Ingest::Event
 
   def top_app_frame = frames.find(&:in_app?)
 
+  # Plaintext issue column: redacted like the title.
   def culprit
-    (top_app_frame || frames.first)&.location&.then { text(it, Ingest::Limits::CULPRIT) }.presence
+    (top_app_frame || frames.first)&.location&.then { redactor.redact_location(text(it, Ingest::Limits::CULPRIT)) }
   end
 
+  # Scrubbed but unredacted; stored only in the encrypted payload.
+  def transaction
+    @transaction ||= @scrubber.scrub_text(text(@data["transaction"], Ingest::Limits::TRANSACTION)).squish.presence
+  end
+
+  # Plaintext issue column (and search index): redacted like the title.
   def transaction_name
-    @transaction_name ||= @scrubber.scrub_text(text(@data["transaction"], Ingest::Limits::TRANSACTION)).squish.presence
+    @transaction_name ||= redactor.redact_transaction(transaction)
   end
 
   def level = Issue::LEVELS.include?(@data["level"]) ? @data["level"] : "error"
@@ -89,6 +96,8 @@ class Ingest::Event
 
   private
     def exception = @data["exception"]
+
+    def redactor = @redactor ||= Ingest::MessageRedactor.new
 
     def hash_at(key) = @data[key].is_a?(Hash) ? @data[key] : {}
 

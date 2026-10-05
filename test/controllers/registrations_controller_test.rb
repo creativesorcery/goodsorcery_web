@@ -6,6 +6,9 @@ class RegistrationsControllerTest < ActionDispatch::IntegrationTest
     password: "tps-reports-1", time_zone: "America/Chicago"
   }.freeze
 
+  setup { ENV["GOODSORCERY_ENABLE_SIGNUPS"] = "1" }
+  teardown { ENV.delete("GOODSORCERY_ENABLE_SIGNUPS") }
+
   test "new" do
     get new_registration_path
     assert_response :success
@@ -44,5 +47,12 @@ class RegistrationsControllerTest < ActionDispatch::IntegrationTest
     end
   ensure
     ENV.delete("GOODSORCERY_DISABLE_SIGNUPS")
+  end
+
+  test "sign-ups are closed by default once an account exists" do
+    ENV.delete("GOODSORCERY_ENABLE_SIGNUPS")
+
+    get new_registration_path
+    assert_redirected_to new_session_path
   end
 end

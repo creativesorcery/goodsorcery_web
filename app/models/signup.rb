@@ -14,6 +14,16 @@ class Signup
 
   attr_reader :user, :account
 
+  # Closed by default once the first account exists, so an exposed
+  # self-hosted instance does not take sign-ups from anyone on the internet.
+  # GOODSORCERY_ENABLE_SIGNUPS=1 opens them (hosted service);
+  # GOODSORCERY_DISABLE_SIGNUPS=1 closes them, even for the first account.
+  def self.open?(env = ENV)
+    return false if env["GOODSORCERY_DISABLE_SIGNUPS"] == "1"
+
+    env["GOODSORCERY_ENABLE_SIGNUPS"] == "1" || !Account.exists?
+  end
+
   # Returns the new user, or false with errors.
   def save
     return false unless valid?

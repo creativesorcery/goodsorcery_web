@@ -6,7 +6,7 @@ class Ingest::Payload
   end
 
   def to_h
-    { exception:, transaction: @event.transaction_name, request: @event.request.summary,
+    { exception:, transaction: @event.transaction, request: @event.request.summary,
       params: @event.request.params, headers: @event.request.headers, session: @event.request.session,
       user: @event.user, breadcrumbs: @event.breadcrumbs.map(&:to_h), context: @event.context,
       tags: @event.tags, notifier: @event.notifier }

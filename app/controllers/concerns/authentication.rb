@@ -26,7 +26,9 @@ module Authentication
     end
 
     def find_session_by_cookie
-      Session.includes(:user, :account).find_by(id: cookies.signed[:session_id]) if cookies.signed[:session_id]
+      return unless (id = cookies.signed[:session_id])
+
+      Session.active.includes(:user, :account).find_by(id:)&.tap(&:record_activity)
     end
 
     def request_authentication
@@ -42,7 +44,7 @@ module Authentication
       session_attributes = { account: user.default_account, user_agent: request.user_agent, ip_address: request.remote_ip }
       user.sessions.create!(session_attributes).tap do |session|
         Current.session = session
-        cookies.signed.permanent[:session_id] = { value: session.id, httponly: true, same_site: :lax }
+        cookies.signed[:session_id] = { value: session.id, httponly: true, same_site: :lax, expires: session.expires_at }
       end
     end
 

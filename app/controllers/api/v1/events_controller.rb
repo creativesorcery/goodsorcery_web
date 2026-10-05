@@ -13,6 +13,9 @@ class Api::V1::EventsController < ActionController::API
   before_action :authenticate_api_key
   rate_limit to: Ingest::Limits::RATE_PER_KEY, within: Ingest::Limits::RATE_WINDOW, name: "key",
              by: -> { current_api_key.id }, with: -> { render_rate_limited }, store: Ingest::RateLimitStore
+  rate_limit to: Ingest::Limits::RATE_PER_ACCOUNT, within: Ingest::Limits::RATE_WINDOW, name: "account",
+             by: -> { current_api_key.account_id }, with: -> { render_rate_limited }, store: Ingest::RateLimitStore
+  before_action :enforce_quota
   before_action :require_json
 
   rescue_from(Ingest::InvalidJson) { render_error "invalid_json", 400 }
@@ -31,6 +34,10 @@ class Api::V1::EventsController < ActionController::API
 
   private
     def request_body = @request_body ||= Ingest::RequestBody.new(request)
+
+    def enforce_quota
+      render_error "quota_exceeded", 429 if Account.over_quota?(current_api_key.account_id)
+    end
 
     def require_json
       return if request.media_type == "application/json" && request_body.supported_encoding?

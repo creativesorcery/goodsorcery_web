@@ -46,6 +46,13 @@ class ProjectTest < ActiveSupport::TestCase
     assert_equal %i[issue_prefix name platform retention_days], project.errors.attribute_names.sort
   end
 
+  test "an account has at most MAX_PER_ACCOUNT projects" do
+    with_constant(Project, :MAX_PER_ACCOUNT, accounts(:acme).projects.count) do
+      project = accounts(:acme).projects.create(name: "One more")
+      assert_includes project.errors[:base], "An account can have at most #{Project::MAX_PER_ACCOUNT} apps"
+    end
+  end
+
   test "scrub fields are normalised" do
     project = projects(:storefront)
     project.update!(scrub_fields: [ " Loyalty_Number ", "", "loyalty_number", "pin" ])
@@ -94,4 +101,15 @@ class ProjectTest < ActiveSupport::TestCase
   test "broadcast_changes_later enqueues a live update (slice G)" do
     assert_enqueued_with(job: BroadcastProjectChangesJob) { projects(:storefront).broadcast_changes_later }
   end
+
+  private
+    def with_constant(owner, name, value)
+      original = owner.const_get(name)
+      owner.send(:remove_const, name)
+      owner.const_set(name, value)
+      yield
+    ensure
+      owner.send(:remove_const, name)
+      owner.const_set(name, original)
+    end
 end

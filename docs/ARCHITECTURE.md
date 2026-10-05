@@ -455,7 +455,7 @@ Ignored issues stay ignored. Only `resolved` regresses.
 
 ### 2.7 Maintenance (slice C, `lib/tasks/goodsorcery.rake`)
 
-- `goodsorcery:prune` deletes occurrences older than `project.retention_days` (`in_batches(of: 1_000).delete_all`) and `issue_hourly_counts` / `project_hourly_counts` older than 90 days. Schedule it daily with cron or a Kamal accessory, as documented in `docs/INGEST_API.md` › Operating.
+- `goodsorcery:prune` deletes occurrences older than `project.retention_days` (`in_batches(of: 1_000).delete_all`), `issue_users` rows and `issue_tag_counts` of issues not seen within it, `issue_hourly_counts` / `project_hourly_counts` older than 90 days (one `hour` slice per DELETE, using the `hour` indexes) and inbound events still unprocessed after a day (deleted unread, logged by id). Schedule it daily with cron or a Kamal accessory, as documented in `docs/INGEST_API.md` › Operating.
 - `goodsorcery:requeue_stale` re-enqueues `InboundEvent.stale`.
 - `TrimOccurrencesJob` keeps the newest `Occurrence::RETAINED_PER_ISSUE` per issue. The cutoff id is `issue.occurrences.latest_first.offset(1_000).pick(:id)`.
 - `config/sidekiq.yml` queues: `[ingest, 3]`, `[default, 2]`, `[mailers, 1]`.
@@ -617,10 +617,10 @@ Shared (slice A):
   - `include Authentication`, `allow_browser versions: :modern`, `stale_when_importmap_changes`.
   - `around_action :use_user_time_zone` (`Time.use_zone(Current.user&.time_zone || "UTC")`).
   - `after_action :forbid_caching`, which sets `Cache-Control: no-store` for every dashboard response.
-- `Authentication` is the generator concern, changed so that `start_new_session_for(user)` creates the session with `account: user.default_account`.
+- `Authentication` is the generator concern, changed so that `start_new_session_for(user)` creates the session with `account: user.default_account`. Sessions expire 30 days after sign-in or after 7 idle days (`Session.active`; activity is recorded at most hourly), and the cookie expires with them. Sign-in and reset requests are also rate-limited per email address (`EmailRateLimited`, keyed by an HMAC of the address). The password reset token travels as `?token=` (`/password/edit`) and a form field, never in the path, so the request log filters it.
 - `ProjectScoped`: `before_action :set_project`, which runs `@project = Current.account.projects.find_by!(slug: params[:project_id])`.
 - `IssueScoped`: includes `ProjectScoped`; `@issue = @project.issues.find_by_short_id!(params[:issue_id])`.
-- `SessionsController`, `PasswordsController` (generator, `layout "auth"`), `RegistrationsController` (`new`/`create` via `Signup`; `rate_limit to: 10, within: 3.minutes, only: :create`; `allow_unauthenticated_access`). Sign-ups are disabled when `ENV["GOODSORCERY_DISABLE_SIGNUPS"] == "1"`, which redirects to sign-in.
+- `SessionsController`, `PasswordsController` (generator, `layout "auth"`), `RegistrationsController` (`new`/`create` via `Signup`; `rate_limit to: 10, within: 3.minutes, only: :create`; `allow_unauthenticated_access`). Sign-up (`Signup.open?`) is open only until the first account exists, unless `GOODSORCERY_ENABLE_SIGNUPS=1`; `GOODSORCERY_DISABLE_SIGNUPS=1` closes it completely. Closed sign-up redirects to sign-in.
 
 | Controller | Slice | Actions | Notes |
 |---|---|---|---|

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ApiKeyTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @original_cache = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
@@ -8,13 +10,13 @@ class ApiKeyTest < ActiveSupport::TestCase
 
   teardown { Rails.cache = @original_cache }
 
-  test "authenticate returns ids and environment only" do
+  test "authenticate returns ids and the environment only" do
     credential = ApiKey.authenticate(FIXTURE_TOKENS[:storefront_production])
 
     assert_equal api_keys(:storefront_production).id, credential.id
     assert_equal projects(:storefront).id, credential.project_id
     assert_equal "production", credential.environment
-    assert_equal %i[id project_id environment], credential.to_h.keys
+    assert_equal %i[id project_id environment account_id], credential.to_h.keys
   end
 
   test "authenticate rejects unknown, blank and oversized tokens" do
@@ -29,7 +31,7 @@ class ApiKeyTest < ActiveSupport::TestCase
     ApiKey.authenticate(token)
 
     cached = Rails.cache.read(ApiKey.cache_key_for(ApiKey.digest(token)))
-    assert_equal [ api_keys(:storefront_staging).id, projects(:storefront).id, "staging" ], cached
+    assert_equal [ api_keys(:storefront_staging).id, projects(:storefront).id, "staging", accounts(:acme).id ], cached
     assert_queries_count(0) { ApiKey.authenticate(token) }
 
     ApiKey.authenticate("gs_live_missing")
@@ -63,6 +65,29 @@ class ApiKeyTest < ActiveSupport::TestCase
     assert_nil ApiKey.authenticate(old_token)
     assert_equal key.id, ApiKey.authenticate(key.reload.token).id
     assert_not_equal old_token, key.token
+  end
+
+  test "rotate schedules a second eviction for a concurrent cache refill" do
+    key = api_keys(:storefront_production)
+    old_digest = key.token_digest
+
+    assert_enqueued_with(job: EvictApiKeyCacheJob, args: [ old_digest ]) { key.rotate }
+
+    original = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    Rails.cache.write(ApiKey.cache_key_for(old_digest), [ key.id, key.project_id, "production", 1 ])
+    EvictApiKeyCacheJob.perform_now(old_digest)
+    assert_nil Rails.cache.read(ApiKey.cache_key_for(old_digest))
+  ensure
+    Rails.cache = original if original
+  end
+
+  test "a project has at most MAX_PER_PROJECT keys" do
+    project = projects(:storefront)
+    (ApiKey::MAX_PER_PROJECT - project.api_keys.count).times { |n| project.api_keys.create!(environment: "env-#{n}") }
+
+    key = project.api_keys.create(environment: "one-more")
+    assert_includes key.errors[:base], "A project can have at most #{ApiKey::MAX_PER_PROJECT} API keys"
   end
 
   test "masked token" do

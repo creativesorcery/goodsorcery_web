@@ -4,8 +4,21 @@ class ApplicationHelperTest < ActionView::TestCase
   test "hosted? and signups_enabled? read the environment" do
     with_env("GOODSORCERY_HOSTED" => "1") { assert hosted? }
     with_env("GOODSORCERY_HOSTED" => nil) { assert_not hosted? }
-    with_env("GOODSORCERY_DISABLE_SIGNUPS" => "1") { assert_not signups_enabled? }
-    with_env("GOODSORCERY_DISABLE_SIGNUPS" => nil) { assert signups_enabled? }
+  end
+
+  test "signups_enabled? is closed by default once an account exists" do
+    with_env("GOODSORCERY_ENABLE_SIGNUPS" => nil, "GOODSORCERY_DISABLE_SIGNUPS" => nil) { assert_not signups_enabled? }
+  end
+
+  test "signups_enabled? opens with GOODSORCERY_ENABLE_SIGNUPS unless disabled" do
+    with_env("GOODSORCERY_ENABLE_SIGNUPS" => "1", "GOODSORCERY_DISABLE_SIGNUPS" => nil) { assert Signup.open? }
+    with_env("GOODSORCERY_ENABLE_SIGNUPS" => "1", "GOODSORCERY_DISABLE_SIGNUPS" => "1") { assert_not Signup.open? }
+  end
+
+  test "the first account can always sign up unless disabled" do
+    Account.delete_all
+    with_env("GOODSORCERY_ENABLE_SIGNUPS" => nil, "GOODSORCERY_DISABLE_SIGNUPS" => nil) { assert Signup.open? }
+    with_env("GOODSORCERY_DISABLE_SIGNUPS" => "1") { assert_not Signup.open? }
   end
 
   test "docs_url can be overridden" do

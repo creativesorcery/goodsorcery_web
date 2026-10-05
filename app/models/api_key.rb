@@ -2,10 +2,11 @@
 # (for Reveal) and as a SHA-256 digest (for O(1) lookup). Tokens are 32 random
 # base58 characters, so a plain digest needs no slow KDF.
 class ApiKey < ApplicationRecord
-  Credential = Data.define(:id, :project_id, :environment)
+  Credential = Data.define(:id, :project_id, :environment, :account_id)
 
   CACHE_TTL = 5.minutes
   MAX_TOKEN_LENGTH = 128
+  MAX_PER_PROJECT = 10
   ENVIRONMENT_FORMAT = /\A[a-z0-9][a-z0-9_-]{0,31}\z/
 
   belongs_to :project, inverse_of: :api_keys
@@ -16,6 +17,7 @@ class ApiKey < ApplicationRecord
   normalizes :environment, with: ->(env) { env.strip.downcase }
 
   validates :environment, format: { with: ENVIRONMENT_FORMAT }, uniqueness: { scope: :project_id }
+  validate :project_has_room, on: :create
 
   before_validation :assign_token, on: :create
 
@@ -25,7 +27,7 @@ class ApiKey < ApplicationRecord
       return if token.blank? || token.length > MAX_TOKEN_LENGTH
 
       row = Rails.cache.fetch(cache_key_for(digest(token)), expires_in: CACHE_TTL) do
-        where(token_digest: digest(token)).pick(:id, :project_id, :environment)
+        joins(:project).where(token_digest: digest(token)).pick(:id, :project_id, :environment, "projects.account_id")
       end
       Credential.new(*row) if row
     end
@@ -39,7 +41,7 @@ class ApiKey < ApplicationRecord
 
     def digest(token) = OpenSSL::Digest::SHA256.hexdigest(token)
 
-    def cache_key_for(digest) = [ "api_key", digest ]
+    def cache_key_for(digest) = [ "api_key", "v2", digest ]
 
     def generate_token(environment)
       "#{environment == "production" ? "gs_live_" : "gs_test_"}#{SecureRandom.base58(32)}"
@@ -51,6 +53,7 @@ class ApiKey < ApplicationRecord
     assign_token(force: true)
     save!
     Rails.cache.delete(self.class.cache_key_for(previous_digest))
+    EvictApiKeyCacheJob.set(wait: EvictApiKeyCacheJob::DELAY).perform_later(previous_digest)
     self
   end
 
@@ -63,6 +66,12 @@ class ApiKey < ApplicationRecord
   end
 
   private
+    def project_has_room
+      return unless project && project.api_keys.count >= MAX_PER_PROJECT
+
+      errors.add(:base, "A project can have at most #{MAX_PER_PROJECT} API keys")
+    end
+
     def assign_token(force: false)
       return unless force || token.blank?
 

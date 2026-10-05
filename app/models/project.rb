@@ -3,6 +3,7 @@ class Project < ApplicationRecord
 
   COLORS = %w[iris coral lilac mint].freeze
   DEFAULT_ENVIRONMENTS = %w[production staging].freeze
+  MAX_PER_ACCOUNT = 100
 
   belongs_to :account, inverse_of: :projects
   has_many :api_keys, -> { order(:id) }, inverse_of: :project
@@ -24,6 +25,7 @@ class Project < ApplicationRecord
   validates :slug, presence: true, uniqueness: { scope: :account_id }
   validates :issue_prefix, format: { with: /\A[A-Z]{1,6}\z/ }
   validates :retention_days, numericality: { only_integer: true, in: 1..365 }
+  validate :account_has_room, on: :create
 
   before_validation :assign_defaults, on: :create
   after_create :create_default_api_keys
@@ -61,6 +63,12 @@ class Project < ApplicationRecord
   end
 
   private
+    def account_has_room
+      return unless account && account.projects.count >= MAX_PER_ACCOUNT
+
+      errors.add(:base, "An account can have at most #{MAX_PER_ACCOUNT} apps")
+    end
+
     def assign_defaults
       self.slug ||= Project::Slug.new(account, name).unique if account && name.present?
       self.issue_prefix ||= Project::Slug.prefix_for(slug)

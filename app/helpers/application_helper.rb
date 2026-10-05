@@ -20,7 +20,9 @@ module ApplicationHelper
   end
 
   def signups_enabled?
-    ENV["GOODSORCERY_DISABLE_SIGNUPS"] != "1"
+    return @signups_enabled if defined?(@signups_enabled)
+
+    @signups_enabled = Signup.open?
   end
 
   def platform_label(platform)

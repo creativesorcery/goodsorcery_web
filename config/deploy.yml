@@ -41,6 +41,8 @@ env:
   secret:
     - RAILS_MASTER_KEY
   # clear:
+  #   # Required: this instance's public URL (email links, Host authorization).
+  #   GOODSORCERY_PUBLIC_URL: https://errors.example.com
   #   # Set number of cores available to the application on each server (default: 1).
   #   WEB_CONCURRENCY: auto
 

@@ -32,6 +32,16 @@ class Ingest::EventTest < ActiveSupport::TestCase
     assert_equal 39, @event.frames.first.context[:start_line]
   end
 
+  test "scrubs nested keys of hash locals before turning them into text" do
+    json = minimal_json(exception: { backtrace: [ { file: "app/x.rb", line: 1, method: "a",
+      locals: { params: { password: "hunter2", user: { token: "abc", name: "Mara" } }, list: [ 1, 2 ] } } ] })
+    locals = build_event(json).frames.first.locals
+
+    assert_equal({ "password" => "[FILTERED]", "user" => { "token" => "[FILTERED]", "name" => "Mara" } }, JSON.parse(locals["params"]))
+    assert_equal "[1,2]", locals["list"]
+    assert_no_match(/hunter2|abc/, locals.values.join)
+  end
+
   test "client in_app flags win over inference" do
     json = minimal_json(exception: { backtrace: [ { file: "app/x.rb", line: 1, method: "a", in_app: false },
                                                   { file: "vendor/thing.rb", line: "7", method: "b", in_app: true } ] })

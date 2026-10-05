@@ -1,13 +1,15 @@
 # Bounded, scrubbed source context and locals for a backtrace frame.
 class Ingest::FrameContext
+  # Scrubbed while still structured, so keys nested in a hash local are
+  # filtered too; only then turned into bounded strings.
   def self.locals(value, scrubber:)
     return {} unless value.is_a?(Hash)
 
-    bounded = value.first(Ingest::Limits::LOCALS).to_h do |name, local|
-      [ Ingest::TreeLimiter.truncate(name, Ingest::Limits::KEY), Ingest::TreeLimiter.truncate(local, Ingest::Limits::LOCAL_VALUE) ]
-    end
-    scrubber.scrub(bounded)
+    scrubbed = scrubber.scrub(Ingest::TreeLimiter.new.limit(value.first(Ingest::Limits::LOCALS).to_h))
+    scrubbed.to_h { |name, local| [ name, Ingest::TreeLimiter.truncate(local_text(local), Ingest::Limits::LOCAL_VALUE) ] }
   end
+
+  def self.local_text(local) = local.is_a?(Hash) || local.is_a?(Array) ? local.to_json : local.to_s
 
   def initialize(value, scrubber:)
     @value = value.is_a?(Hash) ? value : {}

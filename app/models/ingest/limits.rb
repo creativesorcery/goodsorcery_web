@@ -39,5 +39,6 @@ module Ingest::Limits
 
   RATE_PER_KEY = 1_200
   RATE_PER_IP = 6_000
+  RATE_PER_ACCOUNT = 6_000
   RATE_WINDOW = 1.minute
 end

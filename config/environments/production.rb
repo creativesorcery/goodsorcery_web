@@ -56,8 +56,10 @@ Rails.application.configure do
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
   # config.action_mailer.raise_delivery_errors = false
 
-  # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  # Links in emails (password resets) and Host authorization both come from
+  # GOODSORCERY_PUBLIC_URL; boot fails without it (except for the asset build).
+  public_url = PublicUrl.from_env(ENV, required: ENV["SECRET_KEY_BASE_DUMMY"].blank?)
+  config.action_mailer.default_url_options = public_url.url_options
 
   # Specify outgoing SMTP server. Remember to add smtp/* credentials via bin/rails credentials:edit.
   # config.action_mailer.smtp_settings = {
@@ -78,14 +80,10 @@ Rails.application.configure do
   # Only use :id for inspections in production.
   config.active_record.attributes_for_inspect = [ :id ]
 
-  # Enable DNS rebinding protection and other `Host` header attacks.
-  # config.hosts = [
-  #   "example.com",     # Allow requests from example.com
-  #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
-  # ]
-  #
-  # Skip DNS rebinding protection for the default health check endpoint.
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  # DNS rebinding and Host header protection: the public host plus any
+  # GOODSORCERY_EXTRA_HOSTS. The health check answers on any host.
+  config.hosts = public_url.allowed_hosts
+  config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
   # Active Record Encryption keys come from ENV, falling back to credentials.
   config.active_record.encryption.primary_key = ENV.fetch("ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY") { Rails.application.credentials.dig(:active_record_encryption, :primary_key) }

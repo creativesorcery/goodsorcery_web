@@ -24,6 +24,17 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
     assert_equal [ 1, 1, "unresolved" ], [ issue.events_count, issue.users_count, issue.status ]
   end
 
+  test "keeps emails in transaction and culprit out of the plaintext columns and search index" do
+    json = minimal_json(transaction: "GET /users/mara@example.com/reset?x=1",
+                        exception: { backtrace: [ { file: "app/x.rb", line: 12, method: "mara@example.com" } ] })
+    issue = process_event(json)
+
+    assert_equal "GET /users/[email]/reset?[query]", raw_column(Issue, :transaction_name, issue.id)
+    assert_equal "app/x.rb:12 in [email]", raw_column(Issue, :culprit, issue.id)
+    assert_not_includes raw_column(Issue, :search_text, issue.id), "mara"
+    assert_equal "GET /users/mara@example.com/reset?x=1", issue.occurrences.sole.data["transaction"]
+  end
+
   test "groups two events with the same fingerprint into one issue" do
     first = process_event(event_json)
     second = process_event(event_json("full", user: { id: 9, email: "jo@example.com", username: "jo" }))

@@ -8,7 +8,10 @@ Rails.application.routes.draw do
   end
 
   resource :session, only: %i[new create destroy]
-  resources :passwords, param: :token, only: %i[new create edit update]
+  resources :passwords, only: %i[new create]
+  # The reset token travels as ?token= or a form field, never in the path, so
+  # filter_parameters keeps it out of the "Started GET" log line.
+  resource :password, only: %i[edit update]
   resource :registration, only: %i[new create]
 
   resource :search, only: :show

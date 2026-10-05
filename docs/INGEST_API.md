@@ -105,7 +105,7 @@ Only `exception.class` is required. Every other field is optional, but the more 
 | `occurred_at` | ISO 8601 timestamp | When the error happened. Defaults to the receive time. Values more than 30 days in the past or 5 minutes in the future are replaced by the receive time. |
 | `level` | string | One of `fatal`, `error`, `warning`, `info`. Defaults to `error`. |
 | `release` | string | Version or commit SHA, up to 64 chars. |
-| `transaction` | string | What was running: `Controller#action`, a job class, or a rake task name. |
+| `transaction` | string | What was running: `Controller#action`, a job class, or a rake task name. The issue list shows a redacted copy (emails, ids, query strings and tokens replaced, as for the title); the original is kept only in the encrypted event. |
 | `exception.class` | string | **Required**, 1–255 chars. |
 | `exception.message` | string | Up to 10,000 chars. |
 | `exception.backtrace[]` | array of frames | Innermost first. `file` (string, app-relative paths preferred), `line` (integer), `method` (string), `in_app` (boolean, optional: the server infers it from `app/`, `lib/` and `config/` paths outside `gems/` and `vendor/bundle`), `context` (`start_line` plus up to 11 `lines`), and `locals` (string to string, up to 25). Absolute paths are normalised server-side: deploy roots (`/…/releases/<x>/`, `/…/current/`, `/rails/`, `/app/`) are stripped to app-relative paths, gem paths become `gems/<name>-<version>/…`, Ruby stdlib paths become `ruby/<version>/…` and home directories become `~/`. |
@@ -131,9 +131,10 @@ A resolved issue that receives a new event becomes **unresolved and regressed**.
 Scrub as much as you can **in the client**. The Ruby gem applies `Rails.application.config.filter_parameters` before sending. The server scrubs again as a second layer of defence:
 
 - Values under keys that match `password`, `secret`, `token`, `api_key`, `access_key`, `private_key`, `authorization`, `cookie`, `csrf`, `xsrf`, `credit_card`, `card_number`, `cvv`, `cvc`, `ssn`, `otp` or `session_id` (plus each project's extra scrub keys) become `"[FILTERED]"`.
-- Card-shaped numbers that pass the Luhn check, `Bearer …`/`Basic …` credentials, JWT-like strings, sensitive URL query parameters and passwords in URLs (`postgres://user:[FILTERED]@host`) are replaced with `[FILTERED]` inside any string, including the exception message, code context, locals and breadcrumbs.
+- Card-shaped numbers that pass the Luhn check, `Bearer …`/`Basic …`/`Digest …`/`ApiKey …` credentials (and `Token …` with a token-like value), JWT-like strings, sensitive URL query parameters, passwords in URLs (`postgres://user:[FILTERED]@host`, `redis://:[FILTERED]@host`) and sensitive keys written as text (`password=…`, `api_key: …`, `"token"=>"…"`, `"secret": "…"`) are replaced with `[FILTERED]` inside any string, including the exception message, code context, locals and breadcrumbs.
+- Locals sent as objects are scrubbed by key before they are turned into text.
 - User fields `id`, `email`, `username` and `name` are kept as sent (encrypted) because they identify affected users.
-- Everything captured (backtraces, code context, locals, request, params, headers, session, user, breadcrumbs, context and tag values) is stored **encrypted at rest**. The searchable issue title is a redacted copy of the message (emails, IPs, UUIDs, numbers and tokens are replaced with placeholders).
+- Everything captured (backtraces, code context, locals, request, params, headers, session, user, breadcrumbs, context and tag values) is stored **encrypted at rest**. The searchable issue title is a redacted copy of the message (emails, IPs, UUIDs, numbers, tokens, query strings and value dumps such as `Failing row contains (…)`, `Key (…)=(…)` and `'column'=value` are replaced with placeholders). The transaction name and culprit shown in the issue list are redacted the same way.
 
 ## Responses
 
@@ -146,8 +147,9 @@ Scrub as much as you can **in the client**. The Ruby gem applies `Rails.applicat
 | `415 Unsupported Media Type` | `{"error":"unsupported_media_type"}` | `Content-Type` is not `application/json`, or `Content-Encoding` is neither absent, `identity` nor `gzip`. |
 | `422 Unprocessable Entity` | `{"error":"invalid_payload","messages":["exception.class is required"]}` | Valid JSON with the wrong shape. |
 | `429 Too Many Requests` | `{"error":"rate_limited"}` | Includes a `Retry-After` header in seconds (`60`). |
+| `429 Too Many Requests` | `{"error":"quota_exceeded"}` | The account has used its monthly event quota (hosted plans only). |
 
-Checks run in this order: per-IP rate limit, API key (`401`), per-key rate limit, media type (`415`), body size (`413`), JSON (`400`), shape (`422`).
+Checks run in this order: per-IP rate limit, API key (`401`), per-key and per-account rate limits, monthly quota, media type (`415`), body size (`413`), JSON (`400`), shape (`422`).
 
 Clients should retry `429` and `5xx` responses with backoff, reusing the same `event_id`. They should not retry `400`, `401`, `413`, `415` or `422`.
 
@@ -156,7 +158,9 @@ Clients should retry `429` and `5xx` responses with backoff, reusing the same `e
 | Item | Limit |
 |---|---|
 | Request body | 512 KiB, compressed and decompressed |
-| Rate | 1,200 requests/minute per API key; 6,000 requests/minute per IP |
+| Rate | 1,200 requests/minute per API key; 6,000 requests/minute per account; 6,000 requests/minute per IP |
+| Tag values | 100 distinct values per tag key per issue (later new values count as "Other values"); 40 tag keys per issue |
+| Apps and keys | 100 apps per account; 10 API keys per app |
 | Exception message | 10,000 chars |
 | Backtrace | first 250 frames; context ≤ 11 lines of ≤ 500 chars; ≤ 25 locals of ≤ 500 chars |
 | Breadcrumbs | last 100; message ≤ 1,000 chars; `data` ≤ 20 keys |
@@ -210,11 +214,13 @@ It prints the status and body and exits non-zero unless the response is `202`. S
 ## Operating (self-hosted)
 
 - Events are processed by Sidekiq on the `ingest` queue, with weights `ingest: 3`, `default: 2`, `mailers: 1`.
-- Run `bin/rails goodsorcery:prune` daily (cron or a Kamal accessory). It deletes occurrences older than each project's retention period (default 90 days) and hourly rollups older than 90 days. Each issue keeps at most its newest 1,000 occurrences.
+- Run `bin/rails goodsorcery:prune` daily (cron or a Kamal accessory). It deletes occurrences older than each project's retention period (default 90 days), affected-user records and tag values of issues not seen within that period, hourly rollups older than 90 days and inbound events that failed to process for over a day. Each issue keeps at most its newest 1,000 occurrences.
 - `bin/rails goodsorcery:requeue_stale` re-enqueues events that were accepted but have not been processed after 10 minutes (for example after a Redis outage). Processing is idempotent, so a requeued event that was in fact processed is a no-op.
 - Accepted bodies wait in the `inbound_events` table (encrypted) until processed; job arguments hold only the record's GlobalID, so Redis never sees event data. Events that turn out to be malformed or duplicates are discarded and logged by id only.
 - Production needs the Active Record encryption keys, either in credentials (`active_record_encryption.primary_key`, `deterministic_key`, `key_derivation_salt`) or as the env vars `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY`, `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` and `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT`. Generate them with `bin/rails db:encryption:init`. Losing them makes stored events unreadable.
 - Other environment variables:
-  - `GOODSORCERY_PUBLIC_URL` sets the endpoint shown in the setup page's install snippets (for example `https://errors.example.com`). Without it, the URL the dashboard was reached on is shown.
-  - `GOODSORCERY_DISABLE_SIGNUPS=1` turns off public sign-up and sends visitors to sign-in.
+  - `GOODSORCERY_PUBLIC_URL` (**required in production**, for example `https://errors.example.com`) is this instance's public URL. It is the endpoint shown in the setup page's install snippets, the host of links in emails (password resets) and the only host the app answers to (DNS rebinding protection; `/up` answers on any host). Production refuses to boot without it.
+  - `GOODSORCERY_EXTRA_HOSTS` adds comma-separated host names the app also answers to.
+  - `GOODSORCERY_MAIL_FROM` sets the sender of emails; the default is `Good Sorcery <no-reply@<public host>>`.
+  - Sign-up is open only until the first account exists. `GOODSORCERY_ENABLE_SIGNUPS=1` keeps it open (the hosted service); `GOODSORCERY_DISABLE_SIGNUPS=1` turns it off completely and sends visitors to sign-in.
   - `GOODSORCERY_HOSTED=1` marks the instance as the hosted service; leave it unset when self-hosting.
