@@ -1,0 +1,70 @@
+{
+  "occurred_at": "OCCURRED_AT",
+  "level": "error",
+  "release": "a1b2c3d",
+  "transaction": "CheckoutsController#create",
+  "exception": {
+    "class": "NoMethodError",
+    "message": "undefined method `price_cents' for nil (cart 88123, mara@example.com, card 4111 1111 1111 1111)",
+    "backtrace": [
+      {
+        "file": "/srv/shop/releases/20261004091400/app/services/cart_total.rb",
+        "line": 42,
+        "method": "line_total",
+        "context": {
+          "start_line": 39,
+          "lines": [
+            "def line_total(item)",
+            "  variant = item.variant || item.product.default_variant",
+            "  # TODO: handle discontinued variants",
+            "  variant.price_cents * item.quantity",
+            "end"
+          ]
+        },
+        "locals": { "item": "#<CartItem id: 88123, variant_id: 4410>", "variant": "nil", "api_key": "sk_live_abc123" }
+      },
+      { "file": "app/models/order.rb", "line": 112, "method": "build_from_cart", "in_app": true },
+      { "file": "/usr/local/bundle/ruby/3.4.0/gems/activerecord-8.0.1/lib/active_record/relation.rb", "line": 338, "method": "records" },
+      { "file": "/home/deploy/.rbenv/versions/3.4.1/lib/ruby/3.4.0/monitor.rb", "line": 201, "method": "synchronize" }
+    ]
+  },
+  "request": {
+    "url": "https://shop.acme.dev/checkout?coupon=FALL25&token=abcdef123456",
+    "method": "POST",
+    "format": "text/html",
+    "request_id": "7d4c2a91-1e0f-4b8e-a2d1-55f0c8e1b0aa",
+    "remote_ip": "81.2.69.160",
+    "params": {
+      "cart_id": 88123,
+      "coupon": "FALL25",
+      "password": "hunter2",
+      "card_number": "4242424242424242",
+      "note": "pay with 4242 4242 4242 4242 please",
+      "loyalty_number": "LOY-99812",
+      "order": { "user": { "otp": "123456", "address": "1 Main St" } }
+    },
+    "headers": {
+      "Accept": "text/html",
+      "Authorization": "Bearer abc.def.ghi",
+      "Cookie": "_shop_session=deadbeef",
+      "X-Forwarded-Auth": "Bearer sometoken123",
+      "X-Debug": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI1NTIxIn0.c2lnbmF0dXJl",
+      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)"
+    },
+    "session": { "user_id": 5521, "session_id": "abc123", "csrf_token": "xyz" }
+  },
+  "user": { "id": 5521, "email": "Mara@Example.com", "username": "mara", "name": "Mara Lindqvist", "phone": "+44 7700 900123" },
+  "breadcrumbs": [
+    { "timestamp": "CRUMB_AT", "category": "request", "message": "POST /checkout" },
+    { "timestamp": "CRUMB_AT", "category": "sql", "level": "debug", "message": "User Load (0.6ms)", "data": { "sql": "SELECT 1", "password": "x" } },
+    { "timestamp": "CRUMB_AT", "category": "weird", "level": "loud", "message": "GET https://api.example.com/v2?api_key=secret123&page=2" }
+  ],
+  "context": {
+    "runtime": { "ruby": "3.4.1 (YJIT on)", "rails": "8.0.1" },
+    "host": "web-7f9c-2",
+    "process": "puma · pid 4412 · thread 23",
+    "env": { "RAILS_ENV": "production", "SECRET_KEY_BASE": "abc", "DATABASE_URL": "postgres://shop:s3cret@db:5432/shop" }
+  },
+  "tags": { "browser": "Mobile Safari", "coupon": "FALL25", "environment": "spoofed", "bad key!": "x", "nested": { "a": 1 }, "build": 42 },
+  "notifier": { "name": "goodsorcery-ruby", "version": "0.1.0" }
+}

@@ -1,0 +1,86 @@
+#!/usr/bin/env ruby
+# Posts a realistic sample error event to a Good Sorcery ingest endpoint.
+#
+#   bin/send_test_event [API_KEY] [HOST]
+#   GOODSORCERY_API_KEY=gs_test_... GOODSORCERY_HOST=http://localhost:3000 bin/send_test_event
+#
+# Options (ENV): EVENT_ID (reuse to test idempotency), GZIP=1 (gzip the body),
+# EXCEPTION_CLASS (vary to create a different issue).
+# Prints the HTTP status and response body; exits non-zero unless 202.
+# The sample data below is fictional.
+require "json"
+require "net/http"
+require "securerandom"
+require "time"
+require "uri"
+require "zlib"
+
+api_key = ARGV[0] || ENV["GOODSORCERY_API_KEY"]
+host = ARGV[1] || ENV.fetch("GOODSORCERY_HOST", "http://localhost:3000")
+abort "usage: bin/send_test_event API_KEY [HOST]  (or set GOODSORCERY_API_KEY / GOODSORCERY_HOST)" if api_key.to_s.empty?
+
+now = Time.now.utc
+at = ->(seconds_ago) { (now - seconds_ago).iso8601(3) }
+
+event = {
+  event_id: ENV["EVENT_ID"] || SecureRandom.uuid,
+  occurred_at: at.(0),
+  level: "error",
+  release: "a1b2c3d",
+  transaction: "CheckoutsController#create",
+  exception: {
+    class: ENV.fetch("EXCEPTION_CLASS", "NoMethodError"),
+    message: "undefined method `price_cents' for nil (cart 88123)",
+    backtrace: [
+      { file: "app/services/cart_total.rb", line: 42, method: "line_total", in_app: true,
+        context: { start_line: 39, lines: [ "def line_total(item)", "  variant = item.variant || item.product.default_variant",
+                                            "  # TODO: handle discontinued variants", "  variant.price_cents * item.quantity", "end" ] },
+        locals: { item: "#<CartItem id: 88123, variant_id: 4410>", variant: "nil" } },
+      { file: "app/services/cart_total.rb", line: 18, method: "block in total", in_app: true },
+      { file: "app/controllers/checkouts_controller.rb", line: 14, method: "create", in_app: true },
+      { file: "gems/activerecord-8.0.1/lib/active_record/relation.rb", line: 338, method: "records", in_app: false },
+      { file: "gems/actionpack-8.0.1/lib/abstract_controller/base.rb", line: 226, method: "process_action", in_app: false }
+    ]
+  },
+  request: {
+    url: "https://shop.example.test/checkout?coupon=FALL25&token=abc123",
+    method: "POST", format: "text/html", request_id: SecureRandom.uuid, remote_ip: "203.0.113.24",
+    params: { cart_id: 88123, coupon: "FALL25", card_number: "4242424242424242", password: "hunter2" },
+    headers: { "Accept" => "text/html", "User-Agent" => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0)", "Cookie" => "_shop_session=deadbeef" },
+    session: { user_id: 5521, cart_id: 88123 }
+  },
+  user: { id: "5521", email: "mara@example.com", username: "mara", name: "Mara Lindqvist" },
+  breadcrumbs: [
+    { timestamp: at.(0.412), category: "request", message: "POST /checkout" },
+    { timestamp: at.(0.371), category: "sql", level: "debug", message: "User Load (0.6ms)",
+      data: { sql: "SELECT \"users\".* FROM \"users\" WHERE \"id\" = $1" } },
+    { timestamp: at.(0.290), category: "http", message: "GET api.taxjar.com/v2/rates/94107", data: { status: 200, duration_ms: 212 } },
+    { timestamp: at.(0.021), category: "log", level: "warning", message: "Cart 88123 contains discontinued variant 4410" }
+  ],
+  context: {
+    runtime: { ruby: RUBY_VERSION, rails: "8.1.4" },
+    host: "web-7f9c-2",
+    process: "puma · pid #{Process.pid}",
+    env: { RAILS_ENV: "production" }
+  },
+  tags: { browser: "Mobile Safari", coupon: "FALL25" },
+  notifier: { name: "goodsorcery-send-test-event", version: "0.1.0" }
+}
+
+uri = URI.join(host, "/api/v1/events")
+request = Net::HTTP::Post.new(uri)
+request["Authorization"] = "Bearer #{api_key}"
+request["Content-Type"] = "application/json"
+request["User-Agent"] = "goodsorcery-send-test-event/0.1.0"
+body = JSON.generate(event)
+if ENV["GZIP"] == "1"
+  request["Content-Encoding"] = "gzip"
+  body = Zlib.gzip(body)
+end
+request.body = body
+
+response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: 5, read_timeout: 10) do |http|
+  http.request(request)
+end
+puts "#{response.code} #{response.body}"
+exit(response.code == "202" ? 0 : 1)
