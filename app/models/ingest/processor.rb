@@ -26,7 +26,7 @@ class Ingest::Processor
     end
 
     def record(event)
-      tally = Ingest::IssueTally.new(project, event)
+      tally = Ingest::IssueTally.new(project, event).prepare
       issue = ApplicationRecord.transaction { record_occurrence(tally, event) }
       return discard("duplicate") unless issue
 
@@ -34,14 +34,19 @@ class Ingest::Processor
       issue
     end
 
+    # Locks are taken in one order by every processor: per-issue rows, the
+    # issue row, and last the project's hourly row, which every event of the
+    # project, environment and hour needs, so it is held only until COMMIT.
     def record_occurrence(tally, event)
       issue_id = tally.find_or_create_issue_id
       raise ActiveRecord::Rollback unless insert_occurrence(issue_id, event)
 
-      issue = tally.count(new_user: Ingest::Rollups.new(issue_id, project, event).increment)
+      rollups = Ingest::Rollups.new(issue_id, project, event)
+      issue = tally.count(new_user: rollups.increment_issue)
       record_regression(issue)
       project.record_first_event(runtime_label: event.runtime_label, at: event.occurred_at) if tally.created?
       inbound_event.delete
+      rollups.increment_project
       issue
     end
 

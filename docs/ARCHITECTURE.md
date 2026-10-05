@@ -398,27 +398,29 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
 load inbound_event (job) + project (1 query)
 event = Ingest::Event.from_json(...)            # MalformedPayload → inbound_event.destroy; log id only; return
 issue = nil
+tally = Ingest::IssueTally.new(project, event).prepare   # SELECT id …; if none: allocate the number now, in its own statement
 ApplicationRecord.transaction do
-  tally    = Ingest::IssueTally.new(project, event)
-  issue_id = tally.find_or_create_issue_id     # SELECT id …; if none: allocate number, INSERT … ON CONFLICT DO NOTHING RETURNING id; reselect on conflict
+  issue_id = tally.find_or_create_issue_id     # if none: INSERT … ON CONFLICT DO NOTHING RETURNING id; reselect on conflict
   Occurrence.insert(…, unique_by: %i[project_id uuid], returning: %i[id])  → empty result ⇒ duplicate ⇒ raise ActiveRecord::Rollback
-  new_user = Ingest::Rollups.new(issue_id, project, event).increment   # issue hourly, project hourly, tags (multi-row, sorted), issue_users
-  issue    = tally.count(new_user:)            # the ONLY lock on the issue row, held until commit
+  rollups  = Ingest::Rollups.new(issue_id, project, event)
+  new_user = rollups.increment_issue           # issue hourly, tags (multi-row, sorted, bounded), issue_users
+  issue    = tally.count(new_user:)            # the ONLY lock on the issue row (FOR NO KEY UPDATE), held until commit
   IssueActivity regressed row if issue.previous_status == "resolved"
-  project.record_first_event(...) if tally.created?
+  project.record_first_event(...) if tally.created?   # writes only when something changes
   inbound_event.destroy!
+  rollups.increment_project                    # project hourly: the hottest row, locked last
 end
 after commit (only if issue): issue.broadcast_changes_later(created: tally.created?); project.broadcast_changes_later;
                                TrimOccurrencesJob.perform_later(issue) if (issue.events_count % 250).zero?
 ```
 
 **Issue creation** (only when the plain `SELECT id FROM issues WHERE project_id = ? AND fingerprint = ?` finds nothing):
-`project.allocate_issue_number`, then `Issue.insert({ …, events_count: 0, users_count: 0, status: "unresolved", environments: [env], first_seen_at:, last_seen_at: }, unique_by: %i[project_id fingerprint], returning: %i[id])`. If that loses a race (empty result), reselect the id. The burnt number leaves a harmless gap.
+`project.allocate_issue_number` (in `IssueTally#prepare`, before the transaction, so the projects row is not locked for the whole transaction), then `Issue.insert({ …, events_count: 0, users_count: 0, status: "unresolved", environments: [env], first_seen_at:, last_seen_at: }, unique_by: %i[project_id fingerprint], returning: %i[id])`. If that loses a race (empty result), reselect the id. The burnt number leaves a harmless gap.
 
 **Counting** (`IssueTally#count`): a single statement via `Issue.find_by_sql`, so it needs no extra query and returns an `Issue` with the extra attribute `previous_status`:
 ```sql
 WITH previous AS (
-  SELECT id, status FROM issues WHERE id = :issue_id FOR UPDATE
+  SELECT id, status FROM issues WHERE id = :issue_id FOR NO KEY UPDATE
 )
 UPDATE issues SET
   events_count  = issues.events_count + 1,
@@ -434,16 +436,16 @@ UPDATE issues SET
 FROM previous WHERE issues.id = previous.id
 RETURNING issues.*, previous.status AS previous_status
 ```
-Ignored issues stay ignored. Only `resolved` regresses.
+Ignored issues stay ignored. Only `resolved` regresses. The lock is `FOR NO KEY UPDATE`, not `FOR UPDATE`: the occurrence, rollup and activity inserts take `FOR KEY SHARE` on the issue through their foreign keys, and `FOR UPDATE` conflicts with that, which deadlocked concurrent events of one issue (`test/models/ingest/concurrent_processing_test.rb`).
 
-**Rollups** (`Ingest::Rollups#increment`), all `upsert`/`upsert_all` with `on_duplicate: Arel.sql(...)` and `record_timestamps: false`:
+**Rollups** (`Ingest::Rollups#increment_issue`, then `#increment_project` last), all `upsert`/`upsert_all` with `on_duplicate: Arel.sql(...)` and `record_timestamps: false`:
 - `issue_hourly_counts (issue_id, hour)`: `count = issue_hourly_counts.count + 1`
 - `project_hourly_counts (project_id, environment, hour)`: `count + 1`
-- `issue_tag_counts`: one multi-row upsert, rows **sorted by `[key, value_digest]`** to avoid deadlocks; `count + 1`. The encrypted `value` is written only on insert.
+- `issue_tag_counts`: one multi-row upsert, rows **sorted by `[key, value_digest]`** to avoid deadlocks; `count + 1`. The encrypted `value` is written only on insert. `Ingest::TagRows` bounds the table per issue: at most `IssueTagCount::VALUES_PER_KEY` (100) values per key, later new values counting towards one "Other values" row (`value_digest = "other"`), and at most `KEYS_PER_ISSUE` (40) keys, later new keys being dropped. Known values cost one indexed lookup.
 - `issue_users` (when the event has an identity): `on_duplicate: "events_count = issue_users.events_count + 1, last_seen_at = GREATEST(issue_users.last_seen_at, EXCLUDED.last_seen_at)"`, `returning: Arel.sql("(xmax = 0) AS inserted")`, so `new_user? = inserted`.
 
 **Lock ordering and concurrency:**
-- Hot rows are touched last and in a fixed order: the issue/project rows for a new issue, then rollups, then the issue counter UPDATE. Transactions stay short.
+- Hot rows are touched last and in a fixed order: per-issue rollups, then the issue counter UPDATE, then the project hourly row (shared by every event of the project, environment and hour) as the last statement before COMMIT. A new issue's number is reserved before the transaction. Transactions stay short.
 - The job uses `retry_on ActiveRecord::Deadlocked, wait: :polynomially_longer, attempts: 5` and `discard_on ActiveJob::DeserializationError` (the inbound event was already processed).
 - Redelivery is safe: the `inbound_event.destroy!` commits atomically with the counts, and occurrence uniqueness on `(project_id, uuid)` drops client retries.
 - Known ceiling: a single extremely hot issue serialises on its counter rows. Buffering counters in Redis is future work and is not built in v1.
@@ -714,8 +716,8 @@ All dashboard controllers inherit `ApplicationController`. Feature controllers `
 - **Broadcasting.** G replaces the A stubs `Issue::Broadcasting` and `Project::Broadcasting`:
   - `Issue#broadcast_changes_later(created: false)`:
     - When `created`, it runs `BroadcastIssueChangesJob.perform_later(self, created: true)` immediately: a prepend into `dom_id(project, :new_issues)` of `turbo_frame_tag(dom_id(issue, :row), src: project_issue_row_path(project, issue), target: "_top")`.
-    - Otherwise it is debounced. When `Rails.cache.write(["live", "issue", id], 1, unless_exist: true, expires_in: 2.seconds)` succeeds, it runs `BroadcastIssueChangesJob.set(wait: 2.seconds).perform_later(self)`, which sends `reload_frame` for the row on `[project, :issues]`, and for stats and chart on `[issue]`.
-  - `Project#broadcast_changes_later` uses the same debounce with key `["live", "project", id]`, then `BroadcastProjectChangesJob`. That job sends `reload_frame` for summary on `[project, :issues]`, for card and recent_issues on `[account, :projects]`, and for listening on `[project, :setup]`.
+    - Otherwise it is debounced. When `Rails.cache.write(["live", "issue", id], 1, unless_exist: true, expires_in: 2.seconds)` succeeds, it runs `BroadcastIssueChangesJob.set(wait: 2.seconds).perform_later(self)`, which sends `reload_frame` for stats and chart on `[issue]`. List rows are reloaded by the project broadcast below.
+  - `Project#broadcast_changes_later` uses the same debounce with key `["live", "project", id]`, then `BroadcastProjectChangesJob`. That job sends `reload_frame` for summary on `[project, :issues]`, for card on `[account, :projects]` and for listening on `[project, :setup]`, plus one `reload_rows` action on `[project, :issues]` (target `dom_id(project, :issues)`, src `project_rows_path`): each browser fetches all its visible row frames in one request (`?ids=…`, at most 200, answered with `turbo_stream.replace` per row and a fixed number of queries). The account-wide recent feed is debounced per account (`["live", "recent_issues", account_id]`) and sent by `BroadcastRecentIssuesJob`, so N busy projects send one feed reload per window, not N.
   - Use `Turbo::StreamsChannel.broadcast_action_to(*streamables, action: :reload_frame, target:, attributes: { src: path })`. Paths come from `Rails.application.routes.url_helpers` inside a small PORO `LiveFrames` (G), which has `#row_path`, `#stats_path` and so on. Job arguments are GlobalIDs only.
 - **Selection survives reloads:** `bulk_selection_controller` (E) keeps selected ids in a Set and re-applies them on `turbo:frame-load`.
 

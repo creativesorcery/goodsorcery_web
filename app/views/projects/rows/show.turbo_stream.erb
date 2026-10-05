@@ -1,0 +1,5 @@
+<% @issues.each do |issue| %>
+  <%= turbo_stream.replace dom_id(issue, :row) do %>
+    <%= render "issues/row", issue:, histogram: @histograms.fetch(issue.id) %>
+  <% end %>
+<% end %>

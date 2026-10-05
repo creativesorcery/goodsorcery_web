@@ -4,6 +4,7 @@ class Project < ApplicationRecord
   COLORS = %w[iris coral lilac mint].freeze
   DEFAULT_ENVIRONMENTS = %w[production staging].freeze
   MAX_PER_ACCOUNT = 100
+  UNRESOLVED_COUNT_TTL = 10.seconds
 
   belongs_to :account, inverse_of: :projects
   has_many :api_keys, -> { order(:id) }, inverse_of: :project
@@ -45,24 +46,40 @@ class Project < ApplicationRecord
     api_keys.min_by(&:id)
   end
 
-  def unresolved_count
-    issues.unresolved.count
+  def unresolved_count(environment = nil)
+    (environment ? issues.in_environment(environment) : issues).unresolved.count
   end
 
-  # Atomically reserves the next per-project issue number (row lock until commit).
+  # For the sidebar badge and the issue list heading, which live reloads
+  # re-render every few seconds during ingest. Only the number is cached;
+  # triage expires it at once (#expire_unresolved_counts).
+  def cached_unresolved_count(environment = nil)
+    Rails.cache.fetch(unresolved_count_key(environment), expires_in: UNRESOLVED_COUNT_TTL) { unresolved_count(environment) }
+  end
+
+  def expire_unresolved_counts
+    Rails.cache.delete_multi([ nil, *environments ].map { |environment| unresolved_count_key(environment) })
+  end
+
+  # Atomically reserves the next per-project issue number. The row stays
+  # locked until commit, so ingest calls it outside the event transaction.
   def allocate_issue_number
     sql = "UPDATE projects SET issues_sequence = issues_sequence + 1 WHERE id = ? RETURNING issues_sequence"
     # uncached: an UPDATE ... RETURNING must never be answered from the query cache.
     self.class.uncached { self.class.connection.select_value(self.class.sanitize_sql([ sql, id ])) }
   end
 
+  # Writes (and locks) the project row only when something changes.
   def record_first_event(runtime_label:, at:)
-    self.class.where(id:).update_all([
+    changes_needed = "first_event_at IS NULL OR runtime_label IS DISTINCT FROM COALESCE(?, runtime_label)"
+    self.class.where(id:).where(changes_needed, runtime_label).update_all([
       "first_event_at = COALESCE(first_event_at, ?), runtime_label = COALESCE(?, runtime_label)", at, runtime_label
     ])
   end
 
   private
+    def unresolved_count_key(environment) = [ "unresolved_count", id, environment ]
+
     def account_has_room
       return unless account && account.projects.count >= MAX_PER_ACCOUNT
 

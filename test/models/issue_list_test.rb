@@ -102,4 +102,11 @@ class IssueListTest < ActiveSupport::TestCase
       ActiveSupport::Notifications.subscribed(counter, "sql.active_record", &block)
       count
     end
+
+  test "every sort is backed by an index for the default unresolved list" do
+    indexes = Issue.connection.indexes(:issues).map(&:columns)
+    Issue::SORTS.values.each do |column|
+      assert indexes.any? { |columns| columns.first == "project_id" && columns.last == column.to_s }, "index ending in #{column}"
+    end
+  end
 end

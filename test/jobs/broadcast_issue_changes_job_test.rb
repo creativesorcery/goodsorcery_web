@@ -8,11 +8,10 @@ class BroadcastIssueChangesJobTest < ActiveJob::TestCase
     @project = @issue.project
   end
 
-  test "reloads the issue's list row by pointer" do
+  test "leaves list rows to the project's batched rows reload" do
     BroadcastIssueChangesJob.perform_now(@issue)
 
-    row, = capture_turbo_stream_broadcasts([ @project, :issues ])
-    assert_reload_frame row, "row_issue_#{@issue.id}", "/projects/storefront/issues/GS-1042/row"
+    assert_no_turbo_stream_broadcasts [ @project, :issues ]
   end
 
   test "reloads the stat ribbon and chart on the issue stream" do
@@ -44,7 +43,7 @@ class BroadcastIssueChangesJobTest < ActiveJob::TestCase
     BroadcastIssueChangesJob.perform_now(@issue, created: true)
 
     payloads = broadcasts(stream_name_from([ @project, :issues ])) + broadcasts(stream_name_from([ @issue ]))
-    assert_equal 4, payloads.size
+    assert_equal 3, payloads.size
     payloads.each { |payload| assert_no_captured_data payload }
   end
 

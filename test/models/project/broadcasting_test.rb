@@ -28,6 +28,17 @@ class Project::BroadcastingTest < ActiveSupport::TestCase
     end
   end
 
+  test "the recent feed is debounced per account across projects" do
+    freeze_time do
+      assert_enqueued_jobs 1, only: BroadcastRecentIssuesJob do
+        @project.broadcast_changes_later
+        projects(:billing).broadcast_changes_later
+        projects(:marketing).broadcast_changes_later
+      end
+      assert_enqueued_with job: BroadcastRecentIssuesJob, args: [ accounts(:acme) ], at: 2.seconds.from_now
+    end
+  end
+
   test "projects are debounced independently" do
     assert_enqueued_jobs 2, only: BroadcastProjectChangesJob do
       @project.broadcast_changes_later

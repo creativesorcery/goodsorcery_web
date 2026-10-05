@@ -48,9 +48,9 @@ class IssueSummary
 
   def users_affected = numbers[:users_affected]
 
-  # Not cached, so triage shows up in the heading immediately.
+  # Cached briefly and expired by triage, so triage shows up at once.
   def unresolved_count
-    @unresolved_count ||= issues.unresolved.count
+    @unresolved_count ||= project.cached_unresolved_count(environment)
   end
 
   private

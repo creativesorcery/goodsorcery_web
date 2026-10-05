@@ -17,6 +17,23 @@ class Issue::TriageTest < ActiveSupport::TestCase
     assert_equal @philip, issue.activities.recent.first.user
   end
 
+  test "triage expires the cached unresolved counts at once" do
+    original = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    project = projects(:storefront)
+    before = project.cached_unresolved_count
+    staging = project.cached_unresolved_count("staging")
+
+    issues(:nomethod).resolve(by: @philip)
+    assert_equal before - 1, project.cached_unresolved_count
+
+    Issue.where(id: issues(:regressed).id).resolve_all(by: @philip)
+    assert_equal before - 2, project.cached_unresolved_count
+    assert_operator project.cached_unresolved_count("staging"), :<=, staging
+  ensure
+    Rails.cache = original
+  end
+
   test "resolving twice records one activity" do
     issue = issues(:nomethod)
     assert_difference -> { issue.activities.count } => 1 do

@@ -101,4 +101,15 @@ class ProjectOverviewTest < ActiveSupport::TestCase
       ActiveSupport::Notifications.subscribed(callback, "sql.active_record", &block)
       statements
     end
+
+  test "last seen times come from one index probe per project, not a grouped scan of all issues" do
+    overview = ProjectOverview.new(accounts(:acme).projects.order(:name))
+    sql = nil
+    callback = ->(*, payload) { sql ||= payload[:sql] if payload[:sql].include?("MAX(issues.last_seen_at)") }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { overview.cards }
+
+    assert_includes sql, "WHERE issues.project_id = projects.id"
+    assert_equal projects(:storefront).issues.maximum(:last_seen_at), overview.card_for(projects(:storefront)).last_seen_at
+    assert_nil overview.card_for(projects(:marketing)).last_seen_at
+  end
 end

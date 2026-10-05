@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_05_000014) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_05_000015) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -66,6 +66,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_000014) do
     t.bigint "issue_id", null: false
     t.datetime "hour", null: false
     t.integer "count", default: 0, null: false
+    t.index ["hour"], name: "index_issue_hourly_counts_on_hour"
   end
 
   create_table "issue_tag_counts", primary_key: ["issue_id", "key", "value_digest"], force: :cascade do |t|
@@ -113,9 +114,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_000014) do
     t.index ["environments"], name: "index_issues_on_environments", using: :gin
     t.index ["project_id", "fingerprint"], name: "index_issues_on_project_id_and_fingerprint", unique: true
     t.index ["project_id", "first_seen_at"], name: "index_issues_on_project_id_and_first_seen_at"
+    t.index ["project_id", "last_seen_at"], name: "index_issues_on_project_id_and_last_seen_at"
     t.index ["project_id", "number"], name: "index_issues_on_project_id_and_number", unique: true
     t.index ["project_id", "status", "events_count"], name: "index_issues_on_project_id_and_status_and_events_count"
     t.index ["project_id", "status", "last_seen_at"], name: "index_issues_on_project_id_and_status_and_last_seen_at"
+    t.index ["project_id", "status", "users_count"], name: "index_issues_on_project_id_and_status_and_users_count"
     t.index ["search_text"], name: "index_issues_on_search_text", opclass: :gin_trgm_ops, using: :gin
   end
 
@@ -151,6 +154,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_05_000014) do
     t.string "environment", null: false
     t.datetime "hour", null: false
     t.bigint "count", default: 0, null: false
+    t.index ["hour"], name: "index_project_hourly_counts_on_hour"
     t.index ["project_id", "hour"], name: "index_project_hourly_counts_on_project_id_and_hour"
   end
 

@@ -8,19 +8,22 @@ class BroadcastProjectChangesJobTest < ActiveJob::TestCase
     @account = @project.account
   end
 
-  test "reloads the issue list summary strip" do
+  test "reloads the issue list summary strip and all visible rows in one action" do
     BroadcastProjectChangesJob.perform_now(@project)
 
-    summary, = capture_turbo_stream_broadcasts([ @project, :issues ])
+    summary, rows = capture_turbo_stream_broadcasts([ @project, :issues ])
     assert_reload_frame summary, "summary_project_#{@project.id}", "/projects/storefront/summary"
+    assert_equal "reload_rows", rows["action"]
+    assert_equal "issues_project_#{@project.id}", rows["target"]
+    assert_equal "/projects/storefront/rows", rows["src"]
   end
 
-  test "reloads the overview card and the recent feed on the account stream" do
+  test "reloads the overview card; the recent feed is left to the per-account job" do
     BroadcastProjectChangesJob.perform_now(@project)
 
-    card, recent = capture_turbo_stream_broadcasts([ @account, :projects ])
+    card, *others = capture_turbo_stream_broadcasts([ @account, :projects ])
     assert_reload_frame card, "card_project_#{@project.id}", "/projects/storefront/card"
-    assert_reload_frame recent, "recent_issues_account_#{@account.id}", "/recent_issues"
+    assert_empty others
   end
 
   test "reloads the setup page listening panel" do
@@ -43,7 +46,7 @@ class BroadcastProjectChangesJobTest < ActiveJob::TestCase
 
     payloads = [ [ @project, :issues ], [ @account, :projects ], [ @project, :setup ] ]
       .flat_map { |streamables| broadcasts(stream_name_from(streamables)) }
-    assert_equal 4, payloads.size
+    assert_equal 4, payloads.size, "summary, rows, card, listening"
     captured = @project.issues.pluck(:message, :exception_class, :culprit).flatten.compact_blank
     payloads.each do |payload|
       captured.each { |value| assert_not_includes payload, value }

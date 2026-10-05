@@ -65,10 +65,7 @@ module NavigationHelper
 
   # Badge count: a number only, cached briefly (never any issue text).
   def sidebar_unresolved_count
-    project = sidebar_project
-    return 0 unless project
-
-    Rails.cache.fetch([ "sidebar", "unresolved", project.id ], expires_in: 30.seconds) { project.unresolved_count }
+    sidebar_project&.cached_unresolved_count || 0
   end
 
   # "Acme Labs · Hosted" / "Acme Labs · Self-hosted"

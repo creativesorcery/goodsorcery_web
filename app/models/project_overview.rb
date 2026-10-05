@@ -7,6 +7,9 @@
 class ProjectOverview
   SPARKLINE_DAYS = 14
   HEALTH_HOURS = 24
+  # One backward index probe per project on issues(project_id, last_seen_at),
+  # instead of a grouped scan over every issue of every project.
+  LAST_SEEN_SQL = "(SELECT MAX(issues.last_seen_at) FROM issues WHERE issues.project_id = projects.id)".freeze
 
   Card = Data.define(:project, :unresolved_count, :new_count, :last_seen_at, :environments, :daily_series, :health) do
     # Changes whenever anything drawn on the card changes. Only ids, names and
@@ -62,7 +65,7 @@ class ProjectOverview
     end
 
     def last_seen
-      @last_seen ||= issues.group(:project_id).maximum(:last_seen_at)
+      @last_seen ||= Project.where(id: project_ids).pluck(:id, Arel.sql(LAST_SEEN_SQL)).to_h.compact
     end
 
     # Plucks names only, so no encrypted token is ever loaded for the overview.

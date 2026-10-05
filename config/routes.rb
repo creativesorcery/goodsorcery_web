@@ -23,6 +23,7 @@ Rails.application.routes.draw do
       resource :card, only: :show
       resource :listening, only: :show
       resource :summary, only: :show
+      resource :rows, only: :show
       resource :bulk_triage, only: :create
       resources :api_keys, only: %i[show create] do
         scope module: :api_keys do

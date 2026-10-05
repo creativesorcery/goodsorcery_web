@@ -83,7 +83,10 @@ module Issue::Triage
       def broadcast_triage(ids)
         issues = unscoped { where(id: ids).includes(:project).to_a }
         issues.each(&:broadcast_changes_later)
-        issues.map(&:project).uniq.each(&:broadcast_changes_later)
+        issues.map(&:project).uniq.each do |project|
+          project.expire_unresolved_counts
+          project.broadcast_changes_later
+        end
       end
   end
 
@@ -94,6 +97,7 @@ module Issue::Triage
         activities.create!(kind:, user: by, subject_user:)
       end
       broadcast_changes_later
+      project.expire_unresolved_counts
       project.broadcast_changes_later
       self
     end

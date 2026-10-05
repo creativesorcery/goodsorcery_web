@@ -4,6 +4,7 @@
 #
 #   LiveFrames.new(issue.project, issue).issue_frames.each(&:reload)
 #   LiveFrames.new(project).project_frames.each(&:reload)
+#   LiveFrames.recent_issues(account).reload
 class LiveFrames
   include ActionView::RecordIdentifier
   include Rails.application.routes.url_helpers
@@ -16,12 +17,27 @@ class LiveFrames
     end
   end
 
+  # All issue-list rows on screen at once: #reload sends a `reload_rows`
+  # stream action carrying only the list's dom id and the rows endpoint, and
+  # each browser fetches its visible rows in one request.
+  Rows = Data.define(:streamables, :target, :src) do
+    def reload
+      Turbo::StreamsChannel.broadcast_action_to(*streamables, action: :reload_rows, target:, attributes: { src: })
+    end
+  end
+
   # Stream names, shared by the broadcasts below and the views' live_stream_from.
   class << self
     def projects_stream(account) = [ account, :projects ]
     def issues_stream(project) = [ project, :issues ]
     def issue_stream(issue) = [ issue ]
     def setup_stream(project) = [ project, :setup ]
+
+    # The account-wide feed on the overview; broadcast once per account per window.
+    def recent_issues(account)
+      helpers = Rails.application.routes.url_helpers
+      Frame.new(projects_stream(account), ActionView::RecordIdentifier.dom_id(account, :recent_issues), helpers.recent_issues_path)
+    end
   end
 
   attr_reader :project, :issue
@@ -31,9 +47,10 @@ class LiveFrames
     @issue = issue
   end
 
-  def issue_frames = [ row, stats, chart ]
+  # The issue page's frames; list rows reload with the project (#rows).
+  def issue_frames = [ stats, chart ]
 
-  def project_frames = [ summary, card, recent_issues, listening ]
+  def project_frames = [ summary, card, listening, rows ]
 
   def row = Frame.new(issues_stream, dom_id(issue, :row), project_issue_row_path(project, issue))
 
@@ -45,7 +62,12 @@ class LiveFrames
 
   def card = Frame.new(projects_stream, dom_id(project, :card), project_card_path(project))
 
-  def recent_issues = Frame.new(projects_stream, dom_id(account, :recent_issues), recent_issues_path)
+  def recent_issues = self.class.recent_issues(account)
+
+  def rows = Rows.new(issues_stream, rows_target, project_rows_path(project))
+
+  # The issue list section whose row frames `reload_rows` refreshes.
+  def rows_target = dom_id(project, :issues)
 
   def listening = Frame.new(setup_stream, dom_id(project, :listening), project_listening_path(project))
 

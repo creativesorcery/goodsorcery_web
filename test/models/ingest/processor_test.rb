@@ -35,6 +35,20 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
     assert_equal "GET /users/mara@example.com/reset?x=1", issue.occurrences.sole.data["transaction"]
   end
 
+  test "reserves new issue numbers before the transaction and locks the project hour last" do
+    inbound = inbound_event_for(event_json)
+    statements = []
+    callback = ->(*, payload) { statements << payload[:sql] unless payload[:name] == "SCHEMA" }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { Ingest::Processor.new(inbound).process }
+
+    allocate = statements.index { it.start_with?("UPDATE projects SET issues_sequence") }
+    savepoint = statements.index { it.start_with?("SAVEPOINT") }
+    release = statements.rindex { it.start_with?("RELEASE SAVEPOINT") }
+    assert_operator allocate, :<, savepoint, "number reserved outside the event transaction"
+    assert_match(/\AINSERT INTO "project_hourly_counts"/, statements[release - 1])
+    assert_match(/FOR NO KEY UPDATE/, statements.find { it.include?("WITH previous AS") })
+  end
+
   test "groups two events with the same fingerprint into one issue" do
     first = process_event(event_json)
     second = process_event(event_json("full", user: { id: 9, email: "jo@example.com", username: "jo" }))

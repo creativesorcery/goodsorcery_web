@@ -1,6 +1,7 @@
 # Atomic counter upserts for one event: issue and project hourly counts, tag
 # value counts and the affected-user row. Multi-row upserts are sorted so
-# concurrent transactions lock rows in the same order.
+# concurrent transactions lock rows in the same order. The project hour is a
+# separate step so the processor can lock that hot row last.
 class Ingest::Rollups
   USER_ON_DUPLICATE = <<~SQL.squish.freeze
     events_count = issue_users.events_count + 1,
@@ -13,12 +14,16 @@ class Ingest::Rollups
     @issue_id, @project, @event = issue_id, project, event
   end
 
-  # Returns true when this is the first event of this user for the issue.
-  def increment
+  # Per-issue rows. Returns true when this is the first event of this user for the issue.
+  def increment_issue
     increment_issue_hour
-    increment_project_hour
     increment_tags
     increment_user
+  end
+
+  def increment_project
+    ProjectHourlyCount.upsert({ project_id: @project.id, environment: @event.environment, hour:, count: 1 },
+                              on_duplicate: Arel.sql("count = project_hourly_counts.count + 1"), record_timestamps: false)
   end
 
   private
@@ -29,21 +34,11 @@ class Ingest::Rollups
                               on_duplicate: Arel.sql("count = issue_hourly_counts.count + 1"), record_timestamps: false)
     end
 
-    def increment_project_hour
-      ProjectHourlyCount.upsert({ project_id: @project.id, environment: @event.environment, hour:, count: 1 },
-                                on_duplicate: Arel.sql("count = project_hourly_counts.count + 1"), record_timestamps: false)
-    end
-
     def increment_tags
-      return if tag_rows.empty?
+      rows = Ingest::TagRows.new(@issue_id, @event.tags).to_a
+      return if rows.empty?
 
-      IssueTagCount.upsert_all(tag_rows, on_duplicate: Arel.sql("count = issue_tag_counts.count + 1"), record_timestamps: false)
-    end
-
-    def tag_rows
-      @tag_rows ||= @event.tags.map do |key, value|
-        { issue_id: @issue_id, key:, value_digest: IssueTagCount.value_digest(key, value), value:, count: 1 }
-      end.sort_by { |row| row.values_at(:key, :value_digest) }
+      IssueTagCount.upsert_all(rows, on_duplicate: Arel.sql("count = issue_tag_counts.count + 1"), record_timestamps: false)
     end
 
     def increment_user

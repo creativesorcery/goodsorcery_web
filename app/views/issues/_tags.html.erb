@@ -8,7 +8,7 @@
         <div>
           <div class="flex justify-between gap-3 text-ink-300">
             <span class="font-mono truncate"><%= key.key %></span>
-            <span class="text-ink-400 shrink-0"><%= pluralize(key.distinct_count, "value") %></span>
+            <span class="text-ink-400 shrink-0"><%= key.capped? ? "#{key.distinct_count}+ values" : pluralize(key.distinct_count, "value") %></span>
           </div>
           <div class="mt-1.5"><%= stacked_bar_svg(tag_segments(key)) %></div>
           <% if suspicious_tag?(key) %>
