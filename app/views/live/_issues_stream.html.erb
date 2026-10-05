@@ -1,0 +1,3 @@
+<%# Live updates for an issue list (rows, new issues and the summary strip). Render
+    once in issues/index: render "live/issues_stream", project: @project %>
+<%= live_stream_from(*LiveFrames.issues_stream(project)) %>

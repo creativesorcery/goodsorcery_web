@@ -1,6 +1,8 @@
 require "test_helper"
 
 class IssueTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   test "short id combines the project prefix and number" do
     assert_equal "GS-1042", issues(:nomethod).short_id
     assert_equal "GS-1042", issues(:nomethod).to_param
@@ -70,7 +72,7 @@ class IssueTest < ActiveSupport::TestCase
       issues(:nomethod).reload.search_text
   end
 
-  test "broadcast stub is callable" do
-    assert_nil issues(:nomethod).broadcast_changes_later(created: true)
+  test "broadcast_changes_later enqueues a live update (slice G)" do
+    assert_enqueued_with(job: BroadcastIssueChangesJob) { issues(:nomethod).broadcast_changes_later(created: true) }
   end
 end

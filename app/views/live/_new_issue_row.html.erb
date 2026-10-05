@@ -1,0 +1,3 @@
+<%# Live prepend for a brand-new issue: an empty row frame that fetches its own
+    content with the viewer's session. Carries only a dom id and a path. %>
+<%= turbo_frame_tag frame.target, src: frame.src, target: "_top" %>

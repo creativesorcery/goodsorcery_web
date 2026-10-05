@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ProjectTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup { Current.session = sessions(:philip_browser) }
   teardown { Current.reset }
 
@@ -89,7 +91,7 @@ class ProjectTest < ActiveSupport::TestCase
     assert_equal 3, projects(:storefront).unresolved_count
   end
 
-  test "broadcast stub is callable" do
-    assert_nil projects(:storefront).broadcast_changes_later
+  test "broadcast_changes_later enqueues a live update (slice G)" do
+    assert_enqueued_with(job: BroadcastProjectChangesJob) { projects(:storefront).broadcast_changes_later }
   end
 end
