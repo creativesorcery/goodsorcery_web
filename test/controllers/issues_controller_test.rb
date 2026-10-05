@@ -24,6 +24,14 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "a non-scalar or junk page param falls back to the first page" do
+    [ "page[a]=1", "page[]=2", "page=abc" ].each do |query|
+      get "#{project_issues_path(@project)}?#{query}"
+      assert_response :success, query
+      assert_select "##{dom_id(issues(:nomethod), :row)}"
+    end
+  end
+
   test "lists unresolved issues by default" do
     get project_issues_path(@project)
 

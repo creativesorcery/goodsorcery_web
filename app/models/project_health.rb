@@ -2,7 +2,7 @@
 #
 #   listening  no event has arrived yet
 #   all_clear  nothing unresolved
-#   spiking    the current hour has at least 10 events and at least 3x the
+#   spiking    the last 60 minutes have at least 10 events and at least 3x the
 #              average of the previous 23 hours
 #   steady     everything else
 class ProjectHealth
@@ -43,8 +43,16 @@ class ProjectHealth
     end
 
     def spike?
-      current = hourly_totals.last.to_i
+      current = last_hour_events
       current >= SPIKE_MINIMUM && current >= SPIKE_FACTOR * previous_average
+    end
+
+    # Events in the trailing 60 minutes: the current clock hour so far plus the
+    # not-yet-elapsed share of the previous one (evenly spread), so a spike
+    # shows early in the hour too.
+    def last_hour_events
+      previous = hourly_totals[-2].to_i * (1 - TimeSeries.elapsed_fraction(1.hour, now: @now))
+      (hourly_totals.last.to_i + previous).round
     end
 
     def previous_average

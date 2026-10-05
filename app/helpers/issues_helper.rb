@@ -81,7 +81,7 @@ module IssuesHelper
     def hourly_titles(values)
       from = TimeSeries.window_start(1.hour, values.size)
       values.each_with_index.map do |count, index|
-        "#{(from + index.hours).in_time_zone.strftime('%H:00')} · #{pluralize(delimited(count), 'event')}"
+        "#{(from + index.hours).in_time_zone.strftime('%H:%M')} · #{pluralize(delimited(count), 'event')}"
       end
     end
 end

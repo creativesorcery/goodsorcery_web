@@ -32,6 +32,17 @@ class SearchesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to project_issue_path(projects(:billing), issues(:billing_timeout))
   end
 
+  test "a short id shared by two projects (legacy duplicate prefixes) lists both instead of guessing" do
+    projects(:billing).update_column(:issue_prefix, "GS")
+    issues(:billing_timeout).update_column(:number, 1042)
+
+    get search_path(q: "GS-1042")
+
+    assert_response :success
+    assert_select "a[href=?]", project_issue_path(projects(:storefront), issues(:nomethod))
+    assert_select "a[href=?]", project_issue_path(projects(:billing), issues(:billing_timeout))
+  end
+
   test "a short id from another account does not jump" do
     get search_path(q: "UA-1")
 

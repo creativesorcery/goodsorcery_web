@@ -7,11 +7,11 @@ class SearchesController < ApplicationController
 
   def show
     @query = IssueQuery.new(params[:q].is_a?(String) ? params[:q] : "", user: Current.user)
-    issue = short_id_match
-    return redirect_to(project_issue_path(issue.project, issue)) if issue
+    short_id_issues = short_id_matches
+    return redirect_to(project_issue_path(short_id_issues.first.project, short_id_issues.first)) if short_id_issues.one?
 
     @projects = matching_projects
-    @issues = matching_issues
+    @issues = short_id_issues.presence || matching_issues
   end
 
   private
@@ -19,12 +19,14 @@ class SearchesController < ApplicationController
       Current.account.projects
     end
 
-    def short_id_match
+    # Issues with this short id; several only if two projects share a prefix
+    # (set before prefixes had to be unique), in which case all are listed.
+    def short_id_matches
       prefix, number = @query.text.upcase.split("-", 2)
-      return unless @query.chips.empty? && @query.text.match?(Issue::SHORT_ID)
+      return [] unless @query.chips.empty? && @query.text.match?(Issue::SHORT_ID)
 
-      Issue.where(project: account_projects.where(issue_prefix: prefix).select(:id))
-        .includes(:project).order(:id).find_by(number:)
+      Issue.where(project: account_projects.where(issue_prefix: prefix).select(:id), number:)
+        .includes(:project).order(:id).limit(RESULT_LIMIT).to_a
     end
 
     def matching_projects

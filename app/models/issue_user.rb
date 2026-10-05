@@ -11,8 +11,12 @@ class IssueUser < ApplicationRecord
       where(issue:, user_digest: digest).pick(:events_count) || 0
     end
 
-    def distinct_users(project, since:)
-      where(project:, last_seen_at: since..).distinct.count(:user_digest)
+    # issue_users has no environment, so an environment narrows the count to
+    # users of issues seen in that environment.
+    def distinct_users(project, since:, environment: nil)
+      scope = where(project:, last_seen_at: since..)
+      scope = scope.where(issue_id: project.issues.in_environment(environment).select(:id)) if environment
+      scope.distinct.count(:user_digest)
     end
 
     # Digests of a free-text identity under every user namespace, for search.

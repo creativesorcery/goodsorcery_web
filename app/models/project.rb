@@ -24,7 +24,7 @@ class Project < ApplicationRecord
 
   validates :name, presence: true, length: { maximum: 60 }
   validates :slug, presence: true, uniqueness: { scope: :account_id }
-  validates :issue_prefix, format: { with: /\A[A-Z]{1,6}\z/ }
+  validates :issue_prefix, format: { with: /\A[A-Z]{1,6}\z/ }, uniqueness: { scope: :account_id }
   validates :retention_days, numericality: { only_integer: true, in: 1..365 }
   validate :account_has_room, on: :create
 
@@ -88,7 +88,7 @@ class Project < ApplicationRecord
 
     def assign_defaults
       self.slug ||= Project::Slug.new(account, name).unique if account && name.present?
-      self.issue_prefix ||= Project::Slug.prefix_for(slug)
+      self.issue_prefix ||= account ? Project::Slug.unique_prefix_for(account, slug) : Project::Slug.prefix_for(slug)
       self.color = COLORS[account.projects.count % COLORS.size] if account && !color_changed?
     end
 

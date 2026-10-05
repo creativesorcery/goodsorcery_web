@@ -11,6 +11,15 @@ class Project::SlugTest < ActiveSupport::TestCase
     assert_equal "API", Project::Slug.prefix_for("api-2")
   end
 
+  test "unique prefix swaps in a letter when the default is taken in the account" do
+    account = accounts(:acme)
+    assert_equal "STO", Project::Slug.unique_prefix_for(account, "storefront")
+
+    account.projects.create!(name: "Store", issue_prefix: "STO")
+    assert_equal "STOB", Project::Slug.unique_prefix_for(account, "storefront")
+    assert_equal "STO", Project::Slug.unique_prefix_for(accounts(:umbrella), "storefront"), "per account"
+  end
+
   test "prefix is capped and has a fallback" do
     assert_equal "ABCDEF", Project::Slug.prefix_for("a-b-c-d-e-f-g")
     assert_equal "APP", Project::Slug.prefix_for("123")

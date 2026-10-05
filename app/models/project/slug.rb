@@ -11,6 +11,14 @@ class Project::Slug
     prefix.first(6).presence || "APP"
   end
 
+  # prefix_for, made unique within the account by swapping in a letter
+  # ("STO" taken: "STOB", "STOC", …), so global short-id search stays unambiguous.
+  def self.unique_prefix_for(account, slug)
+    base = prefix_for(slug)
+    taken = account.projects.pluck(:issue_prefix).to_set
+    [ base, *("B".."Z").map { |letter| "#{base.first(5)}#{letter}" } ].find { |prefix| !taken.include?(prefix) } || base
+  end
+
   def initialize(account, name)
     @account = account
     @base = name.to_s.parameterize.first(60).delete_suffix("-").presence || FALLBACK

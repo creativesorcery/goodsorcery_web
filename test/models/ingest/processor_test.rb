@@ -183,6 +183,25 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
     assert_not InboundEvent.exists?(inbound.id)
   end
 
+  test "NUL bytes in plaintext columns are dropped instead of poisoning the event" do
+    json = minimal_json(exception: { class: "A\u0000B", message: "a\u0000b",
+                                     backtrace: [ { file: "app/a\u0000b.rb", line: 1, method: "x\u0000y" } ] },
+                        transaction: "t\u0000x", release: "r\u00001", tags: { "k" => "v\u0000w" })
+    issue = process_event(json)
+
+    assert_equal [ "AB", "ab", "tx", "app/ab.rb:1 in xy" ], [ issue.exception_class, issue.message, issue.transaction_name, issue.culprit ]
+    assert_equal "r1", issue.occurrences.sole.release
+  end
+
+  test "an unstorable value is discarded rather than retried forever" do
+    inbound = inbound_event_for(minimal_json)
+    processor = Ingest::Processor.new(inbound)
+    processor.define_singleton_method(:build_event) { raise ArgumentError, "string contains null byte" }
+
+    assert_nil processor.process
+    assert_not InboundEvent.exists?(inbound.id)
+  end
+
   test "processes the pending fixture and removes it" do
     issue = Ingest::Processor.new(inbound_events(:storefront_pending)).process
     assert_equal "NoMethodError", issue.exception_class

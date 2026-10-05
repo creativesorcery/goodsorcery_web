@@ -1,5 +1,7 @@
 # Bounds arbitrary JSON trees (request, params, headers, session, context,
 # breadcrumb data): nesting depth, array length, hash size and string length.
+# `truncate`, which every stored string goes through, also drops NUL bytes:
+# Postgres text cannot hold them.
 class Ingest::TreeLimiter
   TRUNCATED = "[truncated]".freeze
 
@@ -18,7 +20,7 @@ class Ingest::TreeLimiter
   end
 
   def self.truncate(text, max)
-    text = text.to_s
+    text = text.to_s.delete("\u0000")
     text.length > max ? "#{text[0, max - 1]}…" : text
   end
 

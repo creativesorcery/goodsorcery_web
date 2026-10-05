@@ -24,12 +24,15 @@ class Projects::SummariesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "period and environment params" do
+    freeze_time
     get project_summary_path(@project, period: "1h", env: "production")
 
     assert_select ".segmented a[aria-current=true]", "1h"
     assert_select ".segmented a[href=?]", project_summary_path(@project, period: "7d", env: "production")
     assert_select ".eyebrow", "storefront · production"
-    assert_select ".panel", text: /Events · 1h\s*120/
+    events = IssueSummary.new(@project, period: "1h", environment: "production").events
+    assert_operator events, :>=, 120, "this hour so far plus part of the previous one"
+    assert_select ".panel", text: /Events · 1h\s*#{events}/
     assert_select ".text-coral-300", text: /▲ \d+% vs. prev. hour/
   end
 

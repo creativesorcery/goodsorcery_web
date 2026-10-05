@@ -53,6 +53,17 @@ class ProjectTest < ActiveSupport::TestCase
     end
   end
 
+  test "issue prefixes are unique per account, including derived defaults" do
+    account = accounts(:acme)
+    store = account.projects.create!(name: "Store")
+    storefront = account.projects.create!(name: "Storefront")
+
+    assert_equal [ "STO", "STOB" ], [ store.issue_prefix, storefront.issue_prefix ]
+    duplicate = account.projects.create(name: "Other", issue_prefix: "STO")
+    assert_includes duplicate.errors[:issue_prefix], "has already been taken"
+    assert accounts(:umbrella).projects.create(name: "Other", issue_prefix: "STO").persisted?
+  end
+
   test "scrub fields are normalised" do
     project = projects(:storefront)
     project.update!(scrub_fields: [ " Loyalty_Number ", "", "loyalty_number", "pin" ])

@@ -14,6 +14,11 @@ class TimeSeries
     align(now, step) - ((buckets - 1) * step.to_i)
   end
 
+  # How much of the current bucket has elapsed, 0.0...1.0.
+  def self.elapsed_fraction(step, now: Time.current)
+    (now - align(now, step)) / step.to_f
+  end
+
   # SQL expression that bins the `hour` column into epoch-aligned buckets.
   def self.bucket_sql(step)
     Arel.sql(format("date_bin('%d seconds', hour, TIMESTAMP '1970-01-01')", step.to_i))

@@ -94,7 +94,7 @@ Indexes: unique `[account_id, user_id]`, `[user_id]`.
 | slug | string | false | | `name.parameterize`. Unique per account; `-2`, `-3` suffix on collision; immutable |
 | platform | string | false | `"rails"` | enum: `rails`, `rails_api`, `sidekiq`, `ruby` |
 | runtime_label | string | true | | e.g. "Rails 8.0 · Ruby 3.4". Set when a new issue is created (§2.5) |
-| issue_prefix | string | false | | `/\A[A-Z]{1,6}\z/`. Default: initials of the slug words, or the first 3 letters when there is one word |
+| issue_prefix | string | false | | `/\A[A-Z]{1,6}\z/`, unique per account. Default: initials of the slug words, or the first 3 letters when there is one word, with a letter swapped in when taken ("STOB") |
 | issues_sequence | integer | false | 0 | per-project short-number counter |
 | color | string | false | `"iris"` | enum `iris coral lilac mint`. Rotated by `account.projects.count % 4` on create |
 | scrub_fields | string, array | false | `[]` | extra server-side scrub keys |
@@ -293,14 +293,14 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
   - `RETAINED_PER_ISSUE = 1_000`.
 - **IssueHourlyCount**:
   - `.histograms(issue_ids, hours: 24)` returns `{ issue_id => [Integer] * hours }` in one grouped query, zero-filled via `TimeSeries`.
-  - `.series(issue, period)` takes period `"24h"` (24 hourly buckets), `"7d"` (28 six-hour buckets) or `"30d"` (30 daily buckets, UTC days) and returns `[[bucket_start, count], …]`. One query using `date_bin`/`date_trunc`.
+  - `.series(issue, period)` takes period `"24h"` (24 hourly buckets), `"7d"` (28 six-hour buckets) or `"30d"` (30 daily buckets, the viewer's local days via `DATE((hour AT TIME ZONE 'UTC') AT TIME ZONE zone)`) and returns `[[bucket_start, count], …]`. One query using `date_bin`/`date_trunc`.
 - **ProjectHourlyCount**:
   - `.daily_series(project_ids, days: 14)` returns `{ project_id => [Integer]*14 }`.
   - `.hourly_totals(project_ids, hours: 24)` returns `{ project_id => [Integer]*24 }`.
   - `.total(project, from:, to:, environment: nil)`.
   - `.series(project, from:, buckets:, environment: nil)` serves the summary sparkline.
 - **IssueTagCount**: `encrypts :value`. `.distribution(issue, per_key: 5)` returns `[TagDistribution::Key(key, distinct_count, total, values: [Value(value, count, share)])]` from one window-function query (`ROW_NUMBER() OVER (PARTITION BY key ORDER BY count DESC)`, `COUNT(*) OVER (PARTITION BY key)`, `SUM(count) OVER (PARTITION BY key)`), ordered by key. `TagDistribution` is a small `Data` value in the same file.
-- **IssueUser**: `.count_for(issue, digest)`. `.distinct_users(project, since:)` counts distinct `user_digest`.
+- **IssueUser**: `.count_for(issue, digest)`. `.distinct_users(project, since:, environment: nil)` counts distinct `user_digest`; with an environment, only users of issues seen in it.
 - **IssueActivity**: `enum :kind`; `encrypts :body`; `belongs_to :user, :subject_user` (optional). `scope :recent`.
 - **TimeSeries** (PORO): `TimeSeries.new(counts_by_time, from:, step:, buckets:)#values` and `#points`. Zero-fills and aligns buckets.
 - **PrivateDigest** (§1.6).
@@ -887,7 +887,7 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
   - **Status (`ProjectHealth`, D):**
     - "Listening…" when `listening?` (the card links to setup and shows the ping dot)
     - "✦ All clear" (mint) when 0 unresolved, with the subtitle "N days clean"
-    - "Spiking" (coral and dot) when last-hour events are ≥ 10 and ≥ 3× the average hourly count of the previous 23 hours
+    - "Spiking" (coral and dot) when last-hour events are ≥ 10 and ≥ 3× the average hourly count of the previous 23 hours. Last-hour events are the trailing 60 minutes: the current clock hour plus the unelapsed share of the previous one. The summary strip's events use the same trailing-window estimate for every period, so "1h" early in an hour is not just a few minutes.
     - otherwise "Steady" (iris)
   - Sparkline colour is coral when spiking, mint when all clear, and IRIS otherwise.
   - `ProjectOverview` (D) runs a fixed number of grouped queries for all cards: unresolved counts, new counts, last seen, daily series and hourly totals.

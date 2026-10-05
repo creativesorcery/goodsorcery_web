@@ -17,6 +17,12 @@ class Ingest::Processor
     ApplicationRecord.uncached { record(build_event) }
   rescue Ingest::MalformedPayload
     discard("malformed")
+  rescue ArgumentError => error
+    # Backstop for a value Postgres cannot store ("string contains null
+    # byte"), so such an event is dropped instead of retried forever.
+    raise unless error.message.include?("null byte")
+
+    discard("unstorable")
   end
 
   private

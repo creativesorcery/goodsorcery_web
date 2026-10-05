@@ -2,7 +2,7 @@ require "test_helper"
 
 class ProjectHealthTest < ActiveSupport::TestCase
   setup do
-    @now = Time.current
+    @now = Time.current.end_of_hour # the last 60 minutes are this clock hour
   end
 
   test "listening when no event has arrived, whatever the numbers" do
@@ -22,6 +22,15 @@ class ProjectHealthTest < ActiveSupport::TestCase
   test "spiking at ten or more events and three times the previous average" do
     assert_predicate health_for(projects(:storefront), unresolved: 3, hourly: steady_hours(4) + [ 12 ]), :spiking?
     assert_predicate health_for(projects(:storefront), unresolved: 3, hourly: steady_hours(0) + [ 10 ]), :spiking?
+  end
+
+  test "early in an hour, the last 60 minutes include most of the previous hour" do
+    @now = Time.utc(2026, 10, 4, 10, 5)
+    # 30 events between 09:00 and 10:00, 2 since 10:00, a quiet day before.
+    assert_predicate health_for(projects(:storefront), unresolved: 3, hourly: Array.new(22, 1) + [ 30, 2 ]), :spiking?
+
+    @now = Time.utc(2026, 10, 4, 10, 59)
+    assert_predicate health_for(projects(:storefront), unresolved: 3, hourly: Array.new(22, 1) + [ 30, 2 ]), :steady?
   end
 
   test "steady below the spike minimum even from a quiet baseline" do

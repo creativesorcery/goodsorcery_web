@@ -56,7 +56,7 @@ class IssueSummary
   private
     def numbers
       @numbers ||= Rails.cache.fetch([ "summary", project.id, environment, period.key ], expires_in: CACHE_TTL) do
-        event_numbers.merge(issue_numbers, users_affected: IssueUser.distinct_users(project, since: since))
+        event_numbers.merge(issue_numbers, users_affected: IssueUser.distinct_users(project, since:, environment:))
       end
     end
 
@@ -70,14 +70,28 @@ class IssueSummary
     def event_numbers
       values = event_series
       {
-        events: values.last(period.buckets).sum,
-        previous_events: values.last(period.buckets * 2).first(period.buckets).sum,
+        events: trailing_events(values, 0),
+        previous_events: trailing_events(values, 1),
         sparkline: values.last([ period.buckets, SPARKLINE_MIN_POINTS ].max)
       }
     end
 
+    # Events in the trailing period that ended `offset` periods ago, from
+    # epoch-aligned buckets: the bucket holding the window's end (all of the
+    # current one, so far), the whole buckets in between, and the elapsed
+    # share of the bucket the window starts in. Without that share, "1h" would
+    # count only the current clock hour, a few minutes early in the hour.
+    def trailing_events(values, offset)
+      last = values.size - 1 - (offset * period.buckets)
+      head = offset.zero? ? values[last] : values[last] * elapsed
+      middle = values[(last - period.buckets + 1)...last].sum
+      (head + middle + (values[last - period.buckets] * (1 - elapsed))).round
+    end
+
+    def elapsed = @elapsed ||= TimeSeries.elapsed_fraction(period.step)
+
     def event_series
-      buckets = [ period.buckets * 2, SPARKLINE_MIN_POINTS ].max
+      buckets = [ (period.buckets * 2) + 1, SPARKLINE_MIN_POINTS ].max
       from = TimeSeries.window_start(period.step, buckets)
       ProjectHourlyCount.series(project, from:, buckets:, step: period.step, environment:)
     end

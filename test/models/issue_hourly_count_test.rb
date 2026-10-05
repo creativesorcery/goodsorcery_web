@@ -36,12 +36,27 @@ class IssueHourlyCountTest < ActiveSupport::TestCase
     assert_equal IssueHourlyCount.where(issue: issues(:card_error), hour: points.first.first..).sum(:count), points.sum(&:last)
   end
 
-  test "30d series has 30 UTC day buckets" do
+  test "30d series has 30 day buckets in the given zone" do
     points = IssueHourlyCount.series(issues(:card_error), "30d")
 
     assert_equal 30, points.size
     assert_equal Time.current.utc.beginning_of_day, points.last.first
     assert_equal IssueHourlyCount.where(issue: issues(:card_error)).sum(:count), points.sum(&:last)
+  end
+
+  test "30d days are the viewer's local days" do
+    pacific = ActiveSupport::TimeZone["America/Los_Angeles"]
+    issue = issues(:card_error)
+    IssueHourlyCount.where(issue:).delete_all
+    travel_to Time.utc(2026, 10, 4, 20) do
+      IssueHourlyCount.create!(issue:, hour: Time.utc(2026, 10, 3, 17), count: 1) # Oct 3 10:00 PDT
+
+      points = IssueHourlyCount.series(issue, "30d", zone: pacific)
+      day, count = points.find { |_, n| n.positive? }
+      assert_equal [ Date.new(2026, 10, 3), 1 ], [ day.to_date, count ]
+      assert_equal "America/Los_Angeles", day.time_zone.tzinfo.identifier
+      assert_equal pacific.today, points.last.first.to_date
+    end
   end
 
   test "unknown period falls back to 24h" do

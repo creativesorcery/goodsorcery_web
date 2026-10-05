@@ -27,7 +27,7 @@ class IssueList
   def initialize(project, query, page: 1, sort: nil)
     @project = project
     @query = query
-    @page = page.to_i.clamp(1, MAX_PAGE)
+    @page = Integer(page.to_s, 10, exception: false).to_i.clamp(1, MAX_PAGE) # page[a]=1 must not 500
     @sort = SORT_LABELS.key?(sort.to_s) ? sort.to_s : DEFAULT_SORT
   end
 

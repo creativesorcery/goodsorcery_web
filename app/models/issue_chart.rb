@@ -37,7 +37,8 @@ class IssueChart
     ticks.map { |time| tick_label(time) } << "now"
   end
 
-  def cache_key = [ "issue_chart", issue.id, period ]
+  # Per time zone too: 30d bars are the viewer's local days.
+  def cache_key = [ "issue_chart", issue.id, period, Time.zone.tzinfo.identifier ]
 
   private
     def cached? = period != DEFAULT_PERIOD

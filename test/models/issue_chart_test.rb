@@ -41,14 +41,25 @@ class IssueChartTest < ActiveSupport::TestCase
     assert_match(/· 32 events\z/, chart.titles.last)
   end
 
+  test "a 30d bar's title is the local day its events happened on" do
+    IssueHourlyCount.where(issue: @issue).delete_all
+    travel_to Time.utc(2026, 10, 4, 20) do
+      IssueHourlyCount.create!(issue: @issue, hour: Time.utc(2026, 10, 3, 17), count: 1) # Oct 3 10:00 PDT
+
+      Time.use_zone("America/Los_Angeles") do
+        assert_includes IssueChart.new(@issue, "30d").titles, "Oct 3 · 1 event"
+      end
+    end
+  end
+
   test "caches only the numeric series, and only for 7d and 30d" do
     with_cache_store(ActiveSupport::Cache::MemoryStore.new) do |store|
       IssueChart.new(@issue, "7d").points
       IssueChart.new(@issue, "24h").points
 
-      assert store.exist?([ "issue_chart", @issue.id, "7d" ])
-      assert_not store.exist?([ "issue_chart", @issue.id, "24h" ])
-      cached = store.read([ "issue_chart", @issue.id, "7d" ])
+      assert store.exist?([ "issue_chart", @issue.id, "7d", "Etc/UTC" ])
+      assert_not store.exist?([ "issue_chart", @issue.id, "24h", "Etc/UTC" ])
+      cached = store.read([ "issue_chart", @issue.id, "7d", "Etc/UTC" ])
       assert(cached.all? { |time, count| time.is_a?(Time) && count.is_a?(Integer) })
     end
   end
