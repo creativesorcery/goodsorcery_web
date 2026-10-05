@@ -1,0 +1,37 @@
+<% project = sidebar_project %>
+<aside class="hidden lg:flex w-[248px] shrink-0 flex-col border-r border-iris-500/10 bg-paper-900/60 backdrop-blur sticky top-0 h-screen">
+  <%= link_to root_path, class: "flex items-center gap-3 px-5 pt-5 pb-4" do %>
+    <span class="w-8 h-8"><%= render "shared/sigil" %></span>
+    <span class="leading-none">
+      <span class="block font-display text-[18px] text-ink-50 tracking-tight">Good Sorcery</span>
+      <span class="block text-[10.5px] uppercase tracking-[.18em] text-ink-400 font-semibold mt-1">Error Tracker</span>
+    </span>
+  <% end %>
+
+  <%= render "layouts/project_switcher", project: project %>
+
+  <nav class="flex-1 overflow-y-auto px-3 mt-5 space-y-0.5" aria-label="Main">
+    <div class="section-label">Grimoire</div>
+    <%= nav_link_to "Projects", projects_path, key: "projects", icon: :projects %>
+    <% if project %>
+      <%= nav_link_to "Issues", project_issues_path(project), key: "issues", icon: :issues, badge: nav_badge(sidebar_unresolved_count) %>
+    <% else %>
+      <%= nav_placeholder "Issues", icon: :issues %>
+    <% end %>
+    <%= nav_placeholder "Alerts", icon: :alerts, note: "soon" %>
+
+    <div class="section-label pt-5">Coming from the suite</div>
+    <%= nav_placeholder "Uptime", icon: :uptime, note: "soon" %>
+
+    <div class="section-label pt-5">Project</div>
+    <% if project %>
+      <%= nav_link_to "Settings & setup", project_setup_path(project), key: "settings", icon: :settings %>
+    <% end %>
+    <%= link_to docs_url, class: "nav-link", target: "_blank", rel: "noopener noreferrer" do %>
+      <%= icon :book %><span class="flex-1">Docs</span><%= icon :external, classes: "w-3.5 h-3.5 text-ink-400" %>
+    <% end %>
+  </nav>
+
+  <%= render "layouts/usage_meter" %>
+  <%= render "layouts/user_menu" %>
+</aside>

@@ -1,0 +1,40 @@
+require "test_helper"
+
+class ApplicationHelperTest < ActionView::TestCase
+  test "hosted? and signups_enabled? read the environment" do
+    with_env("GOODSORCERY_HOSTED" => "1") { assert hosted? }
+    with_env("GOODSORCERY_HOSTED" => nil) { assert_not hosted? }
+    with_env("GOODSORCERY_DISABLE_SIGNUPS" => "1") { assert_not signups_enabled? }
+    with_env("GOODSORCERY_DISABLE_SIGNUPS" => nil) { assert signups_enabled? }
+  end
+
+  test "docs_url can be overridden" do
+    with_env("GOODSORCERY_DOCS_URL" => "https://docs.example.test") { assert_equal "https://docs.example.test", docs_url }
+  end
+
+  test "platform and runtime labels" do
+    assert_equal "Rails API", platform_label("rails_api")
+    assert_equal "Rails 8.0 · Ruby 3.4", project_runtime_label(Project.new(platform: "rails", runtime_label: "Rails 8.0 · Ruby 3.4"))
+    assert_equal "Sidekiq", project_runtime_label(Project.new(platform: "sidekiq"))
+  end
+
+  test "document_title appends the product name without double escaping" do
+    assert_equal "Good Sorcery", document_title
+    provide :title, "Setup & keys"
+    assert_equal "Setup &amp; keys — Good Sorcery", document_title
+  end
+
+  test "google_font_tags only point at Google Fonts" do
+    assert_equal 3, google_font_tags.scan("<link").size
+    assert_includes google_font_tags, "fonts.gstatic.com"
+  end
+
+  private
+    def with_env(values)
+      previous = values.keys.index_with { |key| ENV[key] }
+      values.each { |key, value| ENV[key] = value }
+      yield
+    ensure
+      previous.each { |key, value| ENV[key] = value }
+    end
+end

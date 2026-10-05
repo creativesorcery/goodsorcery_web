@@ -1,0 +1,20 @@
+<header class="sticky top-0 z-20 flex items-center gap-4 px-8 h-14 border-b border-iris-500/10 bg-paper-950/70 backdrop-blur">
+  <nav aria-label="Breadcrumb" class="min-w-0 text-[13px] text-ink-400 flex items-center gap-2">
+    <% breadcrumbs.each_with_index do |crumb, index| %>
+      <% if index.positive? %><span class="text-paper-500" aria-hidden="true">/</span><% end %>
+      <% if crumb.path %>
+        <%= link_to crumb.label, crumb.path, class: "truncate hover:text-ink-100" %>
+      <% else %>
+        <span class="truncate text-ink-100"><%= crumb.label %></span>
+      <% end %>
+    <% end %>
+  </nav>
+  <div class="flex-1"></div>
+  <%= form_with url: search_path, method: :get, role: "search",
+        class: "input flex items-center gap-2 w-72 rounded-lg px-3 py-1.5 text-[13px]" do |form| %>
+    <%= icon :search, classes: "w-4 h-4 text-ink-400" %>
+    <%= form.search_field :q, value: global_search_query, placeholder: "Search projects and issues…",
+          "aria-label": "Search projects and issues", autocomplete: "off",
+          class: "flex-1 min-w-0 bg-transparent outline-none placeholder:text-ink-400" %>
+  <% end %>
+</header>

@@ -1,0 +1,21 @@
+<% user = Current.user %>
+<% if user %>
+  <div class="relative border-t border-iris-500/10" data-controller="dropdown">
+    <button type="button" class="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-paper-850/60 transition"
+            data-dropdown-target="button" data-action="dropdown#toggle" aria-haspopup="true" aria-expanded="false">
+      <%= initials_avatar user.name, size: :lg %>
+      <span class="flex-1 min-w-0 leading-tight">
+        <span class="block text-[13px] text-ink-100 truncate"><%= user.name %></span>
+        <span class="block text-[11px] text-ink-400 truncate"><%= account_plan_label(Current.account) %></span>
+      </span>
+      <%= icon :chevron_updown, classes: "w-4 h-4 text-ink-400" %>
+    </button>
+
+    <div class="menu left-3 right-3 bottom-full mb-1" data-dropdown-target="menu" hidden>
+      <div class="px-3 py-2 text-[12px] text-ink-400 truncate"><%= user.email_address %></div>
+      <%= button_to session_path, method: :delete, class: "menu-item" do %>
+        <%= icon :sign_out, classes: "w-4 h-4 text-ink-400" %>Sign out
+      <% end %>
+    </div>
+  </div>
+<% end %>

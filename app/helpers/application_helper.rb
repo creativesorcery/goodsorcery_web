@@ -1,2 +1,48 @@
 module ApplicationHelper
+  DEFAULT_DOCS_URL = "https://github.com/goodsorcery/error_tracker/tree/main/docs".freeze
+
+  GOOGLE_FONTS_URL = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700" \
+    "&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap".freeze
+
+  PLATFORM_LABELS = {
+    "rails" => "Rails",
+    "rails_api" => "Rails API",
+    "sidekiq" => "Sidekiq",
+    "ruby" => "Ruby"
+  }.freeze
+
+  def docs_url
+    ENV.fetch("GOODSORCERY_DOCS_URL", DEFAULT_DOCS_URL)
+  end
+
+  def hosted?
+    ActiveModel::Type::Boolean.new.cast(ENV["GOODSORCERY_HOSTED"]) || false
+  end
+
+  def signups_enabled?
+    ENV["GOODSORCERY_DISABLE_SIGNUPS"] != "1"
+  end
+
+  def platform_label(platform)
+    PLATFORM_LABELS.fetch(platform.to_s) { platform.to_s.humanize }
+  end
+
+  # "Rails 8.0 · Ruby 3.4" once events arrive, otherwise the platform name.
+  def project_runtime_label(project)
+    project.runtime_label.presence || platform_label(project.platform)
+  end
+
+  # Preconnects plus the stylesheet; allowed by the CSP (style-src/font-src).
+  def google_font_tags
+    safe_join [
+      tag.link(rel: "preconnect", href: "https://fonts.googleapis.com"),
+      tag.link(rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: ""),
+      tag.link(rel: "stylesheet", href: GOOGLE_FONTS_URL)
+    ]
+  end
+
+  # "Issues · storefront — Good Sorcery"
+  def document_title
+    safe_join [ content_for(:title).presence, "Good Sorcery" ].compact, " — "
+  end
 end

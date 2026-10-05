@@ -1,1 +1,356 @@
 @import "tailwindcss";
+
+/*
+ * Good Sorcery — "flat pastel, calm until it matters".
+ * Tokens ported from design/assets/theme.js; components from design/assets/theme.css.
+ * Accents: 100 = pastel fill, 300 = readable text tone, 400/500 = marks and bars.
+ * Coral is reserved for severity (new / getting worse). Never show state by fill alone.
+ */
+@theme {
+  --color-paper-950: #f7f6f3;
+  --color-paper-900: #ffffff;
+  --color-paper-850: #f4f3ef;
+  --color-paper-800: #efeee9;
+  --color-paper-700: #e7e5df;
+  --color-paper-600: #d7d4cc;
+  --color-paper-500: #b5b1a7;
+
+  --color-ink-50: #23253a;
+  --color-ink-100: #34374d;
+  --color-ink-200: #4b4e66;
+  --color-ink-300: #62667e;
+  --color-ink-400: #80849a;
+
+  --color-iris-100: #e6e7ff;
+  --color-iris-200: #4b50c4;
+  --color-iris-300: #5a5fd6;
+  --color-iris-400: #7f85ea;
+  --color-iris-500: #8f94ee;
+  --color-iris-600: #6f75e0;
+
+  --color-coral-100: #ffe3e5;
+  --color-coral-300: #cf4657;
+  --color-coral-400: #f2818c;
+  --color-coral-500: #ef6f7c;
+  --color-coral-600: #d9525f;
+
+  --color-mint-100: #daf4e9;
+  --color-mint-300: #23865f;
+  --color-mint-400: #6fcca6;
+  --color-mint-500: #5cc29a;
+
+  --color-lilac-100: #efe8ff;
+  --color-lilac-300: #7353c9;
+  --color-lilac-400: #b39cf2;
+
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-panel: 16px;
+
+  --animate-rise: rise 0.4s ease-out both;
+  --animate-pulse-coral: pulse-coral 2.2s infinite;
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @keyframes pulse-coral {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(239 111 124 / 0.5); }
+    50% { box-shadow: 0 0 0 5px rgb(239 111 124 / 0); }
+  }
+}
+
+@utility font-display {
+  font-family: "Bricolage Grotesque", ui-sans-serif, sans-serif;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--color-paper-950);
+    color: var(--color-ink-100);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background: var(--color-iris-100);
+    color: var(--color-ink-50);
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-paper-600);
+    border-radius: 99px;
+    border: 2px solid var(--color-paper-950);
+  }
+
+  [hidden] { display: none !important; }
+
+  turbo-frame { display: block; }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) { cursor: pointer; }
+
+  summary { list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+}
+
+@layer components {
+  /* ── surfaces ─────────────────────────────────────────────── */
+  .panel {
+    background: var(--color-paper-900);
+    border: 1px solid var(--color-paper-700);
+    border-radius: var(--radius-panel);
+  }
+
+  .panel-link {
+    @apply transition hover:border-iris-500/30;
+  }
+
+  /* section label with hairlines either side */
+  .rune-rule {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--color-ink-400);
+    font-weight: 600;
+  }
+  .rune-rule::before,
+  .rune-rule::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-paper-700);
+  }
+
+  .eyebrow {
+    @apply text-[11px] uppercase tracking-[.24em] text-iris-300 font-semibold;
+  }
+
+  .page-title {
+    @apply font-display text-[42px] leading-[1.05] text-ink-50 mt-2 tracking-tight;
+  }
+
+  .section-label {
+    @apply px-3 pb-2 text-[10.5px] uppercase tracking-[.2em] text-ink-400/70;
+  }
+
+  /* ── navigation ───────────────────────────────────────────── */
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 10px;
+    color: var(--color-ink-300);
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+  }
+  .nav-link:hover { color: var(--color-ink-50); background: var(--color-paper-800); }
+  .nav-link[aria-current="page"] { color: #3e43b8; background: var(--color-iris-100); }
+  .nav-link[aria-disabled="true"] { cursor: default; }
+  .nav-link[aria-disabled="true"]:hover { color: var(--color-ink-300); background: transparent; }
+
+  .tab {
+    color: var(--color-ink-400);
+    border-bottom: 2px solid transparent;
+    padding: 0.6rem 0;
+    font-size: 14px;
+    font-weight: 600;
+    transition: color 0.15s;
+  }
+  .tab:hover { color: var(--color-ink-100); }
+  .tab[aria-selected="true"] { color: var(--color-ink-50); border-color: var(--color-iris-400); }
+
+  /* 1h / 24h / 7d / 30d switchers: mark the active item with aria-current="true" */
+  .segmented {
+    display: inline-flex;
+    border: 1px solid var(--color-paper-700);
+    border-radius: 0.5rem;
+    padding: 0.125rem;
+    font-size: 12.5px;
+  }
+  .segmented > * {
+    padding: 0.25rem 0.625rem;
+    border-radius: 0.375rem;
+    color: var(--color-ink-400);
+    transition: color 0.15s, background 0.15s;
+  }
+  .segmented > *:hover { color: var(--color-ink-100); }
+  .segmented > [aria-current="true"] { background: var(--color-paper-700); color: var(--color-ink-50); }
+
+  /* dropdown menus (dropdown_controller) */
+  .menu {
+    @apply absolute z-30 mt-1 min-w-[12rem] rounded-xl border border-paper-700 bg-paper-900 p-1 shadow-[0_8px_24px_-12px_rgb(35_37_58/0.25)];
+  }
+  .menu-item {
+    @apply flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] text-ink-100 transition hover:bg-paper-800 hover:text-ink-50;
+  }
+
+  /* ── chips ────────────────────────────────────────────────── */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    color: var(--color-ink-200);
+    background: var(--color-paper-800);
+    border: 1px solid transparent;
+  }
+  .chip-coral { @apply border-coral-500/40 text-coral-300 bg-coral-500/10; }
+  .chip-lilac { @apply border-lilac-400/40 text-lilac-300 bg-lilac-400/10; }
+  .chip-mint  { @apply border-mint-400/40 text-mint-300 bg-mint-400/10; }
+  .chip-iris  { @apply text-iris-300 bg-iris-500/10; }
+  .chip-muted { @apply text-ink-400; }
+  .chip-sm    { @apply py-0 text-[10.5px]; }
+
+  /* ── buttons ──────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.9rem;
+    border-radius: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    border: 1px solid var(--color-paper-700);
+    color: var(--color-ink-100);
+    background: var(--color-paper-900);
+  }
+  .btn:hover { background: var(--color-paper-850); border-color: var(--color-paper-600); }
+  .btn:disabled,
+  .btn[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+
+  .btn-primary { background: var(--color-iris-300); color: #fff; border-color: var(--color-iris-300); }
+  .btn-primary:hover { background: var(--color-iris-200); border-color: var(--color-iris-200); color: #fff; }
+
+  /* Resolve */
+  .btn-mint { @apply border-mint-500/50 bg-mint-500/15 text-mint-300 hover:border-mint-500/50 hover:bg-mint-500/25; }
+
+  .btn-ghost { @apply border-transparent bg-transparent text-ink-300 hover:border-transparent hover:bg-paper-800 hover:text-ink-50; }
+
+  .btn-sm { @apply px-2.5 py-1 text-[12px]; }
+
+  /* ── form fields ──────────────────────────────────────────── */
+  .input,
+  .field {
+    background: var(--color-paper-900);
+    border: 1px solid var(--color-paper-700);
+    border-radius: 12px;
+    color: var(--color-ink-50);
+    font-size: 14px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input:focus-within,
+  .field:focus { outline: none; border-color: var(--color-iris-500); box-shadow: 0 0 0 3px var(--color-iris-100); }
+  .input::placeholder,
+  .field::placeholder { color: rgb(128 132 154 / 0.6); }
+
+  /* a bare <input>/<select>/<textarea> styled as a field */
+  .field { display: block; width: 100%; padding: 0.625rem 0.875rem; }
+
+  .label { @apply block text-[13px] font-semibold text-ink-100 mb-1.5; }
+  .hint  { @apply mt-1.5 text-[12.5px] text-ink-400; }
+
+  /* ── code ─────────────────────────────────────────────────── */
+  .code { font-family: var(--font-mono); font-size: 12.5px; line-height: 1.7; }
+  .code .flex > span:last-child { white-space: pre; }
+  .tok-k { color: #c2415a; }
+  .tok-s { color: var(--color-mint-300); }
+  .tok-c { color: #9a9eb1; font-style: italic; }
+  .tok-sym { color: var(--color-lilac-300); }
+  .tok-n { color: var(--color-iris-200); }
+
+  /* light code pane with a filename/copy header (install snippets, raw trace) */
+  .code-pane { @apply overflow-hidden rounded-xl border border-paper-700 bg-paper-950; }
+  .code-pane-header { @apply flex items-center justify-between border-b border-paper-700 px-4 py-2 text-[11.5px] text-ink-400; }
+  .code-pane-body { @apply overflow-x-auto px-4 py-3 font-mono text-[12.5px] leading-[1.7] text-ink-100; }
+
+  /* ── edge stripes (issue rows) ────────────────────────────── */
+  .edge-stripe { @apply absolute left-0 top-3 bottom-3 w-[2px] rounded; }
+  .edge-coral  { @apply bg-coral-500; }
+  .edge-lilac  { @apply bg-lilac-400; }
+  .edge-mint   { @apply bg-mint-400; }
+  .edge-iris   { @apply bg-iris-400; }
+
+  /* ── toggle switch (toggle_controller, aria-pressed) ──────── */
+  .toggle .track {
+    position: relative;
+    display: inline-block;
+    width: 2rem;
+    height: 18px;
+    border-radius: 999px;
+    border: 1px solid var(--color-paper-600);
+    background: var(--color-paper-800);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .toggle .knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 999px;
+    background: var(--color-ink-400);
+    transition: transform 0.15s;
+  }
+  .toggle[aria-pressed="true"] .knob { transform: translateX(14px); background: #fff; }
+  .toggle[aria-pressed="true"] .track { background: var(--color-iris-400); border-color: var(--color-iris-400); }
+
+  /* ── motion ───────────────────────────────────────────────── */
+  .rise { animation: var(--animate-rise); }
+  .rise-1 { animation-delay: 0.04s; }
+  .rise-2 { animation-delay: 0.08s; }
+  .rise-3 { animation-delay: 0.12s; }
+  .rise-4 { animation-delay: 0.16s; }
+  .rise-5 { animation-delay: 0.2s; }
+
+  /* pulsing dot for "new / getting worse"; resize with w-1.5 h-1.5 */
+  .coral-dot {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 7px;
+    height: 7px;
+    border-radius: 99px;
+    background: var(--color-coral-500);
+    animation: var(--animate-pulse-coral);
+  }
+
+  /* pinging iris dot while setup waits for the first event; resize with w-* h-* */
+  .ping-dot {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 999px;
+    background: var(--color-iris-400);
+  }
+  .ping-dot::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgb(127 133 234 / 0.5);
+    animation: var(--animate-ping);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rise,
+    .coral-dot,
+    .ping-dot::before { animation: none; }
+  }
+}

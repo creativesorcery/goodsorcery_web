@@ -1,0 +1,36 @@
+<%# locals: (project:) -%>
+<div class="relative px-3" data-controller="dropdown">
+  <% if project %>
+    <button type="button" class="w-full flex items-center gap-2.5 rounded-lg border border-paper-700 bg-paper-850 px-3 py-2 text-left hover:border-paper-600 transition"
+            data-dropdown-target="button" data-action="dropdown#toggle" aria-haspopup="true" aria-expanded="false">
+      <%= project_tile project, size: :sm %>
+      <span class="flex-1 min-w-0">
+        <span class="block text-[13px] text-ink-50 truncate"><%= project.name %></span>
+        <span class="block text-[11px] text-ink-400 truncate"><%= sidebar_project_subtitle(project) %></span>
+      </span>
+      <%= icon :chevron_updown, classes: "w-4 h-4 text-ink-400" %>
+    </button>
+
+    <div class="menu left-3 right-3" data-dropdown-target="menu" hidden>
+      <div class="max-h-72 overflow-y-auto">
+        <% sidebar_projects.each do |item| %>
+          <% current = item.id == project.id %>
+          <%= link_to project_issues_path(item), class: "menu-item", aria: { current: ("page" if current) } do %>
+            <%= project_tile item, size: :sm %>
+            <span class="flex-1 min-w-0 truncate"><%= item.name %></span>
+            <% if current %><%= icon :check, classes: "w-4 h-4 text-iris-300" %><% end %>
+          <% end %>
+        <% end %>
+      </div>
+      <div class="mt-1 border-t border-paper-700 pt-1">
+        <%= link_to new_project_path, class: "menu-item text-iris-300" do %>
+          <%= icon :plus, classes: "w-4 h-4" %>Add a new app
+        <% end %>
+      </div>
+    </div>
+  <% else %>
+    <%= link_to new_project_path, class: "w-full flex items-center gap-2.5 rounded-lg border border-dashed border-iris-500/40 px-3 py-2 text-[13px] font-medium text-iris-300 hover:bg-iris-500/[.04] transition" do %>
+      <%= icon :plus, classes: "w-4 h-4" %>Add a new app
+    <% end %>
+  <% end %>
+</div>
