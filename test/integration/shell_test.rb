@@ -22,7 +22,6 @@ class ShellTest < ActionDispatch::IntegrationTest
   end
 
   test "signed-in dashboard renders the shell" do
-    skip "projects#index arrives with slice D" unless Object.const_defined?(:ProjectsController)
     sign_in_as users(:philip)
 
     get root_path
@@ -31,7 +30,7 @@ class ShellTest < ActionDispatch::IntegrationTest
     assert_select "aside a.nav-link[aria-current=page]", text: /Projects/
     assert_select "aside a[href=?]", project_issues_path(projects(:billing))
     assert_select "aside button", text: /Sign out/
-    assert_select "header form[action=?] input[name=q]", search_path
+    assert_select "header form[role=search][action=?] input[name=q]", search_path
     assert_strict_csp
   end
 

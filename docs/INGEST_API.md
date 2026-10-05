@@ -214,3 +214,7 @@ It prints the status and body and exits non-zero unless the response is `202`. S
 - `bin/rails goodsorcery:requeue_stale` re-enqueues events that were accepted but have not been processed after 10 minutes (for example after a Redis outage). Processing is idempotent, so a requeued event that was in fact processed is a no-op.
 - Accepted bodies wait in the `inbound_events` table (encrypted) until processed; job arguments hold only the record's GlobalID, so Redis never sees event data. Events that turn out to be malformed or duplicates are discarded and logged by id only.
 - Production needs the Active Record encryption keys, either in credentials (`active_record_encryption.primary_key`, `deterministic_key`, `key_derivation_salt`) or as the env vars `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY`, `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` and `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT`. Generate them with `bin/rails db:encryption:init`. Losing them makes stored events unreadable.
+- Other environment variables:
+  - `GOODSORCERY_PUBLIC_URL` sets the endpoint shown in the setup page's install snippets (for example `https://errors.example.com`). Without it, the URL the dashboard was reached on is shown.
+  - `GOODSORCERY_DISABLE_SIGNUPS=1` turns off public sign-up and sends visitors to sign-in.
+  - `GOODSORCERY_HOSTED=1` marks the instance as the hosted service; leave it unset when self-hosting.

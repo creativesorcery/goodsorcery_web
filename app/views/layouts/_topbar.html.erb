@@ -10,7 +10,7 @@
     <% end %>
   </nav>
   <div class="flex-1"></div>
-  <%= form_with url: search_path, method: :get, role: "search",
+  <%= form_with url: search_path, method: :get, html: { role: "search" },
         class: "input flex items-center gap-2 w-72 rounded-lg px-3 py-1.5 text-[13px]" do |form| %>
     <%= icon :search, classes: "w-4 h-4 text-ink-400" %>
     <%= form.search_field :q, value: global_search_query, placeholder: "Search projects and issues…",

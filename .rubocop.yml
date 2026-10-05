@@ -6,3 +6,14 @@ inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 # # Use `[a, [b, c]]` not `[ a, [ b, c ] ]`
 # Layout/SpaceInsideArrayLiteralBrackets:
 #   Enabled: false
+
+# House rules (CLAUDE.md): methods have a hard limit of 20 lines and
+# conditionals nest at most one level deep.
+Metrics/MethodLength:
+  Enabled: true
+  Max: 20
+  CountAsOne: []
+
+Metrics/BlockNesting:
+  Enabled: true
+  Max: 1
