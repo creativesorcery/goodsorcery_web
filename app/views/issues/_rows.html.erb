@@ -1,0 +1,4 @@
+<%# locals: (list:) -%>
+<% list.issues.each do |issue| %>
+  <%= render "issues/row", issue: issue, histogram: list.histogram_for(issue) %>
+<% end %>

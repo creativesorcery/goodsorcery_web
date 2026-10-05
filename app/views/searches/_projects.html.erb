@@ -1,0 +1,17 @@
+<%# locals: (projects:, query:) -%>
+<% if projects.any? %>
+  <section class="mt-8 rise rise-1" aria-label="Projects">
+    <h2 class="text-[11px] uppercase tracking-[.16em] text-ink-400/80 mb-3">Projects</h2>
+    <div class="panel divide-y divide-paper-700/70 overflow-hidden">
+      <% projects.each do |project| %>
+        <%= link_to project_issues_path(project), class: "flex items-center gap-3 px-5 py-3 hover:bg-iris-500/[.04] transition" do %>
+          <%= project_tile(project, size: :md) %>
+          <span class="min-w-0">
+            <span class="block text-[14.5px] text-ink-50 font-semibold"><%= project.name %></span>
+            <span class="block text-[12px] text-ink-400"><%= project_runtime_label(project) %></span>
+          </span>
+        <% end %>
+      <% end %>
+    </div>
+  </section>
+<% end %>

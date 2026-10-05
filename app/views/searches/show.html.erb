@@ -1,0 +1,28 @@
+<% provide :title, "Search" %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb "Search" %>
+
+<div class="px-8 pt-8 pb-16 max-w-[1100px]">
+  <div class="rise">
+    <div class="eyebrow"><%= Current.account.name %> · all projects</div>
+    <h1 class="page-title">Search</h1>
+    <% if @query.chips.any? %>
+      <div class="flex flex-wrap items-center gap-2 mt-4">
+        <% @query.chips.each do |chip| %>
+          <span class="chip font-mono <%= 'chip-iris' if chip.key == 'is' %>"><%= chip.label %></span>
+        <% end %>
+        <% if @query.text.present? %><span class="text-[13px] text-ink-300">“<%= @query.text %>”</span><% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @query.blank? %>
+    <div class="mt-8">
+      <%= render "shared/empty_state", title: "Search projects and issues",
+            body: "Try an exception class, a message, a short id like GS-1042, or chips such as is:unresolved env:production level:error user:mara@example.com." %>
+    </div>
+  <% else %>
+    <%= render "searches/projects", projects: @projects, query: @query %>
+    <%= render "searches/issues", issues: @issues, query: @query %>
+  <% end %>
+</div>

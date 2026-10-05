@@ -1,0 +1,48 @@
+<%# locals: (project:, list:) -%>
+<% query = list.query %>
+<div class="flex items-center gap-3">
+  <%= form_with url: project_issues_path(project), method: :get, html: { role: "search" },
+        class: "input flex flex-wrap items-center gap-2 px-3 py-2 flex-1 min-w-0" do |form| %>
+    <%= icon :search, classes: "w-4 h-4 text-ink-400" %>
+    <% query.chips.each do |chip| %>
+      <%= issue_query_chip(project, query, chip, sort: list.sort) %>
+    <% end %>
+    <%= hidden_field_tag :chips, query.chips_string, id: nil %>
+    <% unless list.sort == IssueList::DEFAULT_SORT %>
+      <%= hidden_field_tag :sort, list.sort, id: nil %>
+    <% end %>
+    <%= form.search_field :text, value: query.text, autocomplete: "off",
+          placeholder: "Search message, class, controller#action, user email…",
+          "aria-label": "Search issues (chips such as level:error work too)",
+          class: "flex-1 min-w-[12rem] bg-transparent outline-none placeholder:text-ink-400/60 text-[14px]" %>
+  <% end %>
+
+  <div class="relative" data-controller="dropdown">
+    <button type="button" class="btn" data-dropdown-target="button" data-action="dropdown#toggle"
+            aria-haspopup="true" aria-expanded="false">
+      <%= icon :filter, classes: "w-4 h-4" %>Filters
+    </button>
+    <div class="menu right-0 w-56" data-dropdown-target="menu" hidden>
+      <div class="px-3 pt-2 pb-1 text-[10.5px] uppercase tracking-[.2em] text-ink-400/70">Environment</div>
+      <%= issue_filter_link project, list, "env", nil, label: "all environments" %>
+      <% project.environments.each do |environment| %>
+        <%= issue_filter_link project, list, "env", environment %>
+      <% end %>
+      <div class="px-3 pt-3 pb-1 text-[10.5px] uppercase tracking-[.2em] text-ink-400/70">Level</div>
+      <%= issue_filter_link project, list, "level", nil, label: "any level" %>
+      <% Issue::LEVELS.each do |level| %>
+        <%= issue_filter_link project, list, "level", level %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="relative" data-controller="dropdown">
+    <button type="button" class="btn" data-dropdown-target="button" data-action="dropdown#toggle"
+            aria-haspopup="true" aria-expanded="false">Sort: <%= list.sort_label %> ▾</button>
+    <div class="menu right-0" data-dropdown-target="menu" hidden>
+      <% IssueList::SORT_LABELS.each_key do |sort| %>
+        <%= issue_sort_link project, list, sort %>
+      <% end %>
+    </div>
+  </div>
+</div>

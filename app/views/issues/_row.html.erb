@@ -1,0 +1,43 @@
+<%# locals: (issue:, histogram:) -%>
+<% project = issue.project %>
+<%= turbo_frame_tag dom_id(issue, :row), target: "_top" do %>
+  <div class="<%= issue_row_classes(issue) %>">
+    <%= issue_edge_stripe(issue) %>
+    <input type="checkbox" form="bulk_triage" name="issue_ids[]" value="<%= issue.id %>"
+           class="accent-iris-500 relative z-10" aria-label="Select <%= issue.short_id %>"
+           data-bulk-selection-target="checkbox" data-action="bulk-selection#toggle">
+
+    <div class="min-w-0">
+      <div class="relative flex items-center gap-2 min-w-0">
+        <%= issue_class_name(issue) %>
+        <%= issue_badge(issue) %>
+        <span class="font-mono text-[11px] text-ink-400 shrink-0"><%= issue.short_id %></span>
+        <div class="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
+          <% if issue.unresolved? %>
+            <%= button_to "✓ Resolve", project_bulk_triage_path(project), params: { issue_ids: [ issue.id ], triage: "resolve" },
+                  class: "btn btn-sm btn-mint", "aria-label": "Resolve #{issue.short_id}" %>
+            <%= button_to "Ignore", project_bulk_triage_path(project), params: { issue_ids: [ issue.id ], triage: "ignore" },
+                  class: "btn btn-sm", "aria-label": "Ignore #{issue.short_id}" %>
+          <% else %>
+            <%= button_to "Reopen", project_bulk_triage_path(project), params: { issue_ids: [ issue.id ], triage: "reopen" },
+                  class: "btn btn-sm", "aria-label": "Reopen #{issue.short_id}" %>
+          <% end %>
+        </div>
+      </div>
+      <%= link_to issue_title(issue), project_issue_path(project, issue),
+            class: "block text-[14.5px] text-ink-50 truncate mt-0.5 after:absolute after:inset-0 focus:outline-none" %>
+      <div class="text-[12px] text-ink-400 mt-1 flex items-center gap-3 font-mono min-w-0">
+        <%= issue_origin(issue) %>
+      </div>
+    </div>
+
+    <%= issue_histogram(issue, histogram) %>
+    <span class="text-right font-mono text-[13.5px] text-ink-50"><%= delimited(issue.events_count) %></span>
+    <span class="text-right font-mono text-[13.5px] text-ink-100"><%= delimited(issue.users_count) %></span>
+    <span class="text-[12.5px] leading-tight">
+      <span class="block text-ink-100"><%= time_ago_compact(issue.last_seen_at) %></span>
+      <span class="block text-ink-400"><%= first_seen_label(issue.first_seen_at) %></span>
+    </span>
+    <%= issue_assignee_avatar(issue) %>
+  </div>
+<% end %>

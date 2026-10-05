@@ -1,0 +1,16 @@
+<%# locals: (list:) -%>
+<% project = list.project %>
+<% summary = "Showing #{delimited(list.shown_count)} of #{delimited(list.total_count)}" %>
+<% if list.next_page? %>
+  <%= turbo_frame_tag "issues_page_#{list.next_page}" do %>
+    <p class="px-5 py-3 text-center text-[12px] text-ink-400">
+      <%= summary %> ·
+      <%= link_to "load more", project_issues_path(project, q: list.query.to_s, sort: list.sort, page: list.next_page),
+            class: "text-iris-300 hover:underline" %>
+    </p>
+  <% end %>
+<% elsif list.capped? %>
+  <p class="px-5 py-3 text-center text-[12px] text-ink-400"><%= summary %> · refine your search to see more</p>
+<% else %>
+  <p class="px-5 py-3 text-center text-[12px] text-ink-400">Showing all <%= delimited(list.shown_count) %></p>
+<% end %>

@@ -1,0 +1,11 @@
+<%# locals: (query:) -%>
+<%# The same chips open in each project's issue list (with tabs, histograms and bulk triage). %>
+<% projects = sidebar_projects %>
+<% if projects.any? %>
+  <p class="mt-4 text-[12.5px] text-ink-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+    <span>Open this search in</span>
+    <% projects.each do |project| %>
+      <%= link_to project.name, project_issues_path(project, q: query.to_s), class: "text-iris-300 hover:underline" %>
+    <% end %>
+  </p>
+<% end %>

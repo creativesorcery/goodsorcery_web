@@ -1,0 +1,32 @@
+<%# locals: (project:, list:, members:) -%>
+<%# Shown by bulk_selection once a row is checked. Row checkboxes join this form via form="bulk_triage". %>
+<div class="sticky bottom-6 z-20 mt-6 flex justify-center" data-bulk-selection-target="bar" hidden>
+  <%= form_with url: project_bulk_triage_path(project), id: "bulk_triage", html: { "aria-label": "Bulk actions" },
+        class: "flex items-center gap-2 rounded-2xl border border-iris-500/30 bg-paper-850/95 backdrop-blur px-3 py-2 shadow-lg shadow-paper-600/40" do |form| %>
+    <span class="px-2 text-[13px] text-ink-200" aria-live="polite">
+      <span class="font-mono text-iris-300" data-bulk-selection-target="count">0</span> selected
+    </span>
+    <span class="w-px h-5 bg-paper-600" aria-hidden="true"></span>
+    <% unless list.query.unresolved_only? %>
+      <%= form.button "Reopen", name: "triage", value: "reopen", class: "btn py-1.5" %>
+    <% end %>
+    <% unless list.query.status == "resolved" %>
+      <%= form.button "✓ Resolve", name: "triage", value: "resolve", class: "btn btn-mint py-1.5" %>
+    <% end %>
+    <% unless list.query.status == "ignored" %>
+      <%= form.button "Ignore", name: "triage", value: "ignore", class: "btn py-1.5" %>
+    <% end %>
+    <div class="relative" data-controller="dropdown">
+      <button type="button" class="btn py-1.5" data-dropdown-target="button" data-action="dropdown#toggle"
+              aria-haspopup="true" aria-expanded="false">Assign ▾</button>
+      <div class="menu bottom-full mb-2 right-0" data-dropdown-target="menu" hidden>
+        <% members.each do |member| %>
+          <%= form.button name: "assignee_id", value: member.id, class: "menu-item" do %>
+            <%= initials_avatar(member.name, size: :sm) %><span><%= member.name %></span>
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+    <button type="button" class="btn btn-ghost py-1.5" data-action="bulk-selection#clear">Clear</button>
+  <% end %>
+</div>

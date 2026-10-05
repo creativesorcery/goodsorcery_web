@@ -1,0 +1,30 @@
+<%# locals: (issues:, query:) -%>
+<% issues = issues.to_a %>
+<section class="mt-8 rise rise-2" aria-label="Issues">
+  <h2 class="text-[11px] uppercase tracking-[.16em] text-ink-400/80 mb-3">Issues</h2>
+  <% if issues.empty? %>
+    <div class="panel px-5 py-8 text-center text-[14px] text-ink-400">No issues match “<%= query.to_s %>”.</div>
+  <% else %>
+    <div class="panel overflow-hidden">
+      <% issues.each do |issue| %>
+        <div class="group relative flex items-center gap-4 px-5 py-3.5 border-b last:border-b-0 border-paper-700/70 hover:bg-iris-500/[.04] transition">
+          <%= issue_edge_stripe(issue) %>
+          <%= project_tile(issue.project, size: :sm) %>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2 min-w-0">
+              <%= issue_class_name(issue) %>
+              <%= issue_badge(issue) %>
+              <%= issue_status_chip(issue) unless issue.unresolved? %>
+              <span class="font-mono text-[11px] text-ink-400 shrink-0"><%= issue.short_id %> · <%= issue.project.name %></span>
+            </div>
+            <%= link_to issue_title(issue), project_issue_path(issue.project, issue),
+                  class: "block text-[14px] text-ink-50 truncate mt-0.5 after:absolute after:inset-0" %>
+          </div>
+          <span class="text-right font-mono text-[13px] text-ink-50 w-20"><%= delimited(issue.events_count) %></span>
+          <span class="text-[12.5px] text-ink-400 w-24 text-right"><%= time_ago_compact(issue.last_seen_at) %></span>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+  <%= render "searches/in_projects", query: query %>
+</section>

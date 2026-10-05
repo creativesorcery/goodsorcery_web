@@ -1,0 +1,3 @@
+<%= turbo_frame_tag dom_id(@project, :summary) do %>
+  <%= render "projects/summaries/summary", summary: @summary %>
+<% end %>

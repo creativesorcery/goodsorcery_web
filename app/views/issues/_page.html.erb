@@ -1,0 +1,6 @@
+<%# locals: (list:) -%>
+<%# The "load more" response: this page's rows plus the frame for the next one. %>
+<%= turbo_frame_tag "issues_page_#{list.page}" do %>
+  <%= render "issues/rows", list: list %>
+  <%= render "issues/more", list: list %>
+<% end %>

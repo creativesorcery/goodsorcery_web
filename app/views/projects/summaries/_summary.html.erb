@@ -1,0 +1,44 @@
+<%# locals: (summary:) -%>
+<% project = summary.project %>
+<% period = summary.period %>
+<div class="flex items-end justify-between gap-6 rise">
+  <div>
+    <div class="eyebrow"><%= issues_eyebrow(project, summary.environment) %></div>
+    <h1 class="page-title">Issues <span class="text-ink-400 text-[30px]">— <%= delimited(summary.unresolved_count) %> unresolved</span></h1>
+  </div>
+  <nav class="segmented" aria-label="Summary period">
+    <% IssueSummary.periods.each do |option| %>
+      <%= link_to option.key, project_summary_path(project, period: option.key, env: summary.environment),
+            aria: { current: (option == period).to_s } %>
+    <% end %>
+  </nav>
+</div>
+
+<section class="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7 rise rise-1" aria-label="Summary">
+  <div class="panel p-4">
+    <div class="text-[12px] text-ink-400">Events · <%= period.key %></div>
+    <div class="flex items-end justify-between gap-3 mt-1">
+      <div class="font-display text-[32px] text-ink-50 leading-none"><%= delimited(summary.events) %></div>
+      <%= sparkline_svg summary.sparkline, color: ChartHelper::IRIS, width: 110, height: 30 %>
+    </div>
+    <%= summary_change(summary) %>
+  </div>
+  <div class="panel p-4">
+    <div class="text-[12px] text-ink-400">New issues</div>
+    <div class="font-display text-[32px] text-ink-50 leading-none mt-1"><%= delimited(summary.new_issues) %></div>
+    <div class="text-[12px] mt-2 text-ink-400 flex items-center gap-2">
+      <% if summary.new_last_hour.positive? %><span class="coral-dot"></span><% end %>
+      <%= delimited(summary.new_last_hour) %> in the last hour
+    </div>
+  </div>
+  <div class="panel p-4">
+    <div class="text-[12px] text-ink-400">Regressions</div>
+    <div class="font-display text-[32px] text-ink-50 leading-none mt-1"><%= delimited(summary.regressions) %></div>
+    <div class="text-[12px] mt-2 text-ink-400">Resurfaced after being resolved</div>
+  </div>
+  <div class="panel p-4">
+    <div class="text-[12px] text-ink-400">Users affected</div>
+    <div class="font-display text-[32px] text-ink-50 leading-none mt-1"><%= delimited(summary.users_affected) %></div>
+    <div class="text-[12px] mt-2 text-ink-400">in the selected period</div>
+  </div>
+</section>

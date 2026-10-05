@@ -1,0 +1,6 @@
+<%# locals: (project:, list:) -%>
+<nav class="flex items-center gap-6 mt-5 border-b border-paper-700 text-[14px]" aria-label="Triage">
+  <% IssueQuery::TABS.each_key do |tab| %>
+    <%= issue_tab_link project, list, tab %>
+  <% end %>
+</nav>
