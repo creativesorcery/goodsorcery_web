@@ -1,0 +1,25 @@
+# Bodies are encrypted on insert (encrypt_fixtures = true).
+resolved:
+  issue: resolved_issue
+  user: jo
+  kind: resolved
+  created_at: <%= 2.days.ago.to_fs(:db) %>
+
+note:
+  issue: nomethod
+  user: philip
+  kind: note
+  body: Looks like discontinued variants have no default. Guarding in CartTotal.
+  created_at: <%= 1.hour.ago.to_fs(:db) %>
+
+assigned:
+  issue: nomethod
+  user: philip
+  kind: assigned
+  subject_user: philip
+  created_at: <%= 2.hours.ago.to_fs(:db) %>
+
+regressed:
+  issue: regressed
+  kind: regressed
+  created_at: <%= 6.minutes.ago.to_fs(:db) %>

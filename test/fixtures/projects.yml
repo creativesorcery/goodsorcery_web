@@ -1,0 +1,50 @@
+storefront:
+  account: acme
+  name: storefront
+  slug: storefront
+  platform: rails
+  runtime_label: Rails 8.0 · Ruby 3.4
+  issue_prefix: GS
+  issues_sequence: 1045
+  color: coral
+  scrub_fields: [loyalty_number]
+  retention_days: 90
+  first_event_at: <%= 280.days.ago.to_fs(:db) %>
+  created_at: <%= 300.days.ago.to_fs(:db) %>
+
+billing:
+  account: acme
+  name: billing-api
+  slug: billing-api
+  platform: rails_api
+  runtime_label: Rails 7.2 API · Ruby 3.3
+  issue_prefix: BA
+  issues_sequence: 7
+  color: iris
+  retention_days: 90
+  first_event_at: <%= 60.days.ago.to_fs(:db) %>
+  created_at: <%= 61.days.ago.to_fs(:db) %>
+
+marketing:
+  account: acme
+  name: marketing-site
+  slug: marketing-site
+  platform: rails
+  issue_prefix: MS
+  issues_sequence: 0
+  color: mint
+  retention_days: 30
+  first_event_at:
+  created_at: <%= 10.minutes.ago.to_fs(:db) %>
+
+umbrella_app:
+  account: umbrella
+  name: umbrella-app
+  slug: umbrella-app
+  platform: ruby
+  runtime_label: Ruby 3.4
+  issue_prefix: UA
+  issues_sequence: 1
+  color: lilac
+  retention_days: 90
+  first_event_at: <%= 5.days.ago.to_fs(:db) %>

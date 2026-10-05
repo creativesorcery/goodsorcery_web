@@ -1,0 +1,32 @@
+<%
+  # Identities are stored only as HMACs (PrivateDigest), never in plaintext.
+  digest = ->(namespace, value) { PrivateDigest.hexdigest(namespace, value) }
+  mara = digest.("user.id", "5521")
+  other = digest.("user.id", "6012")
+%>
+nomethod_mara:
+  issue: nomethod
+  project: storefront
+  user_digest: <%= mara %>
+  identity_digests: [<%= [ mara, digest.("user.email", "mara@example.com"), digest.("user.username", "mara") ].join(", ") %>]
+  events_count: 7
+  first_seen_at: <%= 3.hours.ago.to_fs(:db) %>
+  last_seen_at: <%= 2.minutes.ago.to_fs(:db) %>
+
+nomethod_other:
+  issue: nomethod
+  project: storefront
+  user_digest: <%= other %>
+  identity_digests: [<%= [ other, digest.("user.email", "sam@example.com") ].join(", ") %>]
+  events_count: 2
+  first_seen_at: <%= 2.hours.ago.to_fs(:db) %>
+  last_seen_at: <%= 1.hour.ago.to_fs(:db) %>
+
+regressed_mara:
+  issue: regressed
+  project: storefront
+  user_digest: <%= mara %>
+  identity_digests: [<%= [ mara, digest.("user.email", "mara@example.com"), digest.("user.username", "mara") ].join(", ") %>]
+  events_count: 1
+  first_seen_at: <%= 6.minutes.ago.to_fs(:db) %>
+  last_seen_at: <%= 6.minutes.ago.to_fs(:db) %>

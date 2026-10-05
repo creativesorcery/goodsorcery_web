@@ -1,0 +1,42 @@
+<%
+  # Hour buckets are relative to "now" so 24h histograms always have data.
+  now_hour = Time.current.utc.beginning_of_hour
+  nomethod = [ 2, 3, 5, 8, 13, 21, 34, 55, 89, 120, 140, 90, 70, 60, 50, 40, 60, 80, 100, 90, 70, 50, 40, 32 ]
+%>
+<% nomethod.each_with_index do |count, i| %>
+nomethod_h<%= i %>:
+  issue: nomethod
+  hour: <%= (now_hour - (23 - i).hours).to_fs(:db) %>
+  count: <%= count %>
+<% end %>
+
+<% 24.times do |i| %>
+card_error_h<%= i %>:
+  issue: card_error
+  hour: <%= (now_hour - i.hours).to_fs(:db) %>
+  count: <%= 5 + (i % 4) %>
+<% end %>
+
+<% (1..29).each do |day| %>
+<% hour = now_hour.beginning_of_day - day.days + 12.hours %>
+<% next if hour > now_hour - 24.hours %>
+card_error_d<%= day %>:
+  issue: card_error
+  hour: <%= hour.to_fs(:db) %>
+  count: 100
+<% end %>
+
+regressed_now:
+  issue: regressed
+  hour: <%= now_hour.to_fs(:db) %>
+  count: 4
+
+billing_timeout_h2:
+  issue: billing_timeout
+  hour: <%= (now_hour - 2.hours).to_fs(:db) %>
+  count: 3
+
+umbrella_issue_now:
+  issue: umbrella_issue
+  hour: <%= now_hour.to_fs(:db) %>
+  count: 1

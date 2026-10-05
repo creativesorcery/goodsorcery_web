@@ -1,0 +1,14 @@
+# Raw tokens live in FIXTURE_TOKENS (test/test_helper.rb). The token column is
+# encrypted on insert (encrypt_fixtures = true); the digest is computed here.
+<% %i[storefront_production storefront_staging marketing_production umbrella_production].each do |label| %>
+<% token = FIXTURE_TOKENS.fetch(label) %>
+<%= label %>:
+  project: <%= { storefront_production: "storefront", storefront_staging: "storefront", marketing_production: "marketing", umbrella_production: "umbrella_app" }.fetch(label) %>
+  environment: <%= label.to_s.split("_").last %>
+  token: "<%= token %>"
+  token_digest: <%= Digest::SHA256.hexdigest(token) %>
+  token_prefix: "<%= token.first(12) %>"
+  token_last4: "<%= token.last(4) %>"
+  created_by: <%= label == :umbrella_production ? "outsider" : "philip" %>
+  last_used_at: <%= label == :storefront_production ? 2.minutes.ago.to_fs(:db) : "~" %>
+<% end %>

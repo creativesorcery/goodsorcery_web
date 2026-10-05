@@ -1,0 +1,18 @@
+<%
+  # Values are encrypted on insert; value_digest is the namespaced HMAC.
+  tags = {
+    browser_safari: [ "browser", "Mobile Safari", 1100 ],
+    browser_chrome: [ "browser", "Chrome", 150 ],
+    browser_firefox: [ "browser", "Firefox", 34 ],
+    coupon_fall25: [ "coupon", "FALL25", 1200 ],
+    coupon_spring10: [ "coupon", "SPRING10", 84 ]
+  }
+%>
+<% tags.each do |label, (key, value, count)| %>
+nomethod_<%= label %>:
+  issue: nomethod
+  key: <%= key %>
+  value_digest: <%= PrivateDigest.hexdigest("tag.#{key}", value) %>
+  value: <%= value %>
+  count: <%= count %>
+<% end %>

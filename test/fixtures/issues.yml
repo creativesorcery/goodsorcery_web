@@ -1,0 +1,123 @@
+<% fp = ->(name) { Digest::SHA256.hexdigest("fixture:#{name}") } %>
+
+# New (first seen 3h ago), unresolved, assigned to philip. Short id GS-1042.
+nomethod:
+  project: storefront
+  number: 1042
+  fingerprint: <%= fp.("nomethod") %>
+  exception_class: NoMethodError
+  message: "undefined method `price_cents' for nil"
+  culprit: app/services/cart_total.rb:42 in line_total
+  transaction_name: CheckoutsController#create
+  level: error
+  status: unresolved
+  environments: [production]
+  first_seen_at: <%= 3.hours.ago.to_fs(:db) %>
+  last_seen_at: <%= 2.minutes.ago.to_fs(:db) %>
+  events_count: 1284
+  users_count: 212
+  assignee: philip
+
+# Resolved earlier, came back 6 minutes ago. Short id GS-1038.
+regressed:
+  project: storefront
+  number: 1038
+  fingerprint: <%= fp.("regressed") %>
+  exception_class: ActiveRecord::RecordNotUnique
+  message: 'PG::UniqueViolation: duplicate key value violates unique constraint "index_orders_on_idempotency_key"'
+  culprit: app/jobs/orders/place_job.rb:[n] in perform
+  transaction_name: Orders::PlaceJob
+  level: error
+  status: unresolved
+  environments: [production, staging]
+  first_seen_at: <%= 41.days.ago.to_fs(:db) %>
+  last_seen_at: <%= 6.minutes.ago.to_fs(:db) %>
+  regressed_at: <%= 6.minutes.ago.to_fs(:db) %>
+  events_count: 60
+  users_count: 41
+
+# Steady, old, assigned to jo. Short id GS-1001.
+card_error:
+  project: storefront
+  number: 1001
+  fingerprint: <%= fp.("card_error") %>
+  exception_class: Stripe::CardError
+  message: Your card was declined.
+  culprit: app/controllers/payments_controller.rb:31 in confirm
+  transaction_name: PaymentsController#confirm
+  level: warning
+  status: unresolved
+  environments: [production]
+  first_seen_at: <%= 270.days.ago.to_fs(:db) %>
+  last_seen_at: <%= 11.minutes.ago.to_fs(:db) %>
+  events_count: 4102
+  users_count: 38
+  assignee: jo
+
+# Short id GS-1020.
+resolved_issue:
+  project: storefront
+  number: 1020
+  fingerprint: <%= fp.("resolved_issue") %>
+  exception_class: Net::ReadTimeout
+  message: "Net::ReadTimeout with #<TCPSocket:(closed)>"
+  culprit: lib/shipping/ups_client.rb:88 in fetch_rates
+  transaction_name: Shipping::RatesFetcher
+  level: error
+  status: resolved
+  environments: [production]
+  first_seen_at: <%= 12.days.ago.to_fs(:db) %>
+  last_seen_at: <%= 3.days.ago.to_fs(:db) %>
+  resolved_at: <%= 2.days.ago.to_fs(:db) %>
+  events_count: 73
+  users_count: 51
+
+# Short id GS-1010.
+ignored_issue:
+  project: storefront
+  number: 1010
+  fingerprint: <%= fp.("ignored_issue") %>
+  exception_class: ActionController::InvalidAuthenticityToken
+  message: Can't verify CSRF token authenticity.
+  transaction_name: SessionsController#create
+  level: info
+  status: ignored
+  environments: [production]
+  first_seen_at: <%= 1.year.ago.to_fs(:db) %>
+  last_seen_at: <%= 1.hour.ago.to_fs(:db) %>
+  events_count: 77
+  users_count: 60
+
+# Short id BA-7.
+billing_timeout:
+  project: billing
+  number: 7
+  fingerprint: <%= fp.("billing_timeout") %>
+  exception_class: Faraday::TimeoutError
+  message: timed out after [n] seconds
+  culprit: app/clients/ledger_client.rb:19 in post_invoice
+  transaction_name: InvoicesController#create
+  level: error
+  status: unresolved
+  environments: [production]
+  first_seen_at: <%= 5.days.ago.to_fs(:db) %>
+  last_seen_at: <%= 20.minutes.ago.to_fs(:db) %>
+  events_count: 18
+  users_count: 0
+
+# Another account's issue. Short id UA-1.
+umbrella_issue:
+  project: umbrella_app
+  number: 1
+  fingerprint: <%= fp.("umbrella_issue") %>
+  exception_class: RuntimeError
+  message: T-virus containment breach
+  culprit: app/models/lab.rb:7 in seal
+  transaction_name: LabsController#update
+  level: fatal
+  status: unresolved
+  environments: [production]
+  first_seen_at: <%= 2.days.ago.to_fs(:db) %>
+  last_seen_at: <%= 30.minutes.ago.to_fs(:db) %>
+  events_count: 3
+  users_count: 1

@@ -1,0 +1,7 @@
+storefront_pending:
+  project: storefront
+  api_key: storefront_production
+  environment: production
+  event_uuid: 0192f7a4-6c1e-7b3a-9d21-5f0c8e1b0a99
+  body: <%= { exception: { class: "NoMethodError", message: "undefined method `price_cents' for nil" }, user: { email: "mara@example.com" } }.to_json.to_json %>
+  received_at: <%= 1.minute.ago.to_fs(:db) %>

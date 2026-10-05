@@ -1,0 +1,45 @@
+<%
+  # Last 24 hours hourly, plus one row per earlier day for 14-day sparklines.
+  now_hour = Time.current.utc.beginning_of_hour
+%>
+<% 24.times do |i| %>
+storefront_production_h<%= i %>:
+  project: storefront
+  environment: production
+  hour: <%= (now_hour - i.hours).to_fs(:db) %>
+  count: <%= i.zero? ? 120 : 40 + (i % 5) %>
+
+billing_production_h<%= i %>:
+  project: billing
+  environment: production
+  hour: <%= (now_hour - i.hours).to_fs(:db) %>
+  count: 8
+<% end %>
+
+<% (1..13).each do |day| %>
+<% hour = now_hour.beginning_of_day - day.days + 10.hours %>
+<% next if hour > now_hour - 24.hours %>
+storefront_production_d<%= day %>:
+  project: storefront
+  environment: production
+  hour: <%= hour.to_fs(:db) %>
+  count: 900
+
+billing_production_d<%= day %>:
+  project: billing
+  environment: production
+  hour: <%= hour.to_fs(:db) %>
+  count: 190
+<% end %>
+
+storefront_staging_h0:
+  project: storefront
+  environment: staging
+  hour: <%= now_hour.to_fs(:db) %>
+  count: 6
+
+umbrella_app_production_h0:
+  project: umbrella_app
+  environment: production
+  hour: <%= now_hour.to_fs(:db) %>
+  count: 3

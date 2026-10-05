@@ -1,0 +1,6 @@
+acme:
+  name: Acme Labs
+  monthly_event_quota: 1000000
+
+umbrella:
+  name: Umbrella Corp

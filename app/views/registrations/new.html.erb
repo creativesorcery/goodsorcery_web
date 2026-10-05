@@ -1,0 +1,50 @@
+<% provide :title, "Create an account" %>
+
+<h1 class="font-display text-[28px] leading-tight text-ink-50">Start tracking errors</h1>
+<p class="mt-1 text-[14px] text-ink-400">One account for your team. Add your first app next.</p>
+
+<%= form_with model: @signup, scope: :signup, url: registration_path, class: "mt-6 space-y-4" do |form| %>
+  <% if @signup&.errors&.any? %>
+    <div class="rounded-xl border border-coral-500/30 bg-coral-500/10 px-4 py-3 text-[13px] text-coral-300" role="alert">
+      <ul class="space-y-0.5">
+        <% @signup.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :account_name, "Team or company", class: "label" %>
+    <%= form.text_field :account_name, required: true, autofocus: true, maxlength: 80,
+          placeholder: "Acme Labs", autocomplete: "organization", class: "field" %>
+  </div>
+
+  <div>
+    <%= form.label :name, "Your name", class: "label" %>
+    <%= form.text_field :name, required: true, maxlength: 80, autocomplete: "name", class: "field" %>
+  </div>
+
+  <div>
+    <%= form.label :email_address, "Email", class: "label" %>
+    <%= form.email_field :email_address, required: true, autocomplete: "username",
+          placeholder: "you@example.com", class: "field" %>
+  </div>
+
+  <div>
+    <%= form.label :password, class: "label" %>
+    <%= form.password_field :password, required: true, autocomplete: "new-password",
+          minlength: 8, maxlength: 72, class: "field" %>
+    <p class="hint">At least 8 characters.</p>
+  </div>
+
+  <%= form.hidden_field :time_zone, value: "UTC", data: { controller: "timezone" } %>
+
+  <%= form.submit "Create account", class: "btn btn-primary w-full justify-center py-2.5" %>
+<% end %>
+
+<% content_for :auth_footer do %>
+  <p class="mt-5 text-center text-[13px] text-ink-400">
+    Already have an account? <%= link_to "Sign in", new_session_path, class: "text-iris-300 hover:underline" %>
+  </p>
+<% end %>

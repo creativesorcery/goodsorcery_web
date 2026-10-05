@@ -1,14 +1,47 @@
 Rails.application.routes.draw do
-  # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
-
-  # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
-  # Can be used by load balancers and uptime monitors to verify that the app is live.
   get "up" => "rails/health#show", as: :rails_health_check
 
-  # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
-  # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
-  # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
+  namespace :api do
+    namespace :v1 do
+      resources :events, only: :create
+    end
+  end
 
-  # Defines the root path route ("/")
-  # root "posts#index"
+  resource :session, only: %i[new create destroy]
+  resources :passwords, param: :token, only: %i[new create edit update]
+  resource :registration, only: %i[new create]
+
+  resource :search, only: :show
+  resource :recent_issues, only: :show
+
+  resources :projects, only: %i[index new create edit update] do
+    scope module: :projects do
+      resource :setup, only: :show
+      resource :card, only: :show
+      resource :listening, only: :show
+      resource :summary, only: :show
+      resource :bulk_triage, only: :create
+      resources :api_keys, only: %i[show create] do
+        scope module: :api_keys do
+          resource :reveal, only: :show
+          resource :rotation, only: :create
+        end
+      end
+    end
+
+    resources :issues, only: %i[index show] do
+      scope module: :issues do
+        resource :row, only: :show
+        resource :stats, only: :show
+        resource :chart, only: :show
+        resource :resolution, only: %i[create destroy]
+        resource :ignore, only: %i[create destroy]
+        resource :assignment, only: %i[update destroy]
+        resources :occurrences, only: :show
+        resources :notes, only: :create
+      end
+    end
+  end
+
+  root "projects#index"
 end

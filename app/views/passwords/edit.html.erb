@@ -1,0 +1,20 @@
+<% provide :title, "Choose a new password" %>
+
+<h1 class="font-display text-[28px] leading-tight text-ink-50">Choose a new password</h1>
+<p class="mt-1 text-[14px] text-ink-400">At least 8 characters. You'll be signed out everywhere else.</p>
+
+<%= form_with url: password_path(params[:token]), method: :put, class: "mt-6 space-y-4" do |form| %>
+  <div>
+    <%= form.label :password, "New password", class: "label" %>
+    <%= form.password_field :password, required: true, autofocus: true, autocomplete: "new-password",
+          minlength: 8, maxlength: 72, class: "field" %>
+  </div>
+
+  <div>
+    <%= form.label :password_confirmation, "Repeat new password", class: "label" %>
+    <%= form.password_field :password_confirmation, required: true, autocomplete: "new-password",
+          minlength: 8, maxlength: 72, class: "field" %>
+  </div>
+
+  <%= form.submit "Save password", class: "btn btn-primary w-full justify-center py-2.5" %>
+<% end %>

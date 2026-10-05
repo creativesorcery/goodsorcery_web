@@ -53,4 +53,11 @@ Rails.application.configure do
 
   # Raise error when a before_action's only/except options reference missing actions.
   config.action_controller.raise_on_missing_callback_actions = true
+
+  # Active Record Encryption: fixed, NON-SECRET keys for development and test only.
+  # Production reads real keys from ENV or credentials (see production.rb).
+  config.active_record.encryption.primary_key = "dev-and-test-only-primary-key-not-secret"
+  config.active_record.encryption.deterministic_key = "dev-and-test-only-deterministic-key-not-secret"
+  config.active_record.encryption.key_derivation_salt = "dev-and-test-only-key-derivation-salt-not-secret"
+  config.active_record.encryption.encrypt_fixtures = true
 end
