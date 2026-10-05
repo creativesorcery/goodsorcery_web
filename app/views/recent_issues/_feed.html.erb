@@ -1,0 +1,11 @@
+<%# locals: (account:, feed:) -%>
+<%# Never cached: rows show issue titles. -%>
+<%= turbo_frame_tag dom_id(account, :recent_issues), target: "_top" do %>
+  <% if feed.empty? %>
+    <div class="mt-5 panel px-5 py-6 text-center text-[13.5px] text-ink-400">Nothing in the last hour. All quiet.</div>
+  <% else %>
+    <ul class="mt-5 panel divide-y divide-paper-700/70 overflow-hidden">
+      <%= render partial: "recent_issues/entry", collection: feed.entries, as: :entry %>
+    </ul>
+  <% end %>
+<% end %>

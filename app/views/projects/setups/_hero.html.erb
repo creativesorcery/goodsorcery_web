@@ -1,0 +1,45 @@
+<%# locals: (project:, progress:) -%>
+<%# Replaced by a turbo-stream from the listening frame once the first event lands. -%>
+<section id="<%= dom_id(project, :setup_hero) %>" class="relative overflow-hidden panel px-8 py-8 rise">
+  <div class="absolute right-8 top-1/2 -translate-y-1/2 w-40 h-40 hidden md:block" aria-hidden="true">
+    <div class="relative w-full h-full">
+      <span class="absolute inset-0 rounded-full <%= progress.connected? ? "bg-mint-100" : "bg-iris-100" %>"></span>
+      <span class="absolute inset-[22px] rounded-full bg-lilac-100"></span>
+      <span class="absolute inset-[48px] rounded-full bg-white grid place-items-center">
+        <% if progress.connected? %>
+          <span class="text-mint-300 text-[24px] leading-none">✦</span>
+        <% else %>
+          <%= listening_ping :lg %>
+        <% end %>
+      </span>
+    </div>
+  </div>
+
+  <div class="relative max-w-xl">
+    <div class="eyebrow"><%= progress.eyebrow %></div>
+    <% if progress.connected? %>
+      <h1 class="font-display text-[40px] leading-[1.05] text-ink-50 mt-2 tracking-tight">
+        <span class="text-mint-300">✦</span> <span class="text-iris-300"><%= project.name %></span> is connected
+      </h1>
+      <p class="text-[15px] text-ink-300 mt-3">
+        Events are landing. New errors show up in Issues the moment they happen.
+        <%= link_to "Go to issues →", project_issues_path(project), class: "text-iris-300 hover:underline whitespace-nowrap" %>
+      </p>
+    <% else %>
+      <h1 class="font-display text-[40px] leading-[1.05] text-ink-50 mt-2 tracking-tight">
+        Add <span class="text-iris-300"><%= project.name %></span> to Good Sorcery
+      </h1>
+      <p class="text-[15px] text-ink-300 mt-3">Add the gem, drop in your key, and raise a test error. This page will light up the moment your first event lands.</p>
+    <% end %>
+  </div>
+
+  <ol class="relative mt-8 flex flex-wrap items-center gap-3 text-[13px]" aria-label="Setup progress">
+    <% steps = progress.steps %>
+    <% steps.each_with_index do |step, index| %>
+      <% if index.positive? %><%= setup_step_connector(steps[index - 1]) %><% end %>
+      <%= tag.li class: setup_step_classes(step), aria: { current: ("step" if step.current?) } do %>
+        <%= setup_step_marker(step) %><%= step.label %>
+      <% end %>
+    <% end %>
+  </ol>
+</section>

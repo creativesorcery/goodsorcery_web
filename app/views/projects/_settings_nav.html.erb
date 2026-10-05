@@ -1,0 +1,6 @@
+<%# locals: (project:, current:) -%>
+<nav class="text-[13.5px] space-y-0.5 lg:sticky lg:top-24 self-start" aria-label="Project settings">
+  <div class="section-label">Project</div>
+  <%= link_to "Setup & API keys", project_setup_path(project), class: "nav-link", aria: { current: ("page" if current == :setup) } %>
+  <%= link_to "General", edit_project_path(project), class: "nav-link", aria: { current: ("page" if current == :general) } %>
+</nav>

@@ -1,0 +1,20 @@
+<% provide :title, "General · #{project_crumb_label(@project)}" %>
+<% provide :nav, "settings" %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb project_crumb_label(@project), project_issues_path(@project) %>
+<% breadcrumb "Settings" %>
+
+<div class="px-8 py-8 max-w-[1300px] grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-10">
+  <%= render "projects/settings_nav", project: @project, current: :general %>
+
+  <div class="min-w-0 max-w-2xl">
+    <div class="rise">
+      <div class="eyebrow">Settings</div>
+      <h1 class="page-title">General</h1>
+    </div>
+
+    <section class="panel p-6 mt-6 rise rise-1">
+      <%= render "projects/form", project: @project %>
+    </section>
+  </div>
+</div>

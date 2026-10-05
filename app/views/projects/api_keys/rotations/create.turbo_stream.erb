@@ -1,0 +1,2 @@
+<%= turbo_stream.replace dom_id(@api_key), partial: "projects/api_keys/api_key",
+      locals: { project: @project, api_key: @api_key, revealed: true } %>

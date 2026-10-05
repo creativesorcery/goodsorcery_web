@@ -1,0 +1,27 @@
+<% provide :title, "Projects · #{Current.account.name}" %>
+<% provide :nav, "projects" %>
+<% breadcrumb Current.account.name %>
+<% breadcrumb "Projects" %>
+<%= live_stream_from Current.account, :projects %>
+
+<div class="px-8 pt-8 pb-8 max-w-[1400px]">
+  <div class="flex flex-wrap items-end justify-between gap-6 mb-7 rise">
+    <div>
+      <div class="eyebrow"><%= Current.account.name %></div>
+      <h1 class="page-title">Projects <span class="text-ink-400 text-[30px]">— <%= @overview.projects.size %></span></h1>
+    </div>
+    <%= link_to new_project_path, class: "btn btn-primary" do %>
+      <%= icon :plus, classes: "w-4 h-4" %>Add a new app
+    <% end %>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+    <%= render partial: "projects/card", collection: @overview.cards, as: :card %>
+    <%= render "projects/new_app_tile" %>
+  </div>
+
+  <section class="mt-12" aria-labelledby="recent_issues_heading">
+    <h2 id="recent_issues_heading" class="rune-rule text-[11px] uppercase tracking-[.26em]">✦ Across all projects, last hour ✦</h2>
+    <%= render "recent_issues/feed", account: Current.account, feed: @feed %>
+  </section>
+</div>

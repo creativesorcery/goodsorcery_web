@@ -1,0 +1,23 @@
+<%# locals: (form:, project:) -%>
+<div>
+  <%= form.label :issue_prefix, "Issue prefix", class: "label" %>
+  <%= form.text_field :issue_prefix, class: "field font-mono uppercase max-w-[10rem]", required: true, maxlength: 6,
+        pattern: "[A-Za-z]{1,6}", autocomplete: "off" %>
+  <p class="hint">Short IDs look like <span class="font-mono text-ink-200"><%= project.issue_prefix_in_database %>-1042</span>. Changing the prefix changes every issue's short ID.</p>
+</div>
+
+<div>
+  <%= form.label :scrub_fields, "Extra scrubbed fields", class: "label" %>
+  <%= form.text_field :scrub_fields, value: project.scrub_fields.join(", "), class: "field font-mono",
+        placeholder: "loyalty_number, passport", autocomplete: "off" %>
+  <p class="hint">Comma separated. Matching keys are replaced with [FILTERED] on arrival, on top of the built-in rules.</p>
+</div>
+
+<div>
+  <%= form.label :retention_days, "Retention", class: "label" %>
+  <div class="flex items-center gap-2">
+    <%= form.number_field :retention_days, class: "field max-w-[8rem]", required: true, min: 1, max: 365, step: 1 %>
+    <span class="text-[13px] text-ink-400">days</span>
+  </div>
+  <p class="hint">Occurrences older than this are deleted. Up to 365 days.</p>
+</div>

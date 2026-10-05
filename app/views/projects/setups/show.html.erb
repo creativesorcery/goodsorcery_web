@@ -1,0 +1,25 @@
+<% provide :title, "Setup · #{@project.name}" %>
+<% provide :nav, "settings" %>
+<%# A revealed key must never be restored from Turbo's snapshot cache. -%>
+<% content_for :head, tag.meta(name: "turbo-cache-control", content: "no-cache") %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb @project.name, project_issues_path(@project) %>
+<% breadcrumb "Settings" %>
+<%= live_stream_from @project, :setup %>
+
+<div class="px-8 py-8 max-w-[1300px] grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-10">
+  <%= render "projects/settings_nav", project: @project, current: :setup %>
+
+  <div class="min-w-0">
+    <%= render "projects/setups/hero", project: @project, progress: @progress %>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-6 mt-6">
+      <div class="space-y-6 min-w-0">
+        <%= render "projects/setups/install", api_key: @api_keys.first %>
+        <%= render "projects/setups/test_error", project: @project, progress: @progress %>
+        <%= render "projects/setups/api_keys", project: @project, api_keys: @api_keys %>
+      </div>
+      <%= render "projects/setups/rail" %>
+    </div>
+  </div>
+</div>

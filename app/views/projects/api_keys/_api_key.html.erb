@@ -1,0 +1,18 @@
+<%# locals: (project:, api_key:, default: api_key.default?, revealed: false) -%>
+<%# Never fragment-cached: a revealed row holds the full token. -%>
+<%= turbo_frame_tag dom_id(api_key) do %>
+  <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-4">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2 text-[14px] text-ink-50">
+        <%= api_key_label(api_key) %>
+        <% if default %><%= chip "default", small: true %><% end %>
+      </div>
+      <%= turbo_frame_tag dom_id(api_key, :token), class: "mt-2" do %>
+        <%= render "projects/api_keys/token", project:, api_key:, revealed: %>
+      <% end %>
+      <div class="text-[12px] text-ink-400 mt-2"><%= api_key_history(api_key) %></div>
+    </div>
+    <%= button_to "Rotate…", project_api_key_rotation_path(project, api_key), class: "btn text-[12.5px]",
+          form: { data: { turbo_confirm: "The old key stops working immediately." } } %>
+  </div>
+<% end %>

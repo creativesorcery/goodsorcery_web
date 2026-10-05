@@ -1,0 +1,16 @@
+<%# locals: (project:, api_keys:) -%>
+<section id="api_keys" class="panel rise rise-3 scroll-mt-20">
+  <div class="flex flex-wrap items-start justify-between gap-4 px-5 py-4 border-b border-paper-700">
+    <div>
+      <h2 class="font-display text-[20px] text-ink-50">API keys</h2>
+      <p class="text-[12.5px] text-ink-400 mt-0.5">Ingest-only. Safe to keep in server config; never ship them to browsers.</p>
+    </div>
+    <%= render "projects/api_keys/form", project:, api_key: ApiKey.new %>
+  </div>
+  <div id="<%= dom_id(project, :api_keys) %>" class="divide-y divide-paper-700/70">
+    <% default_id = api_keys.first&.id %>
+    <% api_keys.each do |api_key| %>
+      <%= render "projects/api_keys/api_key", project:, api_key:, default: api_key.id == default_id %>
+    <% end %>
+  </div>
+</section>

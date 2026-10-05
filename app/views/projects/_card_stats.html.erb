@@ -1,0 +1,18 @@
+<%# locals: (card:) -%>
+<div class="mt-5 flex items-end justify-between gap-4">
+  <div>
+    <div class="font-display text-[40px] leading-none <%= card.health.all_clear? ? "text-mint-300" : "text-ink-50" %>"><%= delimited card.unresolved_count %></div>
+    <div class="text-[12px] text-ink-400 mt-1"><%= project_card_caption(card) %></div>
+  </div>
+  <span class="shrink-0" title="Events per day, last 14 days"><%= project_sparkline(card) %></span>
+</div>
+<div class="mt-auto pt-5">
+  <div class="pt-4 border-t border-paper-700 flex items-center justify-between gap-3 text-[12px] text-ink-400">
+    <span class="flex flex-wrap gap-1.5 min-w-0">
+      <% card.environments.each do |environment| %>
+        <%= chip environment, small: true %>
+      <% end %>
+    </span>
+    <span class="shrink-0"><%= project_last_error_label(card) %></span>
+  </div>
+</div>

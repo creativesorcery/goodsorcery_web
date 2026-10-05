@@ -1,0 +1,2 @@
+<%= turbo_stream.replace dom_id(@project, :new_api_key), partial: "projects/api_keys/form",
+      locals: { project: @project, api_key: @api_key, open: true } %>

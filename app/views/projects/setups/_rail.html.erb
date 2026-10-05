@@ -1,0 +1,31 @@
+<aside class="space-y-6">
+  <div class="panel p-5 rise rise-2">
+    <div class="text-[11px] uppercase tracking-[.18em] text-ink-400">What gets captured</div>
+    <ul class="mt-3 space-y-2.5 text-[13px] text-ink-200">
+      <li class="flex gap-2"><span class="text-iris-400">✦</span>Unhandled exceptions in controllers, jobs (ActiveJob, Sidekiq) and rake tasks</li>
+      <li class="flex gap-2"><span class="text-iris-400">✦</span>Breadcrumbs from ActiveSupport notifications: SQL, HTTP, cache, logs</li>
+      <li class="flex gap-2"><span class="text-iris-400">✦</span><span><span class="font-mono text-[12px]">current_user</span> via a one-line hook</span></li>
+    </ul>
+  </div>
+
+  <div class="panel p-5 rise rise-3">
+    <div class="text-[11px] uppercase tracking-[.18em] text-ink-400">Scrubbed by default</div>
+    <p class="text-[13px] text-ink-300 mt-3">
+      Everything in <span class="font-mono text-[12px] text-ink-100 break-all">Rails.application.config.filter_parameters</span>,
+      plus cookies, Authorization headers and card-shaped numbers. Filtering runs <em class="font-display">inside your app</em>,
+      so secrets never leave the process.
+    </p>
+  </div>
+
+  <div class="rounded-[14px] border border-iris-500/20 p-5 bg-iris-100 rise rise-4">
+    <div class="font-display text-[18px] text-ink-50">Self-hosting?</div>
+    <p class="text-[13px] text-ink-300 mt-2">
+      Point <span class="font-mono text-[12px]">config.endpoint</span> at your own instance. Same gem, same UI, MIT licensed.
+    </p>
+    <div class="mt-3 flex items-center gap-2 rounded-lg border border-iris-500/20 bg-paper-900 px-3 py-2" data-controller="clipboard">
+      <code class="flex-1 min-w-0 break-all font-mono text-[11.5px] text-ink-100" data-clipboard-target="source">config.endpoint = "<%= instance_endpoint %>"</code>
+      <button type="button" class="shrink-0 text-[11.5px] text-ink-400 hover:text-iris-300" data-action="clipboard#copy">Copy</button>
+    </div>
+    <%= link_to "Self-host guide →", docs_url, class: "inline-block mt-3 text-[13px] text-iris-300 hover:underline", target: "_blank", rel: "noopener noreferrer" %>
+  </div>
+</aside>

@@ -1,0 +1,4 @@
+<%# Full token: this response is sent with Cache-Control: no-store and is never cached. -%>
+<%= turbo_frame_tag dom_id(@api_key, :token) do %>
+  <%= render "projects/api_keys/token", project: @project, api_key: @api_key, revealed: true %>
+<% end %>

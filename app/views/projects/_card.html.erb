@@ -1,0 +1,21 @@
+<%# locals: (card:, card_counter: 0, card_iteration: nil) -%>
+<%# Fragment-cached: the key covers every number and label drawn here, and a card holds no captured error data. -%>
+<%= turbo_frame_tag dom_id(card.project, :card), target: "_top", class: "min-w-0 #{project_card_rise(card_counter)}" do %>
+  <% cache [ card, project_card_subtitle(card), project_last_error_label(card) ], expires_in: 10.minutes do %>
+    <% health = card.health %>
+    <%= link_to project_card_destination(card),
+          class: "panel panel-link p-5 flex flex-col h-full relative overflow-hidden #{'border-dashed' if health.listening?}" do %>
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <%= project_tile card.project, size: :lg %>
+          <div class="leading-tight min-w-0">
+            <div class="text-[16px] text-ink-50 font-medium truncate"><%= card.project.name %></div>
+            <div class="text-[12px] text-ink-400 truncate"><%= project_card_subtitle(card) %></div>
+          </div>
+        </div>
+        <%= project_health_chip(health) %>
+      </div>
+      <%= render health.listening? ? "projects/card_listening" : "projects/card_stats", card: %>
+    <% end %>
+  <% end %>
+<% end %>

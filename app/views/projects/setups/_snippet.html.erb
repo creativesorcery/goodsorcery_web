@@ -1,0 +1,9 @@
+<%# locals: (label:) -%>
+<%# Layout for a copyable code pane: render layout: "projects/setups/snippet", locals: { label: "terminal" } do … end -%>
+<div class="code-pane" data-controller="clipboard">
+  <div class="code-pane-header">
+    <span class="font-mono"><%= label %></span>
+    <button type="button" class="hover:text-iris-300" data-action="clipboard#copy">Copy</button>
+  </div>
+  <pre class="code-pane-body" data-clipboard-target="source"><%= yield %></pre>
+</div>

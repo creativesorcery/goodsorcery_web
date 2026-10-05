@@ -1,0 +1,37 @@
+<%# locals: (project:) -%>
+<%= form_with model: project, class: "space-y-5" do |form| %>
+  <% if project.errors.any? %>
+    <div class="rounded-xl border border-coral-500/40 bg-coral-500/10 px-4 py-3 text-[13px] text-coral-300" role="alert">
+      <ul class="space-y-1">
+        <% project.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :name, "Name", class: "label" %>
+    <%= form.text_field :name, class: "field", required: true, maxlength: 60, autofocus: project.new_record?,
+          placeholder: "storefront", autocomplete: "off" %>
+    <% if project.persisted? %>
+      <p class="hint">The URL keeps its original slug, <span class="font-mono text-ink-200"><%= project.slug %></span>.</p>
+    <% else %>
+      <p class="hint">Name it after the codebase. It also becomes the URL, so short and lowercase works best.</p>
+    <% end %>
+  </div>
+
+  <div>
+    <%= form.label :platform, "Platform", class: "label" %>
+    <%= form.select :platform, platform_options, {}, class: "field" %>
+  </div>
+
+  <% if project.persisted? %>
+    <%= render "projects/settings_fields", form:, project: %>
+  <% end %>
+
+  <div class="flex items-center gap-3 pt-2">
+    <%= form.submit project.new_record? ? "Add a new app" : "Save changes", class: "btn btn-primary" %>
+    <%= link_to "Cancel", project.new_record? ? projects_path : project_setup_path(project), class: "btn btn-ghost" %>
+  </div>
+<% end %>

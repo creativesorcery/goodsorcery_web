@@ -1,0 +1,15 @@
+<%# locals: (project:, api_key:, revealed: false) -%>
+<% if revealed %>
+  <div class="flex flex-wrap items-center gap-2" data-controller="clipboard">
+    <code class="font-mono text-[13px] bg-paper-950 border border-paper-700 rounded-lg px-3 py-1.5 text-iris-200 break-all"
+          data-clipboard-target="source"><%= api_key.token %></code>
+    <button type="button" class="btn btn-sm" data-action="clipboard#copy">Copy</button>
+    <%= link_to "Hide", project_api_key_path(project, api_key), class: "btn btn-sm", data: { turbo_frame: dom_id(api_key) } %>
+  </div>
+<% else %>
+  <div class="flex flex-wrap items-center gap-2">
+    <code class="font-mono text-[13px] bg-paper-950 border border-paper-700 rounded-lg px-3 py-1.5 text-ink-200"
+          aria-label="<%= api_key_label(api_key) %> key, hidden"><%= api_key.token_prefix %><span class="text-ink-400">••••••••••••</span><%= api_key.token_last4 %></code>
+    <%= link_to "Reveal", project_api_key_reveal_path(project, api_key), class: "btn btn-sm" %>
+  </div>
+<% end %>
