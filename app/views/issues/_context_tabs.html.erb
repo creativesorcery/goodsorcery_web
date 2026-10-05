@@ -2,7 +2,7 @@
     scrubbed at ingest; "[FILTERED]" renders muted. %>
 <section class="rise rise-5" data-controller="tabs">
   <div class="flex items-center gap-6 border-b border-paper-700" role="tablist" aria-label="Occurrence context">
-    <% IssueDetailHelper::CONTEXT_TABS.each_with_index do |(id, label), index| %>
+    <% IssueContextHelper::TABS.each_with_index do |(id, label), index| %>
       <button type="button" class="tab" role="tab" id="context-tab-<%= id %>" aria-selected="<%= index.zero? %>"
               aria-controls="context-<%= id %>" data-tabs-target="tab" data-action="tabs#select"><%= label %></button>
     <% end %>

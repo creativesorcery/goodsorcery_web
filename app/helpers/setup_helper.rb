@@ -23,9 +23,18 @@ module SetupHelper
     tag.li class: previous_step.done? ? "w-12 h-px bg-mint-400/40" : "w-12 h-px bg-paper-600", "aria-hidden": true
   end
 
-  # Install snippets show the masked key only; the full key is behind Reveal.
+  # Install snippets show the short masked key ("gs_live_9f2c…e81a"); the full
+  # key is behind Reveal. Copy skips the masked key and takes a placeholder
+  # instead, so a copied command never contains an unusable key.
   def install_key_hint(api_key)
-    api_key&.masked_token || PLACEHOLDER_KEY
+    return PLACEHOLDER_KEY unless api_key
+
+    safe_join [ tag.span(api_key.short_masked_token, data: { clipboard_skip: true }),
+                tag.span(install_key_placeholder(api_key), hidden: true) ]
+  end
+
+  def install_key_placeholder(api_key)
+    "YOUR_#{api_key.environment.upcase.tr('-', '_')}_KEY"
   end
 
   # Where the gem should send events: this instance (overridable for proxies).

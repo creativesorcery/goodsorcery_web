@@ -1,7 +1,9 @@
-<%# locals: (summary:) -%>
+<%# locals: (summary:, animate: false) -%>
+<%# Rendered inside a frame that live updates and the period switcher reload, so
+    the page-load fade-and-rise runs only on the full page (animate: true). %>
 <% project = summary.project %>
 <% period = summary.period %>
-<div class="flex items-end justify-between gap-6 rise">
+<div class="flex items-end justify-between gap-6 <%= 'rise' if animate %>">
   <div>
     <div class="eyebrow"><%= issues_eyebrow(project, summary.environment) %></div>
     <h1 class="page-title">Issues <span class="text-ink-400 text-[30px]">— <%= delimited(summary.unresolved_count) %> unresolved</span></h1>
@@ -14,7 +16,7 @@
   </nav>
 </div>
 
-<section class="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7 rise rise-1" aria-label="Summary">
+<section class="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7 <%= 'rise rise-1' if animate %>" aria-label="Summary">
   <div class="panel p-4">
     <div class="text-[12px] text-ink-400">Events · <%= period.key %></div>
     <div class="flex items-end justify-between gap-3 mt-1">

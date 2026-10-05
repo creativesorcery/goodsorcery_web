@@ -34,6 +34,16 @@ class ShellTest < ActionDispatch::IntegrationTest
     assert_strict_csp
   end
 
+  test "the sidebar keeps the project last worked in on pages without one" do
+    sign_in_as users(:philip)
+    get project_issues_path(projects(:marketing))
+
+    get root_path
+
+    assert_select "aside a.nav-link[href=?]", project_issues_path(projects(:marketing)), text: /Issues/
+    assert_select "aside a.nav-link[href=?]", project_setup_path(projects(:marketing)), text: /Settings/
+  end
+
   test "signing out from the user menu" do
     sign_in_as users(:philip)
 

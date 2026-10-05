@@ -54,11 +54,26 @@ class NavigationHelperTest < ActionView::TestCase
     assert_equal projects(:storefront), sidebar_project
   end
 
-  test "sidebar_project falls back to the first project by name and ignores unsaved projects" do
+  test "sidebar_project falls back to the most recently active project and ignores unsaved projects" do
     sign_in_to accounts(:acme)
     @project = Project.new
+    latest = Issue.where(project: accounts(:acme).projects).order(last_seen_at: :desc).first.project
 
-    assert_equal accounts(:acme).projects.order(:name).first, sidebar_project
+    assert_equal latest, sidebar_project
+  end
+
+  test "sidebar_project keeps the project last viewed" do
+    sign_in_to accounts(:acme)
+    session[:last_project_id] = projects(:marketing).id
+
+    assert_equal projects(:marketing), sidebar_project
+  end
+
+  test "a remembered project of another account is ignored" do
+    sign_in_to accounts(:acme)
+    session[:last_project_id] = projects(:umbrella_app).id
+
+    assert_equal accounts(:acme), sidebar_project.account
   end
 
   test "sidebar_unresolved_count counts the sidebar project's unresolved issues" do

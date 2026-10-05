@@ -7,6 +7,16 @@ class OccurrenceNavigatorTest < ActiveSupport::TestCase
     @oldest = occurrences(:nomethod_oldest)
   end
 
+  test "user_hits counts the shown occurrence's user on this issue, in one query" do
+    navigator = OccurrenceNavigator.new(@issue)
+    navigator.find("latest")
+
+    hits = assert_queries_count(1) { navigator.user_hits }
+    assert_equal 7, hits
+    assert_queries_count(0) { navigator.user_hits }
+    assert_equal 0, OccurrenceNavigator.new(@issue).user_hits, "no occurrence, no user"
+  end
+
   test "finds latest, oldest and by uuid" do
     assert_equal @latest, OccurrenceNavigator.new(@issue).find("latest")
     assert_equal @oldest, OccurrenceNavigator.new(@issue).find("oldest")

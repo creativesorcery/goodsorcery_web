@@ -1,8 +1,9 @@
 <%# locals: (project:, list:, members:) -%>
 <%# Shown by bulk_selection once a row is checked. Row checkboxes join this form via form="bulk_triage". %>
-<div class="sticky bottom-6 z-20 mt-6 flex justify-center" data-bulk-selection-target="bar" hidden>
+<%# The full-width sticky strip lets clicks through to the rows under it; only the bar itself takes them. %>
+<div class="sticky bottom-6 z-20 mt-6 flex justify-center pointer-events-none" data-bulk-selection-target="bar" hidden>
   <%= form_with url: project_bulk_triage_path(project), id: "bulk_triage", html: { "aria-label": "Bulk actions" },
-        class: "flex items-center gap-2 rounded-2xl border border-iris-500/30 bg-paper-850/95 backdrop-blur px-3 py-2 shadow-lg shadow-paper-600/40" do |form| %>
+        class: "pointer-events-auto flex items-center gap-2 rounded-2xl border border-iris-500/30 bg-paper-850/95 backdrop-blur px-3 py-2 shadow-lg shadow-paper-600/40" do |form| %>
     <span class="px-2 text-[13px] text-ink-200" aria-live="polite">
       <span class="font-mono text-iris-300" data-bulk-selection-target="count">0</span> selected
     </span>

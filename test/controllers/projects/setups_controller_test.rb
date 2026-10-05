@@ -36,11 +36,20 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[role=tab]", count: 3
     assert_select "[role=tab][aria-selected=true]", "Generator"
     assert_select "#install_generator pre", text: /bundle add goodsorcery/
-    assert_select "#install_generator pre", text: /#{Regexp.escape(api_key.masked_token)}/
+    assert_select "#install_generator pre [data-clipboard-skip]", text: "gs_live_Stor…0001"
     assert_select "#install_manual[hidden] pre", text: /GoodSorcery\.configure/
     assert_select "#install_env[hidden] pre", text: /GOODSORCERY_ENV=production/
     assert_select "*", text: /Reveal your key under/
     assert_select "pre", text: /bin\/rails goodsorcery:test/
+  end
+
+  test "Copy takes a placeholder instead of the masked key" do
+    get project_setup_path(projects(:storefront))
+
+    pre = css_select("#install_generator pre").first.dup
+    pre.css("[data-clipboard-skip]").each(&:remove) # what clipboard_controller.js copies
+    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install YOUR_PRODUCTION_KEY", pre.text.strip
+    assert_select "#install_env pre [hidden]", text: "YOUR_PRODUCTION_KEY"
   end
 
   test "the page never contains a full token" do

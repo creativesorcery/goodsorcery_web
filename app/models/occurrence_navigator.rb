@@ -20,11 +20,18 @@ class OccurrenceNavigator
   # an unknown uuid; returns nil for a shortcut when nothing is stored.
   def find(param)
     @requested = param.to_s
-    @counts = nil
+    @counts = @user_hits = nil
     @occurrence = SHORTCUTS.include?(@requested) ? public_send(@requested) : occurrences.find_by!(uuid: @requested)
   end
 
   def latest = occurrences.latest
+
+  # How often the shown occurrence's user hit this issue (one query, memoised).
+  def user_hits
+    return 0 if occurrence&.user_digest.blank?
+
+    @user_hits ||= IssueUser.count_for(issue, occurrence.user_digest)
+  end
 
   def oldest = occurrences.oldest
 

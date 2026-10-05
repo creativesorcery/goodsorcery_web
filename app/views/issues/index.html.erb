@@ -7,7 +7,7 @@
 
 <div class="px-8 pt-8 pb-16 max-w-[1400px]">
   <%= turbo_frame_tag dom_id(@project, :summary), src: project_summary_path(@project, env: @summary.environment), complete: true do %>
-    <%= render "projects/summaries/summary", summary: @summary %>
+    <%= render "projects/summaries/summary", summary: @summary, animate: true %>
   <% end %>
 
   <div data-controller="bulk-selection">

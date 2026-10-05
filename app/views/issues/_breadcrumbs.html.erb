@@ -4,7 +4,7 @@
     <div class="flex gap-1.5 text-[12px]" role="group" aria-label="Filter breadcrumbs">
       <button type="button" class="chip text-ink-400 aria-pressed:text-ink-200 aria-pressed:bg-paper-700" aria-pressed="true"
               data-breadcrumb-filter-target="chip" data-breadcrumb-filter-category-param="all" data-action="breadcrumb-filter#filter">all <%= breadcrumbs.size %></button>
-      <% IssueDetailHelper::BREADCRUMB_FILTERS.each do |category| %>
+      <% BreadcrumbsHelper::FILTERS.each do |category| %>
         <button type="button" class="chip text-ink-400 aria-pressed:text-ink-200 aria-pressed:bg-paper-700" aria-pressed="false"
                 title="<%= pluralize(breadcrumb_count(breadcrumbs, category), "#{category} breadcrumb") %>"
                 data-breadcrumb-filter-target="chip" data-breadcrumb-filter-category-param="<%= category %>" data-action="breadcrumb-filter#filter"><%= category %></button>

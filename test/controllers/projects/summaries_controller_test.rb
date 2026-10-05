@@ -8,6 +8,14 @@ class Projects::SummariesControllerTest < ActionDispatch::IntegrationTest
     sign_in_as users(:philip)
   end
 
+  test "a frame reload (live update or period switch) does not replay the page-load animation" do
+    get project_summary_path(@project, period: "7d")
+    assert_select "turbo-frame##{dom_id(@project, :summary)} .rise", 0
+
+    get project_issues_path(@project)
+    assert_select "turbo-frame##{dom_id(@project, :summary)} .rise", 2
+  end
+
   test "renders the heading and summary strip inside the summary frame" do
     get project_summary_path(@project)
 

@@ -11,7 +11,7 @@
     </div>
     <% if occurrence.user_digest.present? %>
       <div class="mt-3 text-[12px] text-ink-400">
-        Hit this <span class="text-ink-100"><%= affected_user_hits(issue, occurrence) %>×</span> ·
+        Hit this <span class="text-ink-100"><%= occurrence_navigator.user_hits %>×</span> ·
         <%= link_to "all their errors", project_issues_path(project, q: "user:#{occurrence.user_digest}"),
               class: "text-iris-300 hover:underline", data: { turbo_frame: "_top" } %>
       </div>

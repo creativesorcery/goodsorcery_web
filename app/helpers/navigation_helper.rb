@@ -42,19 +42,33 @@ module NavigationHelper
     content_for(:nav).to_s == key.to_s
   end
 
-  # The project the sidebar is about: the page's project, else the account's first by name.
+  # The project the sidebar is about: the page's project, else the one last
+  # viewed (ProjectScoped remembers it), else the most recently active one.
   def sidebar_project
     return @sidebar_project if defined?(@sidebar_project)
 
-    @sidebar_project = @project.try(:persisted?) ? @project : sidebar_projects.first
+    @sidebar_project = @project.try(:persisted?) ? @project : remembered_project || most_recently_active_project
   end
 
-  # Switcher list: one query, including each project's first environment.
+  # Switcher list: one query, including each project's first environment and
+  # latest issue activity.
   def sidebar_projects
     return [] unless Current.account
 
     @sidebar_projects ||= Current.account.projects.order(:name).limit(SWITCHER_LIMIT)
-      .select("projects.*", FIRST_ENVIRONMENT_SQL).to_a
+      .select("projects.*", FIRST_ENVIRONMENT_SQL, "#{ProjectOverview::LAST_SEEN_SQL} AS last_issue_seen_at").to_a
+  end
+
+  def remembered_project
+    id = session[:last_project_id]
+    return unless id && Current.account
+
+    sidebar_projects.find { |project| project.id == id } || Current.account.projects.find_by(id:)
+  end
+
+  # From the switcher's own query (no extra one); ties keep name order.
+  def most_recently_active_project
+    sidebar_projects.min_by.with_index { |project, index| [ -project.last_issue_seen_at.to_i, index ] }
   end
 
   # "production · Rails 8.0 · Ruby 3.4"

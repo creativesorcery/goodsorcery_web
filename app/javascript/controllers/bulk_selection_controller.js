@@ -14,8 +14,10 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = ["checkbox", "all", "bar", "count"]
 
+  // Boxes ticked before the controller connected (a fast click while the page
+  // loads, or the browser restoring form state) count as selected.
   connect() {
-    this.selected = new Set()
+    this.selected = new Set(this.checkboxTargets.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value))
     this.render()
   }
 
@@ -40,7 +42,9 @@ export default class extends Controller {
 
   // Fires for re-rendered row frames and newly loaded pages alike.
   checkboxTargetConnected(checkbox) {
-    checkbox.checked = this.selected?.has(checkbox.value) ?? false
+    if (!this.selected) return // before connect(), which reads the box as it is
+
+    checkbox.checked = this.selected.has(checkbox.value)
     this.render()
   }
 

@@ -856,7 +856,9 @@ Other rules:
 - `NavigationHelper`:
   - `breadcrumb(label, path = nil)` collects crumbs; `breadcrumbs` returns them.
   - `nav_link_to(label, path, key:, icon:, badge: nil)` sets `aria-current="page"` when `content_for(:nav) == key`.
-  - `sidebar_project` returns `@project || Current.account.projects.order(:name).first`.
+  - Issue page helpers are split by section: `IssueDetailHelper` (hero, chart, navigator, backtrace), `BreadcrumbsHelper`, `IssueContextHelper` (context tabs, affected user), `IssueTagsHelper`, `IssueActivityHelper`, and `CapturedDataHelper` (rendering any captured value, `pretty_json`). The affected user's hit count comes from `OccurrenceNavigator#user_hits`.
+  - Browser tests (`test/system`, headless Chrome, run by `bin/rails test:system`) cover the Stimulus controllers and the `reload_frame` / `reload_rows` stream actions.
+  - `sidebar_project` returns `@project`, else the project last viewed (`session[:last_project_id]`, set by `ProjectScoped`, resolved within `Current.account.projects`), else the project with the most recent `issues.last_seen_at`.
   - `live_stream_from(*streamables)`.
 - `IconHelper`: `icon(name, classes: "w-[17px] h-[17px]")` covers projects, issues, alerts, uptime, settings, book, search, filter, chevron_updown, check, plus.
 - `ChartHelper` (pure SVG built with `tag`, numbers formatted to 1 dp, each bar has a `<title>`):
