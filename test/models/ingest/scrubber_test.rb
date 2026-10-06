@@ -42,6 +42,14 @@ class Ingest::ScrubberTest < ActiveSupport::TestCase
     assert_equal "#{uuid} card [FILTERED]", @scrubber.scrub_text("#{uuid} card 4242-4242-4242-4242")
   end
 
+  test "keeps long hex ids whole: Sidekiq job ids, git SHAs" do
+    # "8946554506838" inside this jid is 13 digits that pass Luhn.
+    jid = "c3e7c8946554506838bb41a2"
+    assert_equal({ "provider_job_id" => jid }, @scrubber.scrub({ "provider_job_id" => jid }))
+    assert_equal "jid=#{jid} release #{jid}0123456789abcdef", @scrubber.scrub_text("jid=#{jid} release #{jid}0123456789abcdef")
+    assert_equal "card[FILTERED] and [FILTERED]", @scrubber.scrub_text("card4111111111111111 and 4111111111111111")
+  end
+
   test "replaces bearer and basic credentials and JWTs" do
     assert_equal "header Bearer [FILTERED]", @scrubber.scrub_text("header Bearer abc.def-123")
     assert_equal "Authorization: [FILTERED]", @scrubber.scrub_text("Authorization: Bearer abc.def-123")

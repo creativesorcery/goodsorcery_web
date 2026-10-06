@@ -10,9 +10,12 @@ class Ingest::Scrubber
   KEY_PATTERN = /passw|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|authorization|cookie|csrf|xsrf|
     credit[_-]?card|card[_-]?number|(?<![a-z])(?:cvv|cvc|ssn|otp)(?![a-z])|session[_-]?id/ix
 
-  # A card-like digit run, or a whole UUID: matching UUIDs first keeps the
-  # digit runs inside job and request ids from being taken for card numbers.
-  CARD_NUMBER_OR_UUID = /(?<uuid>(?<!\h)\h{8}-\h{4}-\h{4}-\h{4}-\h{12}(?!\h))|(?<!\d)\d(?:[ -]?\d){12,18}(?!\d)/
+  # A card-like digit run, or a whole identifier: a UUID, or a word of 20+
+  # hex characters with at least one letter (Sidekiq job ids, Mongo ids, git
+  # SHAs). Matching identifiers first keeps the digit runs inside job,
+  # request and provider job ids from being taken for card numbers.
+  CARD_NUMBER_OR_ID = /(?<id>(?<!\h)\h{8}-\h{4}-\h{4}-\h{4}-\h{12}(?!\h)|(?<!\w)(?=\h*[a-f])\h{20,}(?!\w))|
+    (?<!\d)\d(?:[ -]?\d){12,18}(?!\d)/xi
   CREDENTIAL = /\b(Bearer|Basic|Digest|ApiKey)\s+[^\s"',;]+/i
   # "Token" is also an ordinary word, so only token-like values (with a digit) go.
   TOKEN_CREDENTIAL = /\b(Token)\s+(?=[^\s"',;]*\d)[^\s"',;]+/i
@@ -55,7 +58,7 @@ class Ingest::Scrubber
 
   private
     def scrub_card_numbers(text)
-      text.gsub(CARD_NUMBER_OR_UUID) { |found| $~[:uuid] || !Ingest::Luhn.valid?(found) ? found : FILTERED }
+      text.gsub(CARD_NUMBER_OR_ID) { |found| $~[:id] || !Ingest::Luhn.valid?(found) ? found : FILTERED }
     end
 
     def scrub_hash(hash)
