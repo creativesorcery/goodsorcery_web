@@ -112,6 +112,7 @@ and tags), use the bundled script:
 bin/send_test_event YOUR_API_KEY http://localhost:3000
 EXCEPTION_CLASS=ArgumentError bin/send_test_event YOUR_API_KEY   # a separate issue
 GZIP=1 bin/send_test_event YOUR_API_KEY                          # gzipped body
+JOB=1 bin/send_test_event YOUR_API_KEY                           # an error from a background job (Job tab)
 ```
 
 Script variables: `GOODSORCERY_API_KEY` and `GOODSORCERY_HOST` (default

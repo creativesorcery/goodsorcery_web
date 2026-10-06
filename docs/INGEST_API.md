@@ -272,9 +272,10 @@ GOODSORCERY_API_KEY=gs_live_... GOODSORCERY_HOST=https://errors.example.com bin/
 EVENT_ID=0192f7a4-6c1e-7b3a-9d21-5f0c8e1b0aa1 bin/send_test_event gs_test_...   # same id twice: counted once
 GZIP=1 EXCEPTION_CLASS=Demo::OtherError bin/send_test_event gs_test_...          # gzip body, a different issue
 BATCH=25 GZIP=1 bin/send_test_event gs_test_...                                  # 25 events in one batch request
+JOB=1 bin/send_test_event gs_test_...                                            # an error from a job, with a job section
 ```
 
-It prints the status and body and exits non-zero unless the response is `202`. Sending it twice produces one issue with 2 events. `BATCH=N` sends N copies (each with its own `event_id` unless `EVENT_ID` is set) in one request to the batch endpoint.
+It prints the status and body and exits non-zero unless the response is `202`. Sending it twice produces one issue with 2 events. `JOB=1` sends the error as raised in an Active Job (`job` section with arguments, no request), so the issue page opens on the Job tab. `BATCH=N` sends N copies (each with its own `event_id` unless `EVENT_ID` is set) in one request to the batch endpoint.
 
 ## Operating (self-hosted)
 

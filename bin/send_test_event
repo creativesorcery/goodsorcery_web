@@ -7,7 +7,8 @@
 # Options (ENV): EVENT_ID (reuse to test idempotency), GZIP=1 (gzip the body),
 # EXCEPTION_CLASS (vary to create a different issue), BATCH=N (send N copies
 # in one request to the batch endpoint, each with its own event id unless
-# EVENT_ID is set).
+# EVENT_ID is set), JOB=1 (an error from an Active Job with a `job` section
+# instead of a request).
 # Prints the HTTP status and response body; exits non-zero unless 202.
 # The sample data below is fictional.
 require "json"
@@ -77,6 +78,19 @@ event = {
   tags: { browser: "Mobile Safari", coupon: "FALL25" },
   notifier: { name: "goodsorcery-send-test-event", version: "0.1.0" }
 }
+
+# JOB=1: the same kind of error raised in a background job instead of a request.
+if ENV["JOB"] == "1"
+  event.delete(:request)
+  event[:transaction] = "ChargeCustomerJob"
+  event[:exception][:backtrace].unshift({ file: "app/jobs/charge_customer_job.rb", line: 9, method: "perform", in_app: true })
+  event[:breadcrumbs] = [ { timestamp: at.(0.5), category: "job", message: "Performing ChargeCustomerJob from Sidekiq(billing)" } ]
+  event[:job] = {
+    framework: "active_job", class: "ChargeCustomerJob", id: SecureRandom.uuid, provider_job_id: SecureRandom.hex(12),
+    queue: "billing", priority: 10, executions: 2, enqueued_at: at.(42), scheduled_at: at.(30),
+    arguments: [ "gid://shop/Customer/88123", { amount_cents: 4200, card_token: "tok_4242", note: "monthly plan" } ]
+  }
+end
 
 # Each copy gets its own event id, unless EVENT_ID asks for duplicates.
 copy = ->(index) { event.merge(event_id: ENV["EVENT_ID"] || (index.zero? ? event[:event_id] : SecureRandom.uuid)) }
