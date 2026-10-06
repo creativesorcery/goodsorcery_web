@@ -1,0 +1,30 @@
+{
+  "occurred_at": "OCCURRED_AT",
+  "level": "error",
+  "transaction": "ChargeCustomerJob",
+  "exception": {
+    "class": "Stripe::CardError",
+    "message": "Your card was declined.",
+    "backtrace": [
+      { "file": "app/jobs/charge_customer_job.rb", "line": 9, "method": "perform", "in_app": true }
+    ]
+  },
+  "job": {
+    "framework": "active_job",
+    "class": "ChargeCustomerJob",
+    "id": "5f0c8e1b-7d4c-4b8e-a2d1-2a911e0f55aa",
+    "provider_job_id": "b1e0f3c2a9d8e7f6a5b4c3d2",
+    "queue": "billing",
+    "priority": 10,
+    "executions": 3,
+    "enqueued_at": "2026-10-04T09:14:01.000Z",
+    "scheduled_at": "2026-10-04T09:15:00.000Z",
+    "unknown_key": "dropped",
+    "arguments": [
+      "gid://shop/Customer/88123",
+      { "amount_cents": 4200, "card_token": "tok_visa_4242", "loyalty_number": "LOY-99812", "note": "Bearer abc.def.ghi" },
+      "4242 4242 4242 4242"
+    ]
+  },
+  "context": { "runtime": { "ruby": "3.4.1", "rails": "8.0.1" }, "host": "worker-1" }
+}

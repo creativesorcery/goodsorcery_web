@@ -289,7 +289,7 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
   - `belongs_to :issue, :project`; `encrypts :payload`; `to_param` returns `uuid`.
   - `scope :latest_first, -> { order(id: :desc) }`. `.latest` and `.oldest`.
   - `#data` returns the memoized `JSON.parse(payload)`.
-  - Readers: `#exception_message`, `#frames` (array of hashes), `#request`, `#params`, `#headers`, `#session_data`, `#user`, `#breadcrumbs`, `#context`, `#tags`, `#transaction_name`. All read from `data` with `{}`/`[]` defaults.
+  - Readers: `#exception_message`, `#frames` (array of hashes), `#request`, `#params`, `#headers`, `#session_data`, `#job`, `#user`, `#breadcrumbs`, `#context`, `#tags`, `#transaction_name`. All read from `data` with `{}`/`[]` defaults.
   - `RETAINED_PER_ISSUE = 1_000`.
 - **IssueHourlyCount**:
   - `.histograms(issue_ids, hours: 24)` returns `{ issue_id => [Integer] * hours }` in one grouped query, zero-filled via `TimeSeries`.
@@ -376,7 +376,7 @@ The two ingest controllers include the `IngestEndpoint` concern, which holds eve
 | `Ingest::RateCounter` | weighted fixed-window counter in `Ingest::RateLimitStore` | `#take(amount)`, `#give_back(amount)`, `#exhausted?` |
 | `Ingest::EventRateLimit` | per-key and per-account event allowances | `#admit?(events)`, `#exhausted?` |
 | `Ingest::Limits` | constants (§3.4) | — |
-| `Ingest::Event` | normalised, scrubbed, truncated event (value object) | `.from_json(json, project:, environment:, received_at:)` (raises `Ingest::MalformedPayload`). Readers: `exception_class`, `message`, `redacted_message`, `frames`, `top_app_frame`, `culprit`, `transaction_name`, `level`, `occurred_at`, `release`, `user_identity`, `tags`, `runtime_label`, `fingerprint`, `#to_payload_json` |
+| `Ingest::Event` | normalised, scrubbed, truncated event (value object) | `.from_json(json, project:, environment:, received_at:)` (raises `Ingest::MalformedPayload`). Readers: `exception_class`, `message`, `redacted_message`, `frames`, `top_app_frame`, `culprit`, `transaction_name`, `level`, `occurred_at`, `release`, `user_identity`, `tags`, `runtime_label`, `fingerprint`, `request` (`Ingest::RequestSection`), `job` (`Ingest::JobSection#to_h`), `#to_payload_json` |
 | `Ingest::Frame` | backtrace frame value (`Data.define`) | `file`, `line`, `method_name`, `in_app?`, `gem_name`, `location` |
 | `Ingest::PathNormalizer` | path redaction | `#normalize(path)` |
 | `Ingest::MessageRedactor` | §1.5 rules | `#redact(message)` |
@@ -398,7 +398,7 @@ The two ingest controllers include the `IngestEndpoint` concern, which holds eve
   - Mark frames `in_app` when the client says so. Otherwise a path is in-app when it starts with `app/`, `lib/` or `config/` and contains neither `/gems/` nor `vendor/bundle`.
   - Take `gem_name` from `gems/<name>-<version>/` or a `<name>-<version>/lib/` path segment.
   - Server-added tags: `environment` (from the key), `release` when present and `host` when `context.host` is present. Client tags win on key conflicts except `environment`.
-- **Scrubbing** (`Ingest::Scrubber.new(extra_keys: project.scrub_fields)`) runs over request, params, headers, session, user (except `id`, `email`, `username` and `name`, which are needed and stored encrypted), breadcrumbs, frame locals, context and tags:
+- **Scrubbing** (`Ingest::Scrubber.new(extra_keys: project.scrub_fields)`) runs over request, params, headers, session, job (fields and arguments), user (except `id`, `email`, `username` and `name`, which are needed and stored encrypted), breadcrumbs, frame locals, context and tags:
   - A hash key matching `/passw|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|authorization|cookie|csrf|xsrf|credit[_-]?card|card[_-]?number|\bcvv\b|\bcvc\b|\bssn\b|\botp\b|session[_-]?id/i`, or listed in `extra_keys` (case-insensitive substring), gets the value `"[FILTERED]"`.
   - String values anywhere (including messages, breadcrumb messages, locals and URLs):
     - Luhn-valid card-shaped digit runs (`(?:\d[ -]?){13,19}`) → `[FILTERED]`
@@ -544,7 +544,7 @@ User-Agent: goodsorcery-ruby/0.1.0
 }
 ```
 
-The environment always comes from the API key, so environment keys in the payload are ignored. Breadcrumb `category` is one of `request controller sql http cache log job custom`; anything else becomes `custom`. Breadcrumb `level` is `debug info warning error`.
+The environment always comes from the API key, so environment keys in the payload are ignored. Breadcrumb `category` is one of `request controller sql http cache log job custom`; anything else becomes `custom`. Breadcrumb `level` is `debug info warning error`. An error raised in a background job (Active Job, `deliver_later` mailers, Sidekiq) sends a top-level `job` object instead of `request` (fields in `docs/INGEST_API.md` › Background jobs); unknown job keys are dropped and `job.arguments` is bounded and scrubbed like `params`.
 
 ### 3.3 Stored (normalised) occurrence payload: `Occurrence#payload` JSON
 
@@ -552,7 +552,10 @@ The environment always comes from the API key, so environment keys in the payloa
 { "exception": { "class": "...", "message": "...(scrubbed, ≤10k)",
                  "backtrace": [{ "file","line","method","in_app","gem","context":{"start_line","lines"},"locals":{} }] },
   "transaction": "...", "request": { "url","method","format","request_id","remote_ip" },
-  "params": {}, "headers": {}, "session": {}, "user": { "id","email","username","name" },
+  "params": {}, "headers": {}, "session": {},
+  "job": { "framework","class","mailer","action","id","provider_job_id","queue","priority","executions","retry_count",
+           "enqueued_at","scheduled_at","arguments": [] },
+  "user": { "id","email","username","name" },
   "breadcrumbs": [{ "offset_ms": -412, "category","level","message","data":{} }],
   "context": {}, "tags": {}, "notifier": {} }
 ```
@@ -568,7 +571,8 @@ The environment always comes from the API key, so environment keys in the payloa
 | backtrace | first 250 frames; context ≤ 11 lines × 500 chars; locals ≤ 25 × 500 chars |
 | breadcrumbs | last 100; message ≤ 1,000; data ≤ 20 keys |
 | tags | 25 pairs; key `/\A[a-z0-9_.\-]{1,32}\z/i` (others dropped); value ≤ 200 chars |
-| request/params/headers/session/context | depth ≤ 6, arrays ≤ 50 items, hashes ≤ 100 keys, strings ≤ 4,096 chars |
+| request/params/headers/session/context/job.arguments | depth ≤ 6, arrays ≤ 50 items, hashes ≤ 100 keys, strings ≤ 4,096 chars |
+| job fields | ≤ 255 chars each (`JOB_FIELD`), stored as strings; unknown job keys dropped |
 | user fields | ≤ 255 chars each |
 | fingerprint | ≤ 10 strings × 200 chars |
 | release | ≤ 64 chars; transaction ≤ 255 |

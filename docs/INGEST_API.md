@@ -111,12 +111,38 @@ Only `exception.class` is required. Every other field is optional, but the more 
 | `exception.message` | string | Up to 10,000 chars. |
 | `exception.backtrace[]` | array of frames | Innermost first. `file` (string, app-relative paths preferred), `line` (integer), `method` (string), `in_app` (boolean, optional: the server infers it from `app/`, `lib/` and `config/` paths outside `gems/` and `vendor/bundle`), `context` (`start_line` plus up to 11 `lines`), and `locals` (string to string, up to 25). Absolute paths are normalised server-side: deploy roots (`/…/releases/<x>/`, `/…/current/`, `/rails/`, `/app/`) are stripped to app-relative paths, gem paths become `gems/<name>-<version>/…`, Ruby stdlib paths become `ruby/<version>/…` and home directories become `~/`. |
 | `request` | object | `url`, `method`, `format`, `request_id`, `remote_ip`, and the nested objects `params`, `headers` and `session`. Other request keys are dropped. |
+| `job` | object | The background job the error happened in, instead of (or as well as) `request`. Known keys: `framework` (`active_job`, `sidekiq`), `class`, `mailer` and `action` (Action Mailer `deliver_later`), `id`, `provider_job_id`, `queue`, `priority`, `executions`, `retry_count` (Sidekiq), `enqueued_at`, `scheduled_at` (strings or numbers, stored as strings of up to 255 chars), and `arguments` (an array, or an object for mailer params). Other job keys are dropped. Arguments are bounded like `request.params` and scrubbed by key at any depth; key filtering cannot protect a secret passed as a bare positional argument, so clients should let apps turn arguments off. Shown on the issue page's Job tab. See [Background jobs](#background-jobs). |
 | `user` | object | `id`, `email`, `username`, `name` (strings or numbers). Other user keys are dropped. The server stores identifiers only as keyed hashes for counting and search. The values themselves are kept encrypted with the event. |
 | `breadcrumbs[]` | array | `timestamp` (ISO 8601), `category` (`request`, `controller`, `sql`, `http`, `cache`, `log`, `job`, `custom`; other values become `custom`), `level` (`debug`, `info`, `warning`, `error`), `message`, and `data` (object). The most recent 100 are kept. |
 | `context` | object | Free-form runtime details shown on the Environment tab. Use `runtime.ruby` and `runtime.rails` to label the project, and `host` to add a `host` tag automatically. |
 | `tags` | object | String keys matching `/\A[a-z0-9_.\-]{1,32}\z/i` mapped to scalar values (strings, numbers, booleans; stored as strings). Up to 25 pairs; invalid keys and nested values are dropped. Shown as distribution bars on the issue page. The server adds `environment` (always from the key, overriding any client value), `release` and `host` (from `context.host`) unless the client sent those keys. |
 | `fingerprint` | array of strings | Optional custom grouping. Events with the same fingerprint array are grouped into one issue. Up to 10 strings (or numbers), 200 chars each; other values are ignored. |
 | `notifier` | object | `name` and `version` of the client library. |
+
+### Background jobs
+
+An error raised in a background job sends a `job` section in place of `request`, with the job class as `transaction`:
+
+```json
+{
+  "transaction": "ChargeCustomerJob",
+  "exception": { "class": "Stripe::CardError", "message": "Your card was declined." },
+  "job": {
+    "framework": "active_job",
+    "class": "ChargeCustomerJob",
+    "id": "5f0c8e1b-7d4c-4b8e-a2d1-2a911e0f55aa",
+    "provider_job_id": "b1e0f3c2a9d8e7f6a5b4c3d2",
+    "queue": "billing",
+    "priority": 10,
+    "executions": 3,
+    "enqueued_at": "2026-10-04T09:14:01.000Z",
+    "scheduled_at": "2026-10-04T09:15:00.000Z",
+    "arguments": ["gid://shop/Customer/88123", { "amount_cents": 4200, "card_token": "[FILTERED]" }]
+  }
+}
+```
+
+A mailer delivered with `deliver_later` adds `"mailer": "UserMailer", "action": "welcome"` and sends the mailer method's args or params as `arguments`. A Sidekiq job not wrapped by Active Job sends `"framework": "sidekiq"`, its `jid` as `id` and `retry_count`. Records are sent as their GlobalID strings, never loaded or dumped.
 
 ### Grouping
 
@@ -135,7 +161,8 @@ Scrub as much as you can **in the client**. The Ruby gem applies `Rails.applicat
 - Card-shaped numbers that pass the Luhn check, `Bearer …`/`Basic …`/`Digest …`/`ApiKey …` credentials (and `Token …` with a token-like value), JWT-like strings, sensitive URL query parameters, passwords in URLs (`postgres://user:[FILTERED]@host`, `redis://:[FILTERED]@host`) and sensitive keys written as text (`password=…`, `api_key: …`, `"token"=>"…"`, `"secret": "…"`) are replaced with `[FILTERED]` inside any string, including the exception message, code context, locals and breadcrumbs.
 - Locals sent as objects are scrubbed by key before they are turned into text.
 - User fields `id`, `email`, `username` and `name` are kept as sent (encrypted) because they identify affected users.
-- Everything captured (backtraces, code context, locals, request, params, headers, session, user, breadcrumbs, context and tag values) is stored **encrypted at rest**. The searchable issue title is a redacted copy of the message (emails, IPs, UUIDs, numbers, tokens, query strings and value dumps such as `Failing row contains (…)`, `Key (…)=(…)` and `'column'=value` are replaced with placeholders). The transaction name and culprit shown in the issue list are redacted the same way.
+- Job arguments are scrubbed by key like params, and bare string arguments like any other string.
+- Everything captured (backtraces, code context, locals, request, params, headers, session, job, user, breadcrumbs, context and tag values) is stored **encrypted at rest**. The searchable issue title is a redacted copy of the message (emails, IPs, UUIDs, numbers, tokens, query strings and value dumps such as `Failing row contains (…)`, `Key (…)=(…)` and `'column'=value` are replaced with placeholders). The transaction name and culprit shown in the issue list are redacted the same way.
 
 ## Responses
 
@@ -201,7 +228,8 @@ The Ruby gem uses it for its install check (`bin/rails goodsorcery:verify`).
 | Backtrace | first 250 frames; context ≤ 11 lines of ≤ 500 chars; ≤ 25 locals of ≤ 500 chars |
 | Breadcrumbs | last 100; message ≤ 1,000 chars; `data` ≤ 20 keys |
 | Tags | 25 pairs; value ≤ 200 chars |
-| `request`, `params`, `headers`, `session`, `context` | nesting depth ≤ 6; arrays ≤ 50 items; objects ≤ 100 keys; strings ≤ 4,096 chars |
+| `request`, `params`, `headers`, `session`, `context`, `job.arguments` | nesting depth ≤ 6; arrays ≤ 50 items; objects ≤ 100 keys; strings ≤ 4,096 chars |
+| Job fields (`job.class`, `job.queue`, …) | 255 chars each |
 | User fields | 255 chars each |
 
 Oversized values are truncated rather than rejected (deeper nesting becomes `"[truncated]"`). Only an oversized request body is rejected (413).

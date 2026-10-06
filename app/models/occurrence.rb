@@ -31,6 +31,7 @@ class Occurrence < ApplicationRecord
   def params = hash_at("params")
   def headers = hash_at("headers")
   def session_data = hash_at("session")
+  def job = hash_at("job")
   def user = hash_at("user")
   def breadcrumbs = array_at("breadcrumbs").grep(Hash)
   def context = hash_at("context")

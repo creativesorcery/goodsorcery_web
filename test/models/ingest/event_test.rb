@@ -126,7 +126,7 @@ class Ingest::EventTest < ActiveSupport::TestCase
 
   test "builds the stored payload shape without unscrubbed secrets" do
     payload = JSON.parse(@event.to_payload_json)
-    assert_equal %w[exception transaction request params headers session user breadcrumbs context tags notifier], payload.keys
+    assert_equal %w[exception transaction request params headers session job user breadcrumbs context tags notifier], payload.keys
     assert_equal %w[url method format request_id remote_ip], payload["request"].keys
     assert_equal "[FILTERED]", payload.dig("params", "password")
     assert_equal "[FILTERED]", payload.dig("headers", "Authorization")

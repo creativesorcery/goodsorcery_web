@@ -86,6 +86,8 @@ class Ingest::Event
 
   def request = @request ||= Ingest::RequestSection.new(hash_at("request"), scrubber: @scrubber)
 
+  def job = @job ||= Ingest::JobSection.new(hash_at("job"), scrubber: @scrubber).to_h
+
   def context = @context ||= bounded(hash_at("context"))
 
   def breadcrumbs = Ingest::Breadcrumb.list(@data["breadcrumbs"], occurred_at:, scrubber: @scrubber)

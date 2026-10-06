@@ -54,6 +54,17 @@ class Api::V1::Events::BatchesControllerTest < ActionDispatch::IntegrationTest
     assert Occurrence.exists?(uuid: inbound.event_uuid)
   end
 
+  test "accepts job sections in a batch" do
+    post_batch batch_json(event_json("job"), minimal_json)
+    assert_response :accepted
+    ids = response.parsed_body["accepted"].map { it["id"] }
+
+    perform_enqueued_jobs
+    occurrences = ids.map { Occurrence.find_by!(uuid: it) }
+    assert_equal [ "ChargeCustomerJob", nil ], occurrences.map { it.job["class"] }
+    assert_equal "[FILTERED]", occurrences.first.job["arguments"][1]["card_token"]
+  end
+
   test "job arguments and logs carry no payload content" do
     seen = []
     callback = ->(*, payload) { seen << payload[:params] }

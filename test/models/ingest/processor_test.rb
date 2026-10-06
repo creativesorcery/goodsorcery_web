@@ -151,6 +151,22 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
     assert_equal "Mobile Safari", tag.value
   end
 
+  test "stores the job section encrypted with the occurrence" do
+    occurrence = process_event(event_json("job")).occurrences.sole
+
+    assert_equal "ChargeCustomerJob", occurrence.job["class"]
+    assert_equal "[FILTERED]", occurrence.job["arguments"][1]["card_token"]
+    raw_payload = raw_column(Occurrence, :payload, occurrence.id)
+    %w[ChargeCustomerJob billing gid://shop amount_cents].each { |text| assert_not_includes raw_payload, text }
+  end
+
+  test "a job section adds no queries per event" do
+    without_job = JSON.parse(event_json("job")).except("job").to_json
+    process_event(without_job)
+
+    assert_equal sql_count { process_event(without_job) }, sql_count { process_event(event_json("job")) }
+  end
+
   test "marks the project's first event and runtime on a new issue" do
     project = projects(:marketing)
     process_event(minimal_json(context: { runtime: { rails: "8.1.0", ruby: "4.0.7" } }), key: api_keys(:marketing_production))
@@ -208,4 +224,12 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
     assert_equal "undefined method `price_cents' for nil", issue.message
     assert_not InboundEvent.exists?(inbound_events(:storefront_pending).id)
   end
+
+  private
+    def sql_count(&block)
+      count = 0
+      callback = ->(*, payload) { count += 1 unless payload[:name] == "SCHEMA" }
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record", &block)
+      count
+    end
 end

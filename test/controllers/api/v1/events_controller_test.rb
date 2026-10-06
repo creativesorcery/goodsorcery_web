@@ -27,6 +27,17 @@ class Api::V1::EventsControllerTest < ActionDispatch::IntegrationTest
     assert_enqueued_with(job: ProcessInboundEventJob, args: [ inbound ], queue: "ingest")
   end
 
+  test "accepts a job section and stores it encrypted with the occurrence" do
+    post_event event_json("job")
+    assert_response :accepted
+    assert_not_includes raw_column(InboundEvent, :body, InboundEvent.order(:id).last.id), "ChargeCustomerJob"
+
+    perform_enqueued_jobs
+    job = Occurrence.find_by!(uuid: response.parsed_body["id"]).job
+    assert_equal [ "active_job", "billing" ], job.values_at("framework", "queue")
+    assert_equal "[FILTERED]", job["arguments"][1]["card_token"]
+  end
+
   test "job arguments carry no payload content" do
     post_event
     serialized = enqueued_jobs.find { it[:job] == ProcessInboundEventJob }[:args].to_json

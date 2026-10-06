@@ -39,6 +39,7 @@ module Ingest::Limits
   RELEASE = 64
   TRANSACTION = 255
   SHORT_FIELD = 128
+  JOB_FIELD = 255
 
   RATE_PER_KEY = 1_200
   RATE_PER_IP = 6_000
