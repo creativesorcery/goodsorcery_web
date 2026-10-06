@@ -34,6 +34,14 @@ class Ingest::ScrubberTest < ActiveSupport::TestCase
     assert_equal "cart 88123", @scrubber.scrub_text("cart 88123")
   end
 
+  test "keeps UUIDs whole even when a digit run inside one passes the Luhn check" do
+    # "19-9060-9196127" is 13 digits that pass Luhn; it used to be cut out of job and request ids.
+    uuid = "25dfdfbd-5a0d-4e19-9060-9196127d06a5"
+    assert_equal "job #{uuid} failed", @scrubber.scrub_text("job #{uuid} failed")
+    assert_equal({ "id" => uuid }, @scrubber.scrub({ "id" => uuid }))
+    assert_equal "#{uuid} card [FILTERED]", @scrubber.scrub_text("#{uuid} card 4242-4242-4242-4242")
+  end
+
   test "replaces bearer and basic credentials and JWTs" do
     assert_equal "header Bearer [FILTERED]", @scrubber.scrub_text("header Bearer abc.def-123")
     assert_equal "Authorization: [FILTERED]", @scrubber.scrub_text("Authorization: Bearer abc.def-123")

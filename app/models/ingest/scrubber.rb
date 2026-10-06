@@ -10,7 +10,9 @@ class Ingest::Scrubber
   KEY_PATTERN = /passw|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|authorization|cookie|csrf|xsrf|
     credit[_-]?card|card[_-]?number|(?<![a-z])(?:cvv|cvc|ssn|otp)(?![a-z])|session[_-]?id/ix
 
-  CARD_NUMBER = /(?<!\d)\d(?:[ -]?\d){12,18}(?!\d)/
+  # A card-like digit run, or a whole UUID: matching UUIDs first keeps the
+  # digit runs inside job and request ids from being taken for card numbers.
+  CARD_NUMBER_OR_UUID = /(?<uuid>(?<!\h)\h{8}-\h{4}-\h{4}-\h{4}-\h{12}(?!\h))|(?<!\d)\d(?:[ -]?\d){12,18}(?!\d)/
   CREDENTIAL = /\b(Bearer|Basic|Digest|ApiKey)\s+[^\s"',;]+/i
   # "Token" is also an ordinary word, so only token-like values (with a digit) go.
   TOKEN_CREDENTIAL = /\b(Token)\s+(?=[^\s"',;]*\d)[^\s"',;]+/i
@@ -40,7 +42,7 @@ class Ingest::Scrubber
   end
 
   def scrub_text(text)
-    text = text.gsub(CARD_NUMBER) { |digits| Ingest::Luhn.valid?(digits) ? FILTERED : digits }
+    text = scrub_card_numbers(text)
     text = text.gsub(CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(TOKEN_CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(JWT, FILTERED)
     text = text.gsub(QUERY_PARAM) { sensitive_key?($2) ? "#{$1}#{$2}=#{FILTERED}" : $& }
     scrub_free_text_keys(text.gsub(URL_PASSWORD) { "#{$1}#{FILTERED}@" })
@@ -52,6 +54,10 @@ class Ingest::Scrubber
   end
 
   private
+    def scrub_card_numbers(text)
+      text.gsub(CARD_NUMBER_OR_UUID) { |found| $~[:uuid] || !Ingest::Luhn.valid?(found) ? found : FILTERED }
+    end
+
     def scrub_hash(hash)
       hash.to_h { |key, value| [ key, sensitive_key?(key) ? FILTERED : scrub(value) ] }
     end
