@@ -5,7 +5,9 @@
 #   GOODSORCERY_API_KEY=gs_test_... GOODSORCERY_HOST=http://localhost:3000 bin/send_test_event
 #
 # Options (ENV): EVENT_ID (reuse to test idempotency), GZIP=1 (gzip the body),
-# EXCEPTION_CLASS (vary to create a different issue).
+# EXCEPTION_CLASS (vary to create a different issue), BATCH=N (send N copies
+# in one request to the batch endpoint, each with its own event id unless
+# EVENT_ID is set).
 # Prints the HTTP status and response body; exits non-zero unless 202.
 # The sample data below is fictional.
 require "json"
@@ -29,6 +31,7 @@ abort "usage: bin/send_test_event API_KEY [HOST]  (or set GOODSORCERY_API_KEY / 
 
 now = Time.now.utc
 at = ->(seconds_ago) { (now - seconds_ago).iso8601(3) }
+batch_size = ENV["BATCH"].to_i
 
 event = {
   event_id: ENV["EVENT_ID"] || SecureRandom.uuid,
@@ -75,12 +78,16 @@ event = {
   notifier: { name: "goodsorcery-send-test-event", version: "0.1.0" }
 }
 
-uri = URI.join(host, "/api/v1/events")
+# Each copy gets its own event id, unless EVENT_ID asks for duplicates.
+copy = ->(index) { event.merge(event_id: ENV["EVENT_ID"] || (index.zero? ? event[:event_id] : SecureRandom.uuid)) }
+payload = batch_size.positive? ? { events: Array.new(batch_size, &copy) } : event
+
+uri = URI.join(host, batch_size.positive? ? "/api/v1/events/batch" : "/api/v1/events")
 request = Net::HTTP::Post.new(uri)
 request["Authorization"] = "Bearer #{api_key}"
 request["Content-Type"] = "application/json"
 request["User-Agent"] = "goodsorcery-send-test-event/0.1.0"
-body = JSON.generate(event)
+body = JSON.generate(payload)
 if ENV["GZIP"] == "1"
   request["Content-Encoding"] = "gzip"
   body = Zlib.gzip(body)

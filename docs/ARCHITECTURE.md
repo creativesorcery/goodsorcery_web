@@ -311,16 +311,23 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
 
 ### 2.1 Endpoint
 
-`POST /api/v1/events` → `Api::V1::EventsController#create` (`< ActionController::API`, no cookies, sessions or CSRF).
+All `< ActionController::API` (no cookies, sessions or CSRF):
 
-- **Auth:** `Authorization: Bearer <api key>`. Any other scheme or a missing header returns 401.
+- `POST /api/v1/events` → `Api::V1::EventsController#create` (one event).
+- `POST /api/v1/events/batch` → `Api::V1::Events::BatchesController#create` (1–100 events, §2.1.1).
+- `GET /api/v1/verify` → `Api::V1::VerificationsController#show` (key check for client install checks, §2.1.2).
+
+The two ingest controllers include the `IngestEndpoint` concern, which holds every shared check (in this order) plus storage and enqueueing; the error bodies come from `IngestErrorResponses`.
+
+- **Auth:** `Authorization: Bearer <api key>` (`ApiKeyAuthentication`). Any other scheme or a missing header returns 401.
 - **Content-Type:** must be `application/json` (415 otherwise). `Content-Encoding: gzip` is supported.
-- **Size cap:** 512 KiB for both the compressed and the decompressed body. `Ingest::RequestBody#read` rejects early when `Content-Length` > cap and reads gzip with `Zlib::GzipReader#read(cap + 1)` to defend against zip bombs. Oversized bodies return 413.
-- **Rate limits** (Rails 8 `rate_limit`, store = `Rails.cache`, so Redis in production):
-  1. `rate_limit to: 6_000, within: 1.minute, by: -> { request.remote_ip }, name: "ip"` (declared first)
+- **Size cap:** 512 KiB (2 MiB for a batch) for both the compressed and the decompressed body. `Ingest::RequestBody#read` (`max:`) rejects early when `Content-Length` > cap and reads gzip with `Zlib::GzipReader#read(cap + 1)` to defend against zip bombs. Oversized bodies return 413.
+- **Rate limits** (store = `Ingest::RateLimitStore`, i.e. `Rails.cache`, so Redis in production; fixed one-minute windows):
+  1. `rate_limit to: 6_000, within: 1.minute, by: -> { request.remote_ip }, name: "ip", scope: "api/v1/events"` (Rails 8 `rate_limit`, declared first; it counts requests and the scope makes the counter shared by both ingest endpoints)
   2. `before_action :authenticate_api_key`
-  3. `rate_limit to: 1_200, within: 1.minute, by: -> { current_api_key.id }, name: "key"` (declared after auth)
-  Both use `with: -> { render_rate_limited }`, which returns 429 with `Retry-After: 60` and `{"error":"rate_limited"}`.
+  3. `before_action :limit_event_rate`: `Ingest::EventRateLimit` takes events from two `Ingest::RateCounter`s, per key (1,200/min) and per account (6,000/min), with the keys `rate-limit:api/v1/events:key:<id>` and `…:account:<id>`. Rails' `rate_limit` can only add 1, so these counters `increment` by N (`expires_in` = window). Admission is all or nothing; a rejected amount is given back. The single endpoint takes 1 here. The batch endpoint only rejects a key or account with no room left at all here (`#exhausted?`), then takes its event count in `#create` once the body is parsed and the `events` array checked.
+  All return 429 with `Retry-After: 60` and `{"error":"rate_limited"}` (`render_rate_limited`).
+- **Check order:** per-IP limit, key (401), key/account limits (batch: pre-check only), quota (429 `quota_exceeded`), media type (415), body size (413), JSON (400), shape (422), then for a batch the event-weighted key/account limits (429) and per-event validation.
 - **Responses:**
   - `202 {"id":"<event uuid>"}`
   - `400 {"error":"invalid_json"}`
@@ -332,14 +339,22 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
 
   Error messages never echo payload content.
 
+#### 2.1.1 Batch endpoint
+
+`Ingest::Batch` parses the body once and checks `{"events":[…]}` with 1–100 entries (`422 invalid_payload` with messages otherwise). Each entry becomes an `Ingest::BatchItem`, validated by `Ingest::Envelope.new(data:, subject: "event")` and re-serialised with `JSON.generate`; an item over 512 KiB is rejected as `payload_too_large`. Accepted items are stored with `InboundEvent.store_for` (one multi-row `insert_all!`, which casts through the encrypted attribute type, so bodies are ciphertext exactly as with `save`) and enqueued with one `ActiveJob.perform_all_later` (Sidekiq `push_bulk`). The processor is unchanged: every InboundEvent holds one event's JSON. Duplicate `event_id`s are stored and deduplicated by processing, as for single events. `ApiKey.record_usage` runs once per request. Response: `202 {"accepted":[{"index":0,"id":"…"}],"rejected":[{"index":3,"error":"invalid_payload","messages":[…]}]}`, or `422` with the same shape when nothing was accepted.
+
+#### 2.1.2 Verify endpoint
+
+`GET /api/v1/verify` authenticates the key and returns `200 {"ok":true,"environment":"<key env>"}`. It creates nothing and uses its own Rails `rate_limit` counters (6,000/min per IP, 60/min per key, scope `api/v1/verifications`), so it never touches the ingest allowances or the quota.
+
 ### 2.2 Keeping PII out of Redis, Sidekiq and logs
 
-1. **Request (fast path):** authenticate (cached key lookup), check the size, `JSON.parse` once for validation via `Ingest::Envelope` (requires a JSON object with a non-empty `exception.class` string; reads or generates `event_id` with `SecureRandom.uuid_v7`), then `InboundEvent.create!` with the **encrypted** raw body, `ProcessInboundEventJob.perform_later(inbound_event)` and `ApiKey.record_usage(current_api_key.id)`. Respond 202.
+1. **Request (fast path):** authenticate (cached key lookup), check the size, `JSON.parse` once for validation via `Ingest::Envelope` (requires a JSON object with a non-empty `exception.class` string; reads or generates `event_id` with `SecureRandom.uuid_v7`), then `InboundEvent.store_for` with the **encrypted** raw body (a batch stores each event's re-serialised JSON, one row per event, in one INSERT), `ActiveJob.perform_all_later` with one `ProcessInboundEventJob` per row and `ApiKey.record_usage(current_api_key.id)`. Respond 202.
 2. **The job argument is only the GlobalID of `InboundEvent`.** Sidekiq/Redis never sees payload bytes, and retry or dead sets hold ids only. Postgres gives the payload durability, a size bound and encryption at rest. Encrypting the job argument was rejected because 512 KiB blobs would sit in Redis memory and in the retry and dead sets for weeks.
-3. **Logs:** `IngestBodyShield` middleware (`lib/middleware/ingest_body_shield.rb`, slice A) sets `env["action_dispatch.request.request_parameters"] = {}` for `POST /api/v1/events`. Rails therefore never parses the body into `params`, and the request log line shows `Parameters: {}`. The controller reads only `request.raw_post`/`request.body`. `config/initializers/filter_parameter_logging.rb` also adds `:q, :text, :chips, :body, :payload, :token, :authorization`.
+3. **Logs:** `IngestBodyShield` middleware (`lib/middleware/ingest_body_shield.rb`, slice A) sets `env["action_dispatch.request.request_parameters"] = {}` for `POST /api/v1/events` and `POST /api/v1/events/batch` (any spelling the router accepts: duplicate or trailing slashes, a format suffix). Rails therefore never parses the body into `params`, and the request log line shows `Parameters: {}`. The controller reads only `request.raw_post`/`request.body`. `config/initializers/filter_parameter_logging.rb` also adds `:q, :text, :chips, :body, :payload, :token, :authorization`.
    ```ruby
    class IngestBodyShield
-     PATH = "/api/v1/events".freeze
+     PATH = %r{\A/api/v1/events(?:/batch)?(?:\.[^/]*)?\z}  # matched against the normalised path
      def initialize(app) = @app = app
      def call(env)
        env["action_dispatch.request.request_parameters"] = {} if env["PATH_INFO"] == PATH
@@ -354,8 +369,12 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
 
 | Class | Responsibility | Public methods |
 |---|---|---|
-| `Ingest::RequestBody` | gzip and size cap | `#read` → String (raises `Ingest::PayloadTooLarge`) |
-| `Ingest::Envelope` | request-time validation | `#valid?`, `#errors`, `#event_uuid` |
+| `Ingest::RequestBody` | gzip and size cap (`max:`) | `#read` → String (raises `Ingest::PayloadTooLarge`) |
+| `Ingest::Envelope` | request-time validation of one event (body, or `data:` from a batch) | `.parse(body)`, `#valid?`, `#errors`, `#event_uuid` |
+| `Ingest::Batch` | request-time validation of a batch body | `#valid?`, `#errors`, `#size`, `#items`, `#accepted_items`, `#rejected_items` |
+| `Ingest::BatchItem` | one batch event, re-serialised | `#rejected?`, `#rejection`, `#acceptance`, `#event_uuid`, `#body` |
+| `Ingest::RateCounter` | weighted fixed-window counter in `Ingest::RateLimitStore` | `#take(amount)`, `#give_back(amount)`, `#exhausted?` |
+| `Ingest::EventRateLimit` | per-key and per-account event allowances | `#admit?(events)`, `#exhausted?` |
 | `Ingest::Limits` | constants (§3.4) | — |
 | `Ingest::Event` | normalised, scrubbed, truncated event (value object) | `.from_json(json, project:, environment:, received_at:)` (raises `Ingest::MalformedPayload`). Readers: `exception_class`, `message`, `redacted_message`, `frames`, `top_app_frame`, `culprit`, `transaction_name`, `level`, `occurred_at`, `release`, `user_identity`, `tags`, `runtime_label`, `fingerprint`, `#to_payload_json` |
 | `Ingest::Frame` | backtrace frame value (`Data.define`) | `file`, `line`, `method_name`, `in_app?`, `gem_name`, `location` |
@@ -452,7 +471,7 @@ Ignored issues stay ignored. Only `resolved` regresses. The lock is `FOR NO KEY 
 
 ### 2.6 Query budget
 
-- **Request:** 1 INSERT, plus at most 1 throttled UPDATE (`last_used_at`), plus cache reads.
+- **Request:** 1 INSERT (multi-row for a batch), plus at most 1 throttled UPDATE (`last_used_at`), plus cache reads and counter increments, plus one (bulk) enqueue.
 - **Job, existing issue:** inbound + project + select issue + occurrence + 4 upserts + issue UPDATE + delete, about 10 statements. A new issue adds 3 more.
 
 ### 2.7 Maintenance (slice C, `lib/tasks/goodsorcery.rake`)
@@ -553,7 +572,8 @@ The environment always comes from the API key, so environment keys in the payloa
 | user fields | ≤ 255 chars each |
 | fingerprint | ≤ 10 strings × 200 chars |
 | release | ≤ 64 chars; transaction ≤ 255 |
-| rate | 1,200 req/min per key; 6,000 req/min per IP |
+| batch | body 2 MiB (compressed and decompressed); 1–100 events; each ≤ 512 KiB re-serialised |
+| rate | 1,200 events/min per key; 6,000 events/min per account (a batch of N counts N); 6,000 req/min per IP; `/verify` 60/min per key |
 
 ---
 
@@ -568,6 +588,10 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       resources :events, only: :create
+      namespace :events do
+        resource :batch, only: :create
+      end
+      get "verify", to: "verifications#show", as: :verification
     end
   end
 
@@ -627,6 +651,8 @@ Shared (slice A):
 | Controller | Slice | Actions | Notes |
 |---|---|---|---|
 | `Api::V1::EventsController` | C | create | §2.1 |
+| `Api::V1::Events::BatchesController` | C | create | §2.1.1 |
+| `Api::V1::VerificationsController` | C | show | §2.1.2 |
 | `ProjectsController` | D | index, new, create, edit, update | index = overview; create → `redirect_to project_setup_path`; edit/update = Settings › General (name, platform, issue_prefix, scrub_fields as comma list, retention_days) |
 | `Projects::SetupsController` | D | show | Setup & API keys page |
 | `Projects::CardsController` | D | show | live frame `dom_id(project, :card)` |

@@ -27,16 +27,19 @@ v1 is built and committed on `main`. It was built in three workflows: foundation
 v1 scope:
 - **Accounts:** sign-up, sign-in, password reset and session expiry. Accounts, users and memberships; every dashboard query is scoped through `Current.account`.
 - **Projects ("apps"):** created via "Add a new app", with ingest-only API keys per environment that can be revealed, copied and rotated, plus the General settings page.
-- **Ingest:** `POST /api/v1/events` (Bearer key) returns 202. The raw body is stored encrypted and its id goes to a Sidekiq job. Processing scrubs and redacts the data, fingerprints it into an issue and updates the hourly rollups, tag counts and affected users.
+- **Ingest:** `POST /api/v1/events` and `POST /api/v1/events/batch` (up to 100 events; Bearer key) return 202; `GET /api/v1/verify` checks a key. The raw body is stored encrypted and its id goes to a Sidekiq job. Processing scrubs and redacts the data, fingerprints it into an issue and updates the hourly rollups, tag counts and affected users.
 - **Projects overview:** sparklines and the "Listening…" state.
 - **Issue list:** triage tabs, filters, query-chip search, 24h histograms and bulk resolve/ignore.
 - **Issue detail:** chart, app-first backtrace, breadcrumbs, the five data tabs, tag bars, affected user, occurrence navigator and notes.
 - **Setup/onboarding page.**
 - **Live updates:** pointer broadcasts over Action Cable. They carry ids and paths only; the browser re-fetches with its own session.
 
+## Ruby client gem
+
+The `goodsorcery` gem (module `GoodSorcery`) lives in `/Users/philip/projects/goodsorcery/goodsorcery-ruby`. Its `docs/DESIGN.md` is the blueprint for the gem and for the server endpoints it uses (§7: batch and verify). Keep the setup page snippets (`app/views/projects/setups/*`, `SetupHelper`) in step with its configuration API.
+
 ## Not built yet (each needs the user's go-ahead)
 
-- The Ruby client gem. The payload it must send is documented in `docs/INGEST_API.md`.
 - Email verification at sign-up. Sign-up closes after the first account unless `GOODSORCERY_ENABLE_SIGNUPS=1`.
 - Production SMTP settings. Password-reset mail won't send in production yet.
 - A real Kamal config: `config/deploy.yml` is still the scaffold placeholder, and there's no Sidekiq role or cron yet.
@@ -53,9 +56,10 @@ v1 scope:
 Read `docs/ARCHITECTURE.md` (the binding blueprint: schema, encryption, ingest pipeline, routes, caching, authorization, theme) and `docs/INGEST_API.md` (the public payload spec, limits and error codes) before changing these areas. `README.md` covers booting, environment variables and secrets.
 
 - **Ingest path:**
-  - `lib/middleware/ingest_body_shield.rb` keeps Rails from parsing or logging the body.
-  - `Api::V1::EventsController` checks the key through the `ApiKeyAuthentication` concern (digest lookup, cached).
-  - It stores an encrypted `InboundEvent`, then `ProcessInboundEventJob` (queue `ingest`) calls `Ingest::Processor#process`.
+  - `lib/middleware/ingest_body_shield.rb` keeps Rails from parsing or logging the body (single and batch paths).
+  - `Api::V1::EventsController` (one event) and `Api::V1::Events::BatchesController` (`/api/v1/events/batch`, 1–100 events, partial accept by index) share the `IngestEndpoint` concern: IP limit, key check through `ApiKeyAuthentication` (digest lookup, cached), key/account limits counted in events (`Ingest::EventRateLimit`, a batch of N takes N), quota, media type, size, JSON.
+  - Each event is stored as its own encrypted `InboundEvent` (`InboundEvent.store_for`, one INSERT per request) and enqueued with `ActiveJob.perform_all_later`; `ProcessInboundEventJob` (queue `ingest`) calls `Ingest::Processor#process`.
+  - `Api::V1::VerificationsController` (`GET /api/v1/verify`) answers the gem's install check: key valid → `{"ok":true,"environment":…}`, nothing stored, own rate limits.
 - **`app/models/ingest/`:** plain Ruby objects such as `Scrubber`, `MessageRedactor`, `Fingerprint`, `IssueTally`, `Rollups`, `TagRows`, `Retention` and `StaleEvents`. Their method names are descriptive, never `call`.
 - **Dashboard models:** query and presentation objects such as `IssueQuery` (chip parsing), `IssueList`, `IssueSummary`, `IssueChart`, `OccurrenceNavigator`, `ProjectOverview`, `ProjectHealth`, `SetupProgress` and `LiveFrames`.
 - **Model concerns:** `Issue::Searchable`, `Issue::Triage` and `Issue::Broadcasting`, plus `Project::Broadcasting`.
@@ -69,7 +73,7 @@ bin/setup --skip-server && bin/rails db:seed   # first-time setup + demo data
 bin/dev                                        # server + Tailwind watcher, http://localhost:3000
 # demo login: philip@example.com / password (owner), jo@example.com / password (member)
 bin/rails runner 'puts Project.find_by!(slug: "storefront").api_keys.find_by!(environment: "staging").token'
-bin/send_test_event API_KEY http://localhost:3000   # EXCEPTION_CLASS=..., GZIP=1, EVENT_ID=...
+bin/send_test_event API_KEY http://localhost:3000   # EXCEPTION_CLASS=..., GZIP=1, EVENT_ID=..., BATCH=N
 bin/rails goodsorcery:prune                    # retention (daily in production)
 bin/rails goodsorcery:requeue_stale            # recover events never processed
 ```
@@ -94,6 +98,7 @@ bin/bundler-audit && bin/importmap audit
 
 - **Query cache in jobs:** `UPDATE … RETURNING` run through `select_value`/`find_by_sql` gets served from the query cache inside jobs. Wrap such queries in `uncached { }` (see `allocate_issue_number`, `IssueTally`).
 - **Rate-limit store:** Rails reads the `rate_limit` store when the class loads. `Ingest::RateLimitStore` looks up `Rails.cache` per request instead; don't "simplify" it away.
+- **Event-weighted limits:** the per-key and per-account ingest limits are `Ingest::RateCounter`s, not Rails' `rate_limit` (which can only add 1). Both ingest endpoints share their counters; keep it that way so a batch of N costs the same as N single requests.
 - **Ingest lock order:**
   - The issue row is locked with `FOR NO KEY UPDATE`; plain `FOR UPDATE` deadlocks against foreign-key KEY SHARE locks.
   - The project hourly count update must stay the last statement before commit.

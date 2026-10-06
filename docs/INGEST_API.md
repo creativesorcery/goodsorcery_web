@@ -2,10 +2,11 @@
 
 Client libraries such as the `goodsorcery` Ruby gem use this API to report errors. It is the same on the hosted service and on self-hosted instances: point your client's `endpoint` at your own host.
 
-- **Endpoint:** `POST {endpoint}/api/v1/events`
+- **Endpoint:** `POST {endpoint}/api/v1/events` (one event), or `POST {endpoint}/api/v1/events/batch` (up to 100 events, see [Batches](#batches))
 - **Auth:** `Authorization: Bearer <api key>`
-- **Body:** one JSON object per request, describing one error event
+- **Body:** one JSON object per request, describing one error event (or `{"events":[…]}` for a batch)
 - **Result:** `202 Accepted` with the event id. Processing (grouping, counting, live updates) happens in the background, usually within a second.
+- **Key check:** `GET {endpoint}/api/v1/verify` confirms a key without sending an event (see [Verifying a key](#verifying-a-key)).
 
 API keys are **ingest-only** and belong to one project environment (for example `production` or `staging`). A key can only submit events. It cannot read anything. Keep keys in server-side configuration and never ship them to browsers or mobile apps.
 
@@ -143,22 +144,57 @@ Scrub as much as you can **in the client**. The Ruby gem applies `Rails.applicat
 | `202 Accepted` | `{"id":"0192f7a4-6c1e-7b3a-9d21-5f0c8e1b0aa1"}` | Stored and queued for processing. |
 | `400 Bad Request` | `{"error":"invalid_json"}` | The body is not valid JSON. |
 | `401 Unauthorized` | `{"error":"invalid_api_key"}` | Missing, malformed, unknown or rotated key. Includes `WWW-Authenticate: Bearer realm="ingest"`. |
-| `413 Payload Too Large` | `{"error":"payload_too_large"}` | Body over 512 KiB (compressed or decompressed). |
+| `413 Payload Too Large` | `{"error":"payload_too_large"}` | Body over 512 KiB (2 MiB for a batch), compressed or decompressed. |
 | `415 Unsupported Media Type` | `{"error":"unsupported_media_type"}` | `Content-Type` is not `application/json`, or `Content-Encoding` is neither absent, `identity` nor `gzip`. |
 | `422 Unprocessable Entity` | `{"error":"invalid_payload","messages":["exception.class is required"]}` | Valid JSON with the wrong shape. |
-| `429 Too Many Requests` | `{"error":"rate_limited"}` | Includes a `Retry-After` header in seconds (`60`). |
+| `429 Too Many Requests` | `{"error":"rate_limited"}` | Includes a `Retry-After` header in seconds (`60`). A rejected request uses up none of the key's or account's allowance. |
 | `429 Too Many Requests` | `{"error":"quota_exceeded"}` | The account has used its monthly event quota (hosted plans only). |
 
-Checks run in this order: per-IP rate limit, API key (`401`), per-key and per-account rate limits, monthly quota, media type (`415`), body size (`413`), JSON (`400`), shape (`422`).
+Checks run in this order: per-IP rate limit, API key (`401`), per-key and per-account rate limits, monthly quota, media type (`415`), body size (`413`), JSON (`400`), shape (`422`). For a batch, the per-key and per-account limits are charged one unit per event, so the full charge is made once the body is parsed and the `events` array checked (after `422` for a malformed array, before the events themselves are validated); before reading the body, a key or account with no room left at all already gets `429`.
 
 Clients should retry `429` and `5xx` responses with backoff, reusing the same `event_id`. They should not retry `400`, `401`, `413`, `415` or `422`.
+
+## Batches
+
+`POST /api/v1/events/batch` takes up to 100 events in one request. Same headers, auth, gzip and quota rules as the single endpoint. One request with keep-alive and gzip costs far less than 100, so clients that queue events (the Ruby gem does by default) should use it.
+
+```json
+{ "events": [ { "event_id": "…", "exception": { "class": "NoMethodError" } }, { "exception": { "class": "Timeout::Error" } } ] }
+```
+
+- The body is at most **2 MiB**, compressed and decompressed (`413` otherwise).
+- `events` must be an array of **1 to 100** events. A missing, non-array, empty or longer `events` array gets `422 {"error":"invalid_payload","messages":["events must be an array"]}` (or `events must not be empty`, `events must hold at most 100 events`) and nothing is stored.
+- Each event is validated exactly like a single request body and stored on its own. An event that does not validate, or that is over 512 KiB once re-serialised, is rejected by its index; the others are accepted.
+- Rate limits count **events**: a batch of 25 uses 25 of the key's and the account's per-minute allowance, the same allowance single events use one at a time. If the whole batch does not fit, it gets `429` with `Retry-After` and nothing is stored. The per-IP limit counts requests.
+
+| Status | Body | Meaning |
+|---|---|---|
+| `202 Accepted` | `{"accepted":[{"index":0,"id":"0192f7a4-…"}],"rejected":[{"index":3,"error":"invalid_payload","messages":["exception.class is required"]}]}` | At least one event was stored and queued. `rejected` lists the others (`invalid_payload` with `messages`, or `payload_too_large`). |
+| `422 Unprocessable Entity` | the same shape, with an empty `accepted` | No event was accepted. |
+| `400`, `401`, `413`, `415`, `422 invalid_payload`, `429` | as for the single endpoint | The whole request was refused; nothing was stored. |
+
+Retry the whole batch on `429` and `5xx`, reusing every `event_id` (events that were in fact stored are counted once). Do not resend rejected events: they will be rejected again. On `413`, split the batch.
+
+## Verifying a key
+
+`GET /api/v1/verify` with the same `Authorization: Bearer <api key>` header checks that the endpoint is reachable and the key valid. It creates nothing and does not count toward the event rate limits or the monthly quota.
+
+| Status | Body |
+|---|---|
+| `200 OK` | `{"ok":true,"environment":"staging"}` (the key's environment) |
+| `401 Unauthorized` | `{"error":"invalid_api_key"}` |
+| `429 Too Many Requests` | `{"error":"rate_limited"}` with `Retry-After` (60 checks a minute per key) |
+
+The Ruby gem uses it for its install check (`bin/rails goodsorcery:verify`).
 
 ## Limits
 
 | Item | Limit |
 |---|---|
-| Request body | 512 KiB, compressed and decompressed |
-| Rate | 1,200 requests/minute per API key; 6,000 requests/minute per account; 6,000 requests/minute per IP |
+| Request body | 512 KiB, compressed and decompressed; 2 MiB for a batch |
+| Batch | 1–100 events; each event ≤ 512 KiB once re-serialised |
+| Rate | 1,200 events/minute per API key; 6,000 events/minute per account (a batch of N counts N); 6,000 requests/minute per IP |
+| Key checks (`/verify`) | 60/minute per API key |
 | Tag values | 100 distinct values per tag key per issue (later new values count as "Other values"); 40 tag keys per issue |
 | Apps and keys | 100 apps per account; 10 API keys per app |
 | Exception message | 10,000 chars |
@@ -207,9 +243,10 @@ bin/send_test_event gs_test_... http://localhost:3000
 GOODSORCERY_API_KEY=gs_live_... GOODSORCERY_HOST=https://errors.example.com bin/send_test_event
 EVENT_ID=0192f7a4-6c1e-7b3a-9d21-5f0c8e1b0aa1 bin/send_test_event gs_test_...   # same id twice: counted once
 GZIP=1 EXCEPTION_CLASS=Demo::OtherError bin/send_test_event gs_test_...          # gzip body, a different issue
+BATCH=25 GZIP=1 bin/send_test_event gs_test_...                                  # 25 events in one batch request
 ```
 
-It prints the status and body and exits non-zero unless the response is `202`. Sending it twice produces one issue with 2 events.
+It prints the status and body and exits non-zero unless the response is `202`. Sending it twice produces one issue with 2 events. `BATCH=N` sends N copies (each with its own `event_id` unless `EVENT_ID` is set) in one request to the batch endpoint.
 
 ## Operating (self-hosted)
 
