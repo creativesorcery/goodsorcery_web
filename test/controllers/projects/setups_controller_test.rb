@@ -38,6 +38,10 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#install_generator pre", text: /bundle add goodsorcery/
     assert_select "#install_generator pre [data-clipboard-skip]", text: "gs_live_Stor…0001"
     assert_select "#install_manual[hidden] pre", text: /GoodSorcery\.configure/
+    assert_select "#install_manual pre", text: /plugin "goodsorcery"/
+    assert_select "#install_manual pre", text: /config\.api_key\s+= Rails\.application\.credentials\.dig\(:goodsorcery, :api_key\)/
+    assert_select "#install_manual pre", text: /config\.environment\s+= Rails\.env/
+    assert_select "#install_generator p", text: /plugin "goodsorcery"/
     assert_select "#install_env[hidden] pre", text: /GOODSORCERY_ENV=production/
     assert_select "*", text: /Reveal your key under/
     assert_select "pre", text: /bin\/rails goodsorcery:test/

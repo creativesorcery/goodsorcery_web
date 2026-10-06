@@ -12,8 +12,8 @@
     <div class="text-[11px] uppercase tracking-[.18em] text-ink-400">Scrubbed by default</div>
     <p class="text-[13px] text-ink-300 mt-3">
       Everything in <span class="font-mono text-[12px] text-ink-100 break-all">Rails.application.config.filter_parameters</span>,
-      plus cookies, Authorization headers and card-shaped numbers. Filtering runs <em class="font-display">inside your app</em>,
-      so secrets never leave the process.
+      plus passwords, tokens, cookies and Authorization headers. Filtering runs <em class="font-display">inside your app</em>,
+      so secrets never leave the process; the server scrubs again, card-shaped numbers included.
     </p>
   </div>
 
