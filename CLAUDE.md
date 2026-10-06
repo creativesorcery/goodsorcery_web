@@ -2,7 +2,7 @@
 
 ## Standing guidelines (from the user, 2026-10-04)
 
-1. **Don't build until told.** Make no app changes until the user explicitly says to start building. Discussion, questions and design talk are fine before then.
+1. **Don't build until told.** The user approved the v1 build on 2026-10-04, and v1 is built (see "Current state"). Any new feature or significant change still needs the user's explicit go-ahead first. Discussion, questions and design talk are fine before then.
 2. **How to build, once told:** use Opus with high effort, run as a workflow. Build the Rails app to match the approved UI design in `~/projects/goodsorcery/design` (`index.html` and `DESIGN.md`):
    - Flat pastel theme.
    - No deploy tracking, no keyboard shortcuts, no needs-attention callout.
@@ -19,3 +19,92 @@
 7. **Review every code change for security and performance.**
    - Performance: avoid N+1 queries, cache where possible, and design for high-rate error ingest.
    - Security: treat everything captured with an error as sensitive, since it may contain personal data such as emails and usernames. That covers stack traces, code references, request params, headers, session, user context, breadcrumbs and environment.
+
+## Current state (as of 2026-10-05)
+
+v1 is built and committed on `main`. It was built in three workflows: foundation, feature slices, then security, performance, correctness and design reviews with fixes. The final check was green: 668 tests and 8 system tests passing, RuboCop and Brakeman clean, and the bundler and importmap audits clean.
+
+v1 scope:
+- **Accounts:** sign-up, sign-in, password reset and session expiry. Accounts, users and memberships; every dashboard query is scoped through `Current.account`.
+- **Projects ("apps"):** created via "Add a new app", with ingest-only API keys per environment that can be revealed, copied and rotated, plus the General settings page.
+- **Ingest:** `POST /api/v1/events` (Bearer key) returns 202. The raw body is stored encrypted and its id goes to a Sidekiq job. Processing scrubs and redacts the data, fingerprints it into an issue and updates the hourly rollups, tag counts and affected users.
+- **Projects overview:** sparklines and the "Listening…" state.
+- **Issue list:** triage tabs, filters, query-chip search, 24h histograms and bulk resolve/ignore.
+- **Issue detail:** chart, app-first backtrace, breadcrumbs, the five data tabs, tag bars, affected user, occurrence navigator and notes.
+- **Setup/onboarding page.**
+- **Live updates:** pointer broadcasts over Action Cable. They carry ids and paths only; the browser re-fetches with its own session.
+
+## Not built yet (each needs the user's go-ahead)
+
+- The Ruby client gem. The payload it must send is documented in `docs/INGEST_API.md`.
+- Email verification at sign-up. Sign-up closes after the first account unless `GOODSORCERY_ENABLE_SIGNUPS=1`.
+- Production SMTP settings. Password-reset mail won't send in production yet.
+- A real Kamal config: `config/deploy.yml` is still the scaffold placeholder, and there's no Sidekiq role or cron yet.
+- Merge/unmerge, Assign and mute rules.
+- Alerts and Uptime (they show as "soon" in the sidebar), team invites, project deletion and GitHub links.
+- Geo-IP, code syntax highlighting, dark mode and mobile navigation.
+- Settings pages other than Setup & API keys and General.
+- Live updates for the tab counts and the sidebar issue badge. A regressed issue isn't inserted into an already open Unresolved list.
+- Closing open cable subscriptions when a membership is revoked. Re-fetches are still authorised.
+- Buffering hot-issue counters in Redis. One extremely noisy issue serialises on its counter rows.
+
+## Architecture overview
+
+Read `docs/ARCHITECTURE.md` (the binding blueprint: schema, encryption, ingest pipeline, routes, caching, authorization, theme) and `docs/INGEST_API.md` (the public payload spec, limits and error codes) before changing these areas. `README.md` covers booting, environment variables and secrets.
+
+- **Ingest path:**
+  - `lib/middleware/ingest_body_shield.rb` keeps Rails from parsing or logging the body.
+  - `Api::V1::EventsController` checks the key through the `ApiKeyAuthentication` concern (digest lookup, cached).
+  - It stores an encrypted `InboundEvent`, then `ProcessInboundEventJob` (queue `ingest`) calls `Ingest::Processor#process`.
+- **`app/models/ingest/`:** plain Ruby objects such as `Scrubber`, `MessageRedactor`, `Fingerprint`, `IssueTally`, `Rollups`, `TagRows`, `Retention` and `StaleEvents`. Their method names are descriptive, never `call`.
+- **Dashboard models:** query and presentation objects such as `IssueQuery` (chip parsing), `IssueList`, `IssueSummary`, `IssueChart`, `OccurrenceNavigator`, `ProjectOverview`, `ProjectHealth`, `SetupProgress` and `LiveFrames`.
+- **Model concerns:** `Issue::Searchable`, `Issue::Triage` and `Issue::Broadcasting`, plus `Project::Broadcasting`.
+- **Live updates:** `AuthorizedStreamsChannel` checks the signed stream name and account membership. Custom Turbo Stream actions (`reload_frame`, `reload_rows`) are in `app/javascript`. Debouncing is in `LiveUpdateGate`.
+- **Theme:** Tailwind v4 `@theme` tokens and component classes are in `app/assets/tailwind/application.css`. Charts and sparklines are server-rendered SVG from helpers, with no chart JS. The CSP uses nonces, so there are no inline scripts or styles.
+
+## Key commands
+
+```sh
+bin/setup --skip-server && bin/rails db:seed   # first-time setup + demo data
+bin/dev                                        # server + Tailwind watcher, http://localhost:3000
+# demo login: philip@example.com / password (owner), jo@example.com / password (member)
+bin/rails runner 'puts Project.find_by!(slug: "storefront").api_keys.find_by!(environment: "staging").token'
+bin/send_test_event API_KEY http://localhost:3000   # EXCEPTION_CLASS=..., GZIP=1, EVENT_ID=...
+bin/rails goodsorcery:prune                    # retention (daily in production)
+bin/rails goodsorcery:requeue_stale            # recover events never processed
+```
+
+## Test and lint workflow
+
+Run all of these before committing:
+
+```sh
+bin/rails test && bin/rails test:system
+bin/rubocop          # enforces Metrics/MethodLength max 20 and Metrics/BlockNesting max 1
+bin/brakeman --no-pager -q
+bin/bundler-audit && bin/importmap audit
+```
+
+- **Parallel runs** (e.g. several agents at once): give each its own test database with `TEST_DB_SUFFIX=_name bin/rails db:test:prepare test`.
+- **Fixtures:** every model has fixtures, including an `outsider` user for "other account gets 404" tests. Authorization tests on every new controller action are expected.
+- **System tests** click through the DOM via JavaScript (`press`, `type_into`) because headless Chrome on this machine intermittently drops WebDriver input. Keep that pattern.
+- **Commits:** commit in logical steps on `main`. Each commit message ends with the Co-Authored-By trailer.
+
+## Gotchas
+
+- **Query cache in jobs:** `UPDATE … RETURNING` run through `select_value`/`find_by_sql` gets served from the query cache inside jobs. Wrap such queries in `uncached { }` (see `allocate_issue_number`, `IssueTally`).
+- **Rate-limit store:** Rails reads the `rate_limit` store when the class loads. `Ingest::RateLimitStore` looks up `Rails.cache` per request instead; don't "simplify" it away.
+- **Ingest lock order:**
+  - The issue row is locked with `FOR NO KEY UPDATE`; plain `FOR UPDATE` deadlocks against foreign-key KEY SHARE locks.
+  - The project hourly count update must stay the last statement before commit.
+  - Issue numbers are reserved before the transaction.
+  - `test/models/ingest/concurrent_processing_test.rb` guards this.
+- **Never put captured data in:** Sidekiq/job args, Redis, the cache store, logs, broadcasts or exception messages (Postgres errors are re-raised without row values). Dashboard pages send `Cache-Control: no-store`. Never call `raw`/`html_safe` on captured data.
+- **Plaintext columns:** only the redacted title, transaction and culprit are plaintext, for search. Everything else captured is in encrypted columns. User identities and tag values are matched by `PrivateDigest` HMAC, which is derived from `secret_key_base`; rotating it breaks digest continuity.
+- **Encryption keys:** development and test use fixed, non-secret keys (`config/environments/*.rb`). Production reads `ACTIVE_RECORD_ENCRYPTION_*` from ENV, then from credentials.
+- **Production boot:** it fails without `GOODSORCERY_PUBLIC_URL`, except for asset builds, where `SECRET_KEY_BASE_DUMMY` is set.
+- **Debug logs:** SQL logs in dev and test include redacted issue titles. Keep production at `info`.
+- **Dev data:** test events overwrite a project's runtime label and use up issue numbers; deleting issues doesn't rewind the sequence. Seeds don't run again once the demo user exists (`bin/rails db:reset` to start over).
+- **libvips warning:** a `vips-heif.dylib … libx265` warning on every command is a Homebrew issue on this machine, not the app.
+- **Port 3917:** something else on this machine has used it. Don't kill processes you didn't start; give dev servers you start their own pid file (`-P tmp/pids/server_PORT.pid`).
+- **Bash tool:** in this environment, compound commands starting with `cd dir; …` have returned empty output. Use absolute paths instead.
