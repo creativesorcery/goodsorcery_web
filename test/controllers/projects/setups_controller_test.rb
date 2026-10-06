@@ -52,7 +52,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
 
     pre = css_select("#install_generator pre").first.dup
     pre.css("[data-clipboard-skip]").each(&:remove) # what clipboard_controller.js copies
-    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install YOUR_PRODUCTION_KEY", pre.text.strip
+    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install --api-key=YOUR_PRODUCTION_KEY", pre.text.strip
     assert_select "#install_env pre [hidden]", text: "YOUR_PRODUCTION_KEY"
   end
 

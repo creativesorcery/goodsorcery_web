@@ -53,7 +53,7 @@ class IssuePageSystemTest < ApplicationSystemTestCase
       sleep 0.05 until (text = page.evaluate_script("window.copiedText"))
       text
     end
-    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install YOUR_PRODUCTION_KEY", copied
+    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install --api-key=YOUR_PRODUCTION_KEY", copied
   end
 
   test "dropdowns close on Escape and on outside clicks" do

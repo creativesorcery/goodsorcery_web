@@ -12,7 +12,7 @@
 
   <div id="install_generator" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3">
 <%= render layout: "projects/setups/snippet", locals: { label: "terminal" } do %><span class="text-iris-400 select-none" data-clipboard-skip>$ </span>bundle add goodsorcery
-<span class="text-iris-400 select-none" data-clipboard-skip>$ </span>bin/rails generate goodsorcery:install <span class="tok-s"><%= install_key_hint(api_key) %></span><% end %>
+<span class="text-iris-400 select-none" data-clipboard-skip>$ </span>bin/rails generate goodsorcery:install --api-key=<span class="tok-s"><%= install_key_hint(api_key) %></span><% end %>
     <p class="text-[13px] text-ink-400">
       The generator writes <span class="font-mono text-ink-200">config/initializers/goodsorcery.rb</span>, stores the key in Rails credentials
       and adds <span class="font-mono text-ink-200">plugin "goodsorcery"</span> to your Gemfile, so every <span class="font-mono text-ink-200">bundle install</span>
