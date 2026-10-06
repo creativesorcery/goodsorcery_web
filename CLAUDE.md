@@ -98,7 +98,7 @@ bin/bundler-audit && bin/importmap audit
 
 - **Query cache in jobs:** `UPDATE … RETURNING` run through `select_value`/`find_by_sql` gets served from the query cache inside jobs. Wrap such queries in `uncached { }` (see `allocate_issue_number`, `IssueTally`).
 - **Rate-limit store:** Rails reads the `rate_limit` store when the class loads. `Ingest::RateLimitStore` looks up `Rails.cache` per request instead; don't "simplify" it away.
-- **Event-weighted limits:** the per-key and per-account ingest limits are `Ingest::RateCounter`s, not Rails' `rate_limit` (which can only add 1). Both ingest endpoints share their counters; keep it that way so a batch of N costs the same as N single requests.
+- **Event-weighted limits:** the per-key and per-account ingest limits are `Ingest::RateCounter`s, not Rails' `rate_limit` (which can only add 1). Both ingest endpoints share their counters; keep it that way so a batch of N costs the same as N single requests. Every request takes one unit before its body is read (so malformed batches aren't free); a batch takes the rest after parsing and gives everything back on 429.
 - **Ingest lock order:**
   - The issue row is locked with `FOR NO KEY UPDATE`; plain `FOR UPDATE` deadlocks against foreign-key KEY SHARE locks.
   - The project hourly count update must stay the last statement before commit.

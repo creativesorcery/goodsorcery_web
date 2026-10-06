@@ -158,7 +158,7 @@ A resolved issue that receives a new event becomes **unresolved and regressed**.
 Scrub as much as you can **in the client**. The Ruby gem applies `Rails.application.config.filter_parameters` before sending. The server scrubs again as a second layer of defence:
 
 - Values under keys that match `password`, `secret`, `token`, `api_key`, `access_key`, `private_key`, `authorization`, `cookie`, `csrf`, `xsrf`, `credit_card`, `card_number`, `cvv`, `cvc`, `ssn`, `otp` or `session_id` (plus each project's extra scrub keys) become `"[FILTERED]"`.
-- Card-shaped numbers that pass the Luhn check (UUIDs such as job and request ids are left whole), `Bearer …`/`Basic …`/`Digest …`/`ApiKey …` credentials (and `Token …` with a token-like value), JWT-like strings, sensitive URL query parameters, passwords in URLs (`postgres://user:[FILTERED]@host`, `redis://:[FILTERED]@host`) and sensitive keys written as text (`password=…`, `api_key: …`, `"token"=>"…"`, `"secret": "…"`) are replaced with `[FILTERED]` inside any string, including the exception message, code context, locals and breadcrumbs.
+- Card-shaped numbers that pass the Luhn check (identifiers are left whole: UUIDs such as job and request ids, and words of 20 or more hex characters such as Sidekiq job ids and git SHAs), `Bearer …`/`Basic …`/`Digest …`/`ApiKey …` credentials (and `Token …` with a token-like value), JWT-like strings, sensitive URL query parameters, passwords in URLs (`postgres://user:[FILTERED]@host`, `redis://:[FILTERED]@host`) and sensitive keys written as text (`password=…`, `api_key: …`, `"token"=>"…"`, `"secret": "…"`) are replaced with `[FILTERED]` inside any string, including the exception message, code context, locals and breadcrumbs.
 - Locals sent as objects are scrubbed by key before they are turned into text.
 - User fields `id`, `email`, `username` and `name` are kept as sent (encrypted) because they identify affected users.
 - Job arguments are scrubbed by key like params, and bare string arguments like any other string.
@@ -177,7 +177,7 @@ Scrub as much as you can **in the client**. The Ruby gem applies `Rails.applicat
 | `429 Too Many Requests` | `{"error":"rate_limited"}` | Includes a `Retry-After` header in seconds (`60`). A rejected request uses up none of the key's or account's allowance. |
 | `429 Too Many Requests` | `{"error":"quota_exceeded"}` | The account has used its monthly event quota (hosted plans only). |
 
-Checks run in this order: per-IP rate limit, API key (`401`), per-key and per-account rate limits, monthly quota, media type (`415`), body size (`413`), JSON (`400`), shape (`422`). For a batch, the per-key and per-account limits are charged one unit per event, so the full charge is made once the body is parsed and the `events` array checked (after `422` for a malformed array, before the events themselves are validated); before reading the body, a key or account with no room left at all already gets `429`.
+Checks run in this order: per-IP rate limit, API key (`401`), per-key and per-account rate limits, monthly quota, media type (`415`), body size (`413`), JSON (`400`), shape (`422`). For a batch, the per-key and per-account limits are charged one unit per event: one unit before the body is read (as for a single event, so a key or account with no room left gets `429` straight away), and the rest once the body is parsed and the `events` array checked (after `422` for a malformed array, before the events themselves are validated).
 
 Clients should retry `429` and `5xx` responses with backoff, reusing the same `event_id`. They should not retry `400`, `401`, `413`, `415` or `422`.
 
@@ -192,7 +192,7 @@ Clients should retry `429` and `5xx` responses with backoff, reusing the same `e
 - The body is at most **2 MiB**, compressed and decompressed (`413` otherwise).
 - `events` must be an array of **1 to 100** events. A missing, non-array, empty or longer `events` array gets `422 {"error":"invalid_payload","messages":["events must be an array"]}` (or `events must not be empty`, `events must hold at most 100 events`) and nothing is stored.
 - Each event is validated exactly like a single request body and stored on its own. An event that does not validate, or that is over 512 KiB once re-serialised, is rejected by its index; the others are accepted.
-- Rate limits count **events**: a batch of 25 uses 25 of the key's and the account's per-minute allowance, the same allowance single events use one at a time. If the whole batch does not fit, it gets `429` with `Retry-After` and nothing is stored. The per-IP limit counts requests.
+- Rate limits count **events**: a batch of 25 uses 25 of the key's and the account's per-minute allowance, the same allowance single events use one at a time. If the whole batch does not fit, it gets `429` with `Retry-After`, nothing is stored and nothing is used up. A batch refused as a whole with `400`, `413`, `415` or `422` uses one unit, like a single request. The per-IP limit counts requests.
 
 | Status | Body | Meaning |
 |---|---|---|
