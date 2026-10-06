@@ -7,6 +7,7 @@ Rails.application.routes.draw do
       namespace :events do
         resource :batch, only: :create
       end
+      get "verify", to: "verifications#show", as: :verification
     end
   end
 
