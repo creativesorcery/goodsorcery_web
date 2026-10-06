@@ -52,6 +52,10 @@ Development needs **no secrets, credentials or environment variables**:
   and Action Cable uses the `async` adapter. So no Sidekiq or Redis process is needed.
 - Fragment caching is off by default. `bin/rails dev:cache` toggles it.
 
+To set optional variables locally (sign-up flags, a test-event API key and so on),
+`cp .env.example .env` and uncomment what you need. `.env` is git-ignored and is
+loaded in development only, never in test or production.
+
 ### Demo login
 
 `bin/rails db:seed` creates the "Acme Labs" account with five projects

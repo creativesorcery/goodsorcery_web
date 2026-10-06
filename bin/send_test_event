@@ -15,6 +15,14 @@ require "time"
 require "uri"
 require "zlib"
 
+# Picks up GOODSORCERY_API_KEY / GOODSORCERY_HOST from .env when the dotenv gem is installed.
+begin
+  require "bundler/setup"
+  require "dotenv/load"
+rescue LoadError
+  nil
+end
+
 api_key = ARGV[0] || ENV["GOODSORCERY_API_KEY"]
 host = ARGV[1] || ENV.fetch("GOODSORCERY_HOST", "http://localhost:3000")
 abort "usage: bin/send_test_event API_KEY [HOST]  (or set GOODSORCERY_API_KEY / GOODSORCERY_HOST)" if api_key.to_s.empty?

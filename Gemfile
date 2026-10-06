@@ -58,6 +58,9 @@ end
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
+
+  # Load ENV from .env files (see .env.example) [https://github.com/bkeepers/dotenv]
+  gem "dotenv"
 end
 
 group :test do
