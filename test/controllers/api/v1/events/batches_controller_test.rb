@@ -248,6 +248,8 @@ class Api::V1::Events::BatchesControllerTest < ActionDispatch::IntegrationTest
       assert_response :too_many_requests
       assert_equal "60", response.headers["Retry-After"]
       assert_equal({ "error" => "rate_limited" }, response.parsed_body)
+      assert_equal Ingest::Limits::RATE_PER_KEY - 5, counter("key", @key_id), "the unit taken before the body was read is given back"
+      assert_equal 0, counter("account", accounts(:acme).id)
 
       post_batch 5
       assert_response :accepted
@@ -266,7 +268,19 @@ class Api::V1::Events::BatchesControllerTest < ActionDispatch::IntegrationTest
     end
 
     test "a refused body still uses one unit, like a single request, so malformed batches are not free" do
-      post api_v1_events_batch_path, params: '{"events":"x"}', headers: headers(FIXTURE_ders: headers(FIXTURE_TOKENS[:storefront_production]).merge("Content-Type" => "text/plain")
+      post api_v1_events_batch_path, params: '{"events":"x"}', headers: headers(FIXTURE_TOKENS[:storefront_production])
+      assert_response :unprocessable_content
+      post api_v1_events_batch_path, params: "{nope", headers: headers(FIXTURE_TOKENS[:storefront_production])
+      assert_response :bad_request
+
+      assert_equal 2, counter("key", @key_id)
+      assert_equal 2, counter("account", accounts(:acme).id)
+    end
+
+    test "an exhausted key is turned away before its body is read" do
+      use_up "key", @key_id, Ingest::Limits::RATE_PER_KEY
+      post api_v1_events_batch_path, params: "nope",
+           headers: headers(FIXTURE_TOKENS[:storefront_production]).merge("Content-Type" => "text/plain")
       assert_response :too_many_requests
     end
 

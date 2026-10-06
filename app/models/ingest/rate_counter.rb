@@ -27,7 +27,4 @@ class Ingest::RateCounter
   def give_back(amount)
     Ingest::RateLimitStore.decrement(@key, amount, expires_in: @window)
   end
-
-  # True when not even one more event fits in this window.
-  def exhausted? = Ingest::RateLimitStore.count(@key) >= limit
 end

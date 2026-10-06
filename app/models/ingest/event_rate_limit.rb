@@ -12,6 +12,8 @@ class Ingest::EventRateLimit
   # Takes events from every counter, or from none (returning false) when any
   # of them would go over its limit.
   def admit?(events)
+    return true if events.zero?
+
     admitted = @counters.take_while { it.take(events) }
     return true if admitted.size == @counters.size
 
@@ -19,6 +21,8 @@ class Ingest::EventRateLimit
     false
   end
 
-  # Cheap pre-check before a body is read: no room for even one event.
-  def exhausted? = @counters.any?(&:exhausted?)
+  # Returns events taken earlier by #admit? (a request refused later on).
+  def give_back(events)
+    @counters.each { it.give_back(events) }
+  end
 end

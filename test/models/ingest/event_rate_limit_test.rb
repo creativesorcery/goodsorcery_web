@@ -29,14 +29,22 @@ class Ingest::EventRateLimitTest < ActiveSupport::TestCase
     assert_equal 0, key_count, "the key's share is given back"
     assert_equal Ingest::Limits::RATE_PER_ACCOUNT - 10, account_count
     assert limit.admit?(10)
-    assert limit.exhausted?
+    assert_not limit.admit?(1)
   end
 
-  test "is exhausted once the key has no room for one more event" do
-    limit = Ingest::EventRateLimit.new(@credential)
-    assert_not limit.exhausted?
-
+  test "admitting nothing touches no counter" do
     Rails.cache.increment("rate-limit:api/v1/events:key:#{@credential.id}", Ingest::Limits::RATE_PER_KEY, expires_in: 1.minute)
-    assert limit.exhausted?
+    limit = Ingest::EventRateLimit.new(@credential)
+
+    assert limit.admit?(0)
+    assert_equal [ Ingest::Limits::RATE_PER_KEY, 0 ], [ key_count, account_count ]
+  end
+
+  test "gives back events taken earlier to both counters" do
+    limit = Ingest::EventRateLimit.new(@credential)
+    limit.admit?(3)
+    limit.give_back(1)
+
+    assert_equal [ 2, 2 ], [ key_count, account_count ]
   end
 end

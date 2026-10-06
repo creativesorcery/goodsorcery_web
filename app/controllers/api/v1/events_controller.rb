@@ -14,10 +14,4 @@ class Api::V1::EventsController < ActionController::API
     store_and_enqueue([ [ envelope.event_uuid, body ] ])
     render json: { id: envelope.event_uuid }, status: :accepted
   end
-
-  private
-    # One event: one unit of the key and account allowances.
-    def limit_event_rate
-      render_rate_limited unless event_rate_limit.admit?(1)
-    end
 end

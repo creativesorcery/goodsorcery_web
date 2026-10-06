@@ -17,7 +17,6 @@ class Ingest::RateCounterTest < ActiveSupport::TestCase
     assert counter.take(6)
     assert_not counter.take(1)
     assert_equal 10, count("rate-limit:api/v1/events:key:7"), "the rejected amount is given back"
-    assert counter.exhausted?
   end
 
   test "a batch that would go over is rejected whole and leaves room for a smaller one" do
@@ -25,7 +24,6 @@ class Ingest::RateCounterTest < ActiveSupport::TestCase
     counter.take(8)
 
     assert_not counter.take(5)
-    assert_not counter.exhausted?
     assert counter.take(2)
   end
 
@@ -44,6 +42,6 @@ class Ingest::RateCounterTest < ActiveSupport::TestCase
     counter = Ingest::RateCounter.new("key", 7, limit: 1)
 
     assert counter.take(5)
-    assert_not counter.exhausted?
+    assert counter.take(5)
   end
 end
