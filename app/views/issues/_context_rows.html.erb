@@ -1,0 +1,9 @@
+<% if rows.any? %>
+  <div class="code grid grid-cols-[160px_minmax(0,1fr)] gap-y-2 text-[12.5px]">
+    <% rows.each do |label, value, tone| %>
+      <span class="text-ink-400 font-sans"><%= label %></span><span class="break-all"><%= context_value(value, tone: tone || "text-ink-50") %></span>
+    <% end %>
+  </div>
+<% else %>
+  <p class="text-[13px] text-ink-400"><%= empty %></p>
+<% end %>

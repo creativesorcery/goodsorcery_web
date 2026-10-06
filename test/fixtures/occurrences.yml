@@ -38,15 +38,19 @@
     }.to_json
   end
 
-  simple_payload = ->(klass, message, file, method, transaction) do
+  simple_payload = ->(klass, message, file, method, transaction, job: {}) do
     {
       exception: { class: klass, message: message,
                    backtrace: [ { file: file, line: 7, method: method, in_app: true, gem: nil, context: { start_line: 7, lines: [ "raise" ] }, locals: {} } ] },
-      transaction: transaction, request: {}, params: {}, headers: {}, session: {}, user: {},
+      transaction: transaction, request: {}, params: {}, headers: {}, session: {}, job: job, user: {},
       breadcrumbs: [], context: { runtime: { ruby: "3.4.1", rails: "8.0.1" } }, tags: { environment: "production" },
       notifier: { name: "goodsorcery-ruby", version: "0.1.0" }
     }.to_json
   end
+
+  place_job = { framework: "active_job", class: "Orders::PlaceJob", id: "3b9e2f4c-1d7a-4e8b-9c0f-6a5d4e3c2b1a",
+                provider_job_id: "c0ffee5a1d", queue: "orders", priority: "5", executions: "2",
+                enqueued_at: "2026-10-04T09:13:58.000Z", arguments: [ "gid://shop/Order/5521", { idempotency_key: "[FILTERED]", source: "checkout" } ] }
 
   mara = PrivateDigest.hexdigest("user.id", "5521")
 %>
@@ -84,7 +88,7 @@ regressed_latest:
   received_at: <%= 6.minutes.ago.to_fs(:db) %>
   environment: production
   level: error
-  payload: <%= simple_payload.("ActiveRecord::RecordNotUnique", "PG::UniqueViolation: duplicate key value violates unique constraint \"index_orders_on_idempotency_key\"", "app/jobs/orders/place_job.rb", "perform", "Orders::PlaceJob").to_json %>
+  payload: <%= simple_payload.("ActiveRecord::RecordNotUnique", "PG::UniqueViolation: duplicate key value violates unique constraint \"index_orders_on_idempotency_key\"", "app/jobs/orders/place_job.rb", "perform", "Orders::PlaceJob", job: place_job).to_json %>
   created_at: <%= 6.minutes.ago.to_fs(:db) %>
 
 umbrella_occurrence:

@@ -29,6 +29,17 @@ class IssuePageSystemTest < ApplicationSystemTestCase
     assert_selector "[role=tab][aria-selected=true]", text: "Headers"
   end
 
+  test "the Job tab shows its panel and empty state" do
+    visit_connected project_issue_path(@project, issues(:nomethod))
+    assert_selector "#context-job", visible: false
+
+    press find("[role=tab]", text: "Job")
+
+    assert_selector "#context-job", visible: true, text: "No job was captured with this occurrence."
+    assert_selector "#context-request", visible: false
+    assert_selector "[role=tab][aria-selected=true]", text: "Job"
+  end
+
   test "copying the install snippet leaves out the prompt and the masked key" do
     visit_connected project_setup_path(@project)
     page.execute_script(<<~JS)

@@ -30,7 +30,7 @@ v1 scope:
 - **Ingest:** `POST /api/v1/events` and `POST /api/v1/events/batch` (up to 100 events; Bearer key) return 202; `GET /api/v1/verify` checks a key. The raw body is stored encrypted and its id goes to a Sidekiq job. Processing scrubs and redacts the data, fingerprints it into an issue and updates the hourly rollups, tag counts and affected users.
 - **Projects overview:** sparklines and the "Listening…" state.
 - **Issue list:** triage tabs, filters, query-chip search, 24h histograms and bulk resolve/ignore.
-- **Issue detail:** chart, app-first backtrace, breadcrumbs, the five data tabs, tag bars, affected user, occurrence navigator and notes.
+- **Issue detail:** chart, app-first backtrace, breadcrumbs, the six data tabs (Request, Params, Headers, Session, Job, Environment), tag bars, affected user, occurrence navigator and notes.
 - **Setup/onboarding page.**
 - **Live updates:** pointer broadcasts over Action Cable. They carry ids and paths only; the browser re-fetches with its own session.
 
@@ -73,7 +73,7 @@ bin/setup --skip-server && bin/rails db:seed   # first-time setup + demo data
 bin/dev                                        # server + Tailwind watcher, http://localhost:3000
 # demo login: philip@example.com / password (owner), jo@example.com / password (member)
 bin/rails runner 'puts Project.find_by!(slug: "storefront").api_keys.find_by!(environment: "staging").token'
-bin/send_test_event API_KEY http://localhost:3000   # EXCEPTION_CLASS=..., GZIP=1, EVENT_ID=..., BATCH=N
+bin/send_test_event API_KEY http://localhost:3000   # EXCEPTION_CLASS=..., GZIP=1, EVENT_ID=..., BATCH=N, JOB=1
 bin/rails goodsorcery:prune                    # retention (daily in production)
 bin/rails goodsorcery:requeue_stale            # recover events never processed
 ```

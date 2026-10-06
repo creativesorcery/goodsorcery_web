@@ -211,15 +211,29 @@ class DemoPayload
   end
 
   def to_json(*)
-    { exception: exception, transaction: @spec[:transaction_name], request: request,
-      params: { id: 4410 + @index, coupon: "FALL25", card_token: "[FILTERED]" },
-      headers: { "Accept" => "text/html", "User-Agent" => "Mozilla/5.0 (iPhone) Mobile Safari", "Cookie" => "[FILTERED]" },
-      session: { user_id: @person&.dig(:id), session_id: "[FILTERED]" }, user: @person || {},
+    { exception: exception, transaction: @spec[:transaction_name], **layer, user: @person || {},
       breadcrumbs: breadcrumbs, context: context, tags: { browser: "Mobile Safari", environment: "production" },
       notifier: { name: "goodsorcery-ruby", version: "0.1.0" } }.to_json
   end
 
   private
+    # Errors in app/jobs carry a job section; the rest come from a request.
+    def layer
+      @spec[:file].start_with?("app/jobs/") ? { job: job } : web_request
+    end
+
+    def web_request
+      { request: request, params: { id: 4410 + @index, coupon: "FALL25", card_token: "[FILTERED]" },
+        headers: { "Accept" => "text/html", "User-Agent" => "Mozilla/5.0 (iPhone) Mobile Safari", "Cookie" => "[FILTERED]" },
+        session: { user_id: @person&.dig(:id), session_id: "[FILTERED]" } }
+    end
+
+    def job
+      { framework: "active_job", class: @spec[:transaction_name], id: SecureRandom.uuid, provider_job_id: SecureRandom.hex(12),
+        queue: "default", priority: "0", executions: (1 + (@index % 3)).to_s, enqueued_at: (Time.current - 45.seconds).utc.iso8601(3),
+        arguments: [ "gid://shop/Order/#{4410 + @index}", { source: "checkout", api_token: "[FILTERED]" } ] }
+    end
+
     def exception
       { class: @spec[:exception_class], message: @spec[:message].gsub("[n]", (88_100 + @index).to_s), backtrace: frames }
     end

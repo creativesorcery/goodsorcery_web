@@ -51,6 +51,55 @@ class IssueDetailTest < ActionDispatch::IntegrationTest
     assert_select "#context-request span.text-lilac-300", text: "CheckoutsController#create"
   end
 
+  test "a request occurrence opens on Request and shows the Job tab's empty state" do
+    get project_issue_path(@project, @issue)
+
+    assert_select "[role=tab]", count: 6
+    assert_select "[role=tab][aria-selected=true]", text: "Request"
+    assert_select "#context-tab-job[aria-selected=false]", text: "Job"
+    assert_select "#context-request:not([hidden])"
+    assert_select "#context-job[hidden][role=tabpanel][aria-labelledby=context-tab-job] p", text: "No job was captured with this occurrence."
+  end
+
+  test "a job occurrence opens on the Job tab with its fields and arguments" do
+    get project_issue_path(@project, issues(:regressed))
+
+    assert_response :success
+    assert_select "[role=tab][aria-selected=true]", text: "Job"
+    assert_select "#context-request[hidden] p", text: "No request was captured with this occurrence."
+    assert_select "#context-job:not([hidden])" do
+      assert_select "span", text: "Active Job"
+      assert_select "span.text-lilac-300", text: "Orders::PlaceJob"
+      assert_select "span", text: "orders"
+      assert_select "span", text: "Provider job ID"
+      assert_select "span", text: "Mailer", count: 0
+      assert_select "pre span.tok-s", text: "\"gid://shop/Order/5521\""
+      assert_select "pre span.text-ink-400", text: "[FILTERED]"
+    end
+  end
+
+  test "job arguments are escaped, never interpreted as HTML" do
+    occurrence = occurrences(:regressed_latest)
+    data = occurrence.data.deep_dup
+    data["job"]["queue"] = "<b>q</b>"
+    data["job"]["arguments"] = [ "<script>alert(1)</script>" ]
+    occurrence.update_column(:payload, data.to_json)
+
+    get project_issue_path(@project, issues(:regressed))
+
+    assert_no_match "<script>alert(1)</script>", response.body
+    assert_no_match "<b>q</b>", response.body
+    assert_includes response.body, "&lt;b&gt;q&lt;/b&gt;"
+  end
+
+  test "outsiders get 404 for a job occurrence" do
+    sign_in_as users(:outsider)
+
+    get project_issue_path(@project, issues(:regressed))
+
+    assert_response :not_found
+  end
+
   test "breadcrumbs end at the coral error node" do
     get project_issue_path(@project, @issue)
 
