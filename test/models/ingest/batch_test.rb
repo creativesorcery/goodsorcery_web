@@ -37,6 +37,17 @@ class Ingest::BatchTest < ActiveSupport::TestCase
     assert_match(/\A\h{8}-\h{4}-7\h{3}-\h{4}-\h{12}\z/, item.event_uuid)
   end
 
+  test "an out-of-range number is stored as null instead of breaking re-serialisation" do
+    item = Ingest::Batch.new('{"events":[{"exception":{"class":"E"},"context":{"big":1e400,"small":-1e400,"n":2}}]}').items.sole
+
+    assert_not item.rejected?
+    assert_equal({ "big" => nil, "small" => nil, "n" => 2 }, JSON.parse(item.body)["context"])
+  end
+
+  test "rejects nesting deeper than the parser allows as invalid JSON" do
+    assert_raises(Ingest::InvalidJson) { Ingest::Batch.new(%({"events":[#{"[" * 5_000}#{"]" * 5_000}]})) }
+  end
+
   test "an item that re-serialises over the single event limit is rejected as too large" do
     item = batch([ { exception: { class: "E", message: "x" * Ingest::Limits::BODY_BYTES } } ]).items.sole
     assert_equal({ index: 0, error: "payload_too_large" }, item.rejection)

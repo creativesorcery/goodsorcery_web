@@ -130,6 +130,26 @@ class Api::V1::Events::BatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, InboundEvent.where(event_uuid: id).count
   end
 
+  test "runs the same number of queries for 1 or 50 events" do
+    counts = [ 1, 50 ].map do |size|
+      queries = []
+      callback = ->(*, payload) { queries << payload[:sql] unless payload[:name] == "SCHEMA" }
+      ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { post_batch batch_json(*Array.new(size) { minimal_json }) }
+      assert_response :accepted
+      queries.size
+    end
+
+    assert_equal counts.first, counts.last
+  end
+
+  test "accepts an out-of-range number, stored as null like a single event" do
+    post_batch '{"events":[{"exception":{"class":"E"},"context":{"big":1e400}}]}'
+    assert_response :accepted
+
+    inbound = InboundEvent.find_by!(event_uuid: response.parsed_body["accepted"].sole["id"])
+    assert_equal({ "big" => nil }, JSON.parse(inbound.body)["context"])
+  end
+
   test "accepts gzip bodies" do
     post_batch ActiveSupport::Gzip.compress(batch_json(minimal_json, minimal_json)), headers: { "Content-Encoding" => "gzip" }
     assert_response :accepted
@@ -245,10 +265,8 @@ class Api::V1::Events::BatchesControllerTest < ActionDispatch::IntegrationTest
       assert_response :accepted, "other accounts are unaffected"
     end
 
-    test "an exhausted key is turned away before its body is read" do
-      use_up "key", @key_id, Ingest::Limits::RATE_PER_KEY
-      post api_v1_events_batch_path, params: "nope",
-           headers: headers(FIXTURE_TOKENS[:storefront_production]).merge("Content-Type" => "text/plain")
+    test "a refused body still uses one unit, like a single request, so malformed batches are not free" do
+      post api_v1_events_batch_path, params: '{"events":"x"}', headers: headers(FIXTURE_ders: headers(FIXTURE_TOKENS[:storefront_production]).merge("Content-Type" => "text/plain")
       assert_response :too_many_requests
     end
 
