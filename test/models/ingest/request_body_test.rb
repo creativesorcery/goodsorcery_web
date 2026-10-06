@@ -24,6 +24,14 @@ class Ingest::RequestBodyTest < ActiveSupport::TestCase
     assert_raises(Ingest::PayloadTooLarge) { Ingest::RequestBody.new(bomb).read }
   end
 
+  test "takes a larger cap for batches" do
+    big = "x" * (Ingest::Limits::BODY_BYTES + 1)
+    assert_equal big, Ingest::RequestBody.new(request_for(big), max: Ingest::Limits::BATCH_BODY_BYTES).read
+
+    bomb = request_for(gzip("x" * (Ingest::Limits::BATCH_BODY_BYTES + 1)), "Content-Encoding" => "gzip")
+    assert_raises(Ingest::PayloadTooLarge) { Ingest::RequestBody.new(bomb, max: Ingest::Limits::BATCH_BODY_BYTES).read }
+  end
+
   test "rejects early on a large Content-Length" do
     request = request_for("{}")
     request.set_header("CONTENT_LENGTH", (Ingest::Limits::BODY_BYTES + 1).to_s)

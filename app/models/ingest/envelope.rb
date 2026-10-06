@@ -1,10 +1,19 @@
-# Request-time validation of an ingest body: one JSON object with a non-empty
-# `exception.class` string. Error messages never echo payload content.
+# Request-time validation of one ingest event: a JSON object with a non-empty
+# `exception.class` string. Built from a request body, or from an already
+# parsed event of a batch (`data:`, with `subject: "event"` for the messages).
+# Error messages never echo payload content.
 class Ingest::Envelope
   UUID = /\A\h{8}-\h{4}-\h{4}-\h{4}-\h{12}\z/
 
-  def initialize(body)
-    @data = parse(body)
+  def self.parse(body)
+    JSON.parse(body)
+  rescue JSON::ParserError, EncodingError
+    raise Ingest::InvalidJson, cause: nil
+  end
+
+  def initialize(body = nil, data: self.class.parse(body), subject: "body")
+    @data = data
+    @subject = subject
   end
 
   def valid? = errors.empty?
@@ -19,14 +28,8 @@ class Ingest::Envelope
   end
 
   private
-    def parse(body)
-      JSON.parse(body)
-    rescue JSON::ParserError, EncodingError
-      raise Ingest::InvalidJson, cause: nil
-    end
-
     def shape_error
-      return "body must be a JSON object" unless @data.is_a?(Hash)
+      return "#{@subject} must be a JSON object" unless @data.is_a?(Hash)
 
       "exception.class is required" unless exception_class.is_a?(String) && exception_class.strip.present?
     end

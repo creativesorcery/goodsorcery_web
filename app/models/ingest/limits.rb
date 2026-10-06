@@ -1,7 +1,10 @@
 # Hard bounds for everything accepted by the ingest API (docs/INGEST_API.md › Limits).
-# Oversized values are truncated; only an oversized request body is rejected.
+# Oversized values are truncated; only an oversized request body (or batch
+# event) is rejected. Key and account rates count events, IP rates requests.
 module Ingest::Limits
   BODY_BYTES = 512.kilobytes
+  BATCH_BODY_BYTES = 2.megabytes
+  BATCH_EVENTS = 100
 
   EXCEPTION_CLASS = 255
   MESSAGE = 10_000
@@ -41,4 +44,5 @@ module Ingest::Limits
   RATE_PER_IP = 6_000
   RATE_PER_ACCOUNT = 6_000
   RATE_WINDOW = 1.minute
+  VERIFY_RATE_PER_KEY = 60
 end

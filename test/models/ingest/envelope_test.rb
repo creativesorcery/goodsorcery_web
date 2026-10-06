@@ -26,4 +26,9 @@ class Ingest::EnvelopeTest < ActiveSupport::TestCase
     generated = Ingest::Envelope.new({ event_id: "nope", exception: { class: "E" } }.to_json).event_uuid
     assert_match(/\A\h{8}-\h{4}-7\h{3}-\h{4}-\h{12}\z/, generated)
   end
+
+  test "validates an already parsed event, naming it in messages" do
+    assert Ingest::Envelope.new(data: { "exception" => { "class" => "E" } }, subject: "event").valid?
+    assert_equal [ "event must be a JSON object" ], Ingest::Envelope.new(data: [ 1 ], subject: "event").errors
+  end
 end
