@@ -193,6 +193,7 @@ jobs:
         env:
           KAMAL_WEB_HOST: ${{ secrets.KAMAL_WEB_HOST }}
           KAMAL_SSH_PORT: ${{ secrets.KAMAL_SSH_PORT }}
+          KAMAL_SSH_USER: ${{ vars.KAMAL_SSH_USER || 'deploy' }}
           GOODSORCERY_HOST: ${{ vars.GOODSORCERY_HOST }}
           KAMAL_REGISTRY_USERNAME: ${{ github.actor }}
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}

@@ -115,6 +115,7 @@ only `main`. Then add:
 | secret | `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` | from `db:encryption:init` |
 | secret | `GOODSORCERY_WEB_DATABASE_PASSWORD` | the database password |
 | variable | `GOODSORCERY_HOST` | the public hostname, e.g. `errors.example.com` |
+| variable | `KAMAL_SSH_USER` | optional: the server user Kamal logs in as, if not `deploy` |
 
 The registry login uses the workflow's own `GITHUB_TOKEN`, so there's no
 registry secret. `CLOUDFLARE_TUNNEL_TOKEN` stays out of GitHub: only the
@@ -130,7 +131,9 @@ one-time accessory boot below needs it.
 ### 5. First boot
 
 From your laptop, with the values from step 3 exported in your shell
-(including `KAMAL_WEB_HOST`, `KAMAL_SSH_PORT` and `GOODSORCERY_HOST`) (plus a
+(including `KAMAL_WEB_HOST`, `KAMAL_SSH_PORT`, `GOODSORCERY_HOST` and, if
+your server user isn't `deploy`, `KAMAL_SSH_USER`). Kamal passes its own user
+and port to SSH, overriding `User` and `Port` from an `~/.ssh/config` alias (plus a
 GitHub personal access token with `read:packages` as `KAMAL_REGISTRY_PASSWORD`
 and your GitHub username as `KAMAL_REGISTRY_USERNAME`):
 
