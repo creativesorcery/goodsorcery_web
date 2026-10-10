@@ -2,6 +2,9 @@
 # a new key for another environment (create).
 class Projects::ApiKeysController < ApplicationController
   include ProjectScoped
+  include VerifiedEmailRequired
+
+  require_verified_email only: :create
 
   def show
     @api_key = @project.api_keys.find(params[:id])

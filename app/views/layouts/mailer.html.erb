@@ -1,23 +1,53 @@
+<%# Shared HTML email frame. Templates build their body from MailerHelper
+    (email_heading, email_text, email_button, email_note, email_link_fallback)
+    and may set content_for :preheader (inbox preview text) and :footer. -%>
+<% colors = MailerHelper::EMAIL_COLORS %>
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <style>
-      /* Email clients ignore external CSS; keep styles small and inline-safe. */
-      body { margin: 0; padding: 32px 16px; background: #f7f6f3; color: #34374d; font-family: Figtree, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.55; }
-      .card { max-width: 480px; margin: 0 auto; background: #ffffff; border: 1px solid #e7e5df; border-radius: 16px; padding: 32px; }
-      .brand { font-weight: 700; color: #23253a; font-size: 17px; letter-spacing: -0.01em; }
-      .muted { color: #80849a; font-size: 13px; }
-      .button { display: inline-block; background: #5a5fd6; color: #ffffff !important; text-decoration: none; font-weight: 600; padding: 10px 18px; border-radius: 10px; }
-      a { color: #5a5fd6; }
-    </style>
+    <meta name="color-scheme" content="light">
+    <meta name="supported-color-schemes" content="light">
+    <title><%= message.subject %></title>
   </head>
 
-  <body>
-    <div class="card">
-      <p class="brand">✦ Good Sorcery</p>
-      <%= yield %>
-    </div>
+  <body style="margin: 0; padding: 0; background: <%= colors[:paper] %>; font-family: <%= MailerHelper::EMAIL_FONT %>; -webkit-text-size-adjust: 100%;">
+    <% if content_for?(:preheader) %>
+      <div style="display: none; max-height: 0; max-width: 0; overflow: hidden; opacity: 0; mso-hide: all;"><%= yield :preheader %></div>
+    <% end %>
+
+    <%= email_table(width: "100%", bgcolor: colors[:paper], style: "background: #{colors[:paper]};") do %>
+      <tr>
+        <td align="center" style="padding: 40px 16px;">
+          <%= email_table(width: "100%", style: "max-width: 520px;") do %>
+            <tr>
+              <td style="padding: 0 4px 18px;">
+                <%= email_table do %>
+                  <tr>
+                    <td width="30" height="30" align="center" valign="middle" bgcolor="<%= colors[:sigil_bg] %>"
+                        style="width: 30px; height: 30px; border-radius: 9px; background: <%= colors[:sigil_bg] %>; color: <%= colors[:sigil] %>; font-size: 17px; line-height: 30px;">&#10022;</td>
+                    <td style="padding-left: 10px; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: <%= colors[:heading] %>;">Good Sorcery</td>
+                  </tr>
+                <% end %>
+              </td>
+            </tr>
+
+            <tr>
+              <td bgcolor="<%= colors[:card] %>" style="background: <%= colors[:card] %>; border: 1px solid <%= colors[:border] %>; border-radius: 16px; padding: 32px;">
+                <%= yield %>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 20px 4px 0; font-size: 12px; line-height: 1.6; color: <%= colors[:muted] %>;">
+                <%= content_for?(:footer) ? yield(:footer) : "You're receiving this email because of activity on your Good Sorcery account." %><br>
+                <%= link_to "Good Sorcery", root_url, style: "color: #{colors[:muted]}; text-decoration: underline;" %> · Error tracking for Rails apps
+              </td>
+            </tr>
+          <% end %>
+        </td>
+      </tr>
+    <% end %>
   </body>
 </html>

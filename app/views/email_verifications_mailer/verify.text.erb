@@ -1,0 +1,8 @@
+<%# Plain text: values are output raw, since HTML escaping would show up literally (O&#39;Brien). -%>
+<% content_for :footer, "You're receiving this email because this address was used to sign up for Good Sorcery.".html_safe -%>
+Hi <%= raw @user.first_name %>, thanks for signing up for Good Sorcery. Confirm that <%= raw @user.email_address %> is yours, and you can start adding apps and catching errors.
+
+Confirm your email address:
+<%= @url %>
+
+This link expires in <%= distance_of_time_in_words(0, User::EmailVerification::EXPIRES_IN) %>. If you didn't sign up for Good Sorcery, you can ignore this email.

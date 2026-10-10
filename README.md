@@ -229,7 +229,9 @@ plaintext. **Losing these keys makes all stored error data, API key tokens and
 notes unreadable.** `support_unencrypted_data` is off, so plaintext rows are
 rejected rather than read.
 
-**Email.** Password resets need outgoing mail. Set `POSTMARK_API_TOKEN` to
+**Email.** Password resets and sign-up confirmation emails need outgoing mail
+(the first account's owner starts confirmed, so a new instance works before
+mail is set up; later sign-ups can't add apps until they confirm). Set `POSTMARK_API_TOKEN` to
 send through Postmark, and verify the sender's domain in Postmark (the sender
 is `GOODSORCERY_MAIL_FROM`, by default `no-reply@` the public URL's host). To
 use another provider, leave the token unset, uncomment

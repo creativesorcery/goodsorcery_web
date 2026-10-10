@@ -1,5 +1,8 @@
 # Projects overview, "Add a new app" and Settings › General.
 class ProjectsController < ApplicationController
+  include VerifiedEmailRequired
+
+  require_verified_email only: %i[new create]
   before_action :set_project, only: %i[edit update]
 
   def index

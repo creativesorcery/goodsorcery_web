@@ -58,6 +58,13 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_notice "Password has been reset"
   end
 
+  test "update confirms the email address, since the link reached the inbox" do
+    @user.update!(email_verified_at: nil)
+    put password_path, params: { token: @user.password_reset_token, password: "new-secret-9", password_confirmation: "new-secret-9" }
+
+    assert @user.reload.email_verified?
+  end
+
   test "update with non matching passwords" do
     token = @user.password_reset_token
     assert_no_changes -> { @user.reload.password_digest } do

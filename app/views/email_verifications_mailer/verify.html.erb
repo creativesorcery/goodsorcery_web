@@ -1,0 +1,14 @@
+<% content_for :preheader, "Confirm #{@user.email_address} to finish setting up Good Sorcery." %>
+<% content_for :footer, "You're receiving this email because this address was used to sign up for Good Sorcery." %>
+
+<%= email_heading "Confirm your email address" %>
+
+<%= email_text "Hi #{@user.first_name}, thanks for signing up for Good Sorcery. Confirm that #{@user.email_address} is yours, and you can start adding apps and catching errors." %>
+
+<%= email_button "Confirm email address", @url %>
+
+<%= email_note "This link expires in #{distance_of_time_in_words(0, User::EmailVerification::EXPIRES_IN)}. If you didn't sign up for Good Sorcery, you can ignore this email." %>
+
+<%= email_divider %>
+
+<%= email_link_fallback @url %>

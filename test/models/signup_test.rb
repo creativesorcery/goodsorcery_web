@@ -1,6 +1,8 @@
 require "test_helper"
 
 class SignupTest < ActiveSupport::TestCase
+  include ActionMailer::TestHelper
+
   def signup(**overrides)
     Signup.new({ account_name: "Initech", name: "Peter Gibbons", email_address: "peter@initech.test",
                  password: "tps-reports-1", time_zone: "America/Chicago" }.merge(overrides))
@@ -13,6 +15,25 @@ class SignupTest < ActiveSupport::TestCase
     assert user.persisted?
     assert_equal "Initech", user.default_account.name
     assert user.memberships.sole.owner?
+  end
+
+  test "a later sign-up starts unverified and is sent a confirmation email" do
+    user = nil
+    assert_enqueued_emails 1 do
+      user = signup.save
+    end
+
+    assert_not user.email_verified?
+    assert_enqueued_email_with EmailVerificationsMailer, :verify, args: [ user ]
+  end
+
+  test "the first account's owner starts verified and gets no email" do
+    form = signup
+    form.define_singleton_method(:first_account?) { true }
+    user = form.save
+
+    assert user.email_verified?
+    assert_enqueued_emails 0
   end
 
   test "returns false with errors when fields are missing" do

@@ -29,6 +29,7 @@ class Signup
     return false unless valid?
 
     ActiveRecord::Base.transaction { create_records }
+    user.send_email_verification unless user.email_verified?
     user
   rescue ActiveRecord::RecordInvalid => invalid
     adopt_errors(invalid.record)
@@ -36,10 +37,17 @@ class Signup
   end
 
   private
+    # The first account's owner is the person installing the instance, so they
+    # start verified: a self-hosted instance may not have mail set up yet.
     def create_records
+      verified_at = Time.current if first_account?
       @account = Account.create!(name: account_name)
-      @user = User.create!(name:, email_address:, password:, time_zone:)
+      @user = User.create!(name:, email_address:, password:, time_zone:, email_verified_at: verified_at)
       account.memberships.create!(user:, role: :owner)
+    end
+
+    def first_account?
+      !Account.exists?
     end
 
     def adopt_errors(record)

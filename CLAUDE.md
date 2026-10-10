@@ -40,7 +40,6 @@ The `goodsorcery` gem (module `GoodSorcery`) lives in a sibling checkout, `../go
 
 ## Not built yet (each needs the user's go-ahead)
 
-- Email verification at sign-up. Sign-up closes after the first account unless `GOODSORCERY_ENABLE_SIGNUPS=1`.
 - Postgres backups (see `docs/DEPLOYMENT.md`).
 - Merge/unmerge, Assign and mute rules.
 - Alerts and Uptime (they show as "soon" in the sidebar), team invites, project deletion and GitHub links.
@@ -108,6 +107,8 @@ bin/bundler-audit && bin/importmap audit
 - **Encryption keys:** development and test use fixed, non-secret keys (`config/environments/*.rb`). Production reads `ACTIVE_RECORD_ENCRYPTION_*` and `SECRET_KEY_BASE` from ENV; there is no credentials file.
 - **Production boot:** it fails without `GOODSORCERY_PUBLIC_URL`, except for asset builds, where `SECRET_KEY_BASE_DUMMY` is set.
 - **Deploy:** CI deploys `main` with Kamal (`docs/DEPLOYMENT.md`). The repo is public: never commit hosts, IPs or secrets; `config/deploy.yml` reads them from ENV via ERB.
+- **Email verification:** sign-up sends a link (`User::EmailVerification`, `EmailVerificationsController`); unverified users can browse but `VerifiedEmailRequired` blocks creating apps and API keys. The first account's owner starts verified (self-hosted mail may not be set up). A password reset also verifies.
+- **Email templates:** every HTML email uses `layouts/mailer.html.erb` and the inline-styled `MailerHelper` blocks (`email_heading`, `email_text`, `email_button`, `email_note`, `email_link_fallback`); set `content_for :preheader` / `:footer`. Text parts output user values with `raw`.
 - **Scheduled jobs:** sidekiq-cron loads `config/schedule.yml` in the Sidekiq process (production only).
 - **Debug logs:** SQL logs in dev and test include redacted issue titles. Keep production at `info`.
 - **Dev data:** test events overwrite a project's runtime label and use up issue numbers; deleting issues doesn't rewind the sequence. Seeds don't run again once the demo user exists (`bin/rails db:reset` to start over).

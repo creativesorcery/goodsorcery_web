@@ -25,6 +25,8 @@ class RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert user.memberships.sole.owner?
     assert_equal "Initech", user.default_account.name
     assert_equal "America/Chicago", user.time_zone
+    assert_not user.email_verified?
+    assert_enqueued_email_with EmailVerificationsMailer, :verify, args: [ user ]
   end
 
   test "create with invalid data re-renders the form" do

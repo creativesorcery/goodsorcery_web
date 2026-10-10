@@ -25,6 +25,7 @@
 
       <main class="flex-1 min-w-0">
         <%= render "layouts/topbar" %>
+        <%= render "layouts/email_verification" if Current.user && !Current.user.email_verified? %>
         <%= render "layouts/flash", wrapper_class: "px-8" %>
         <%= yield %>
       </main>

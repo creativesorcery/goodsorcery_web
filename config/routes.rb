@@ -17,6 +17,8 @@ Rails.application.routes.draw do
   # filter_parameters keeps it out of the "Started GET" log line.
   resource :password, only: %i[edit update]
   resource :registration, only: %i[new create]
+  # Like the reset token, the verification token travels as ?token=.
+  resource :email_verification, only: %i[show create]
 
   resource :search, only: :show
   resource :recent_issues, only: :show

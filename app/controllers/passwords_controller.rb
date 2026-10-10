@@ -25,6 +25,7 @@ class PasswordsController < ApplicationController
   def update
     if @user.update(params.permit(:password, :password_confirmation))
       @user.sessions.destroy_all
+      @user.verify_email # the reset link reached their inbox
       redirect_to new_session_path, notice: "Password has been reset."
     else
       flash.now[:alert] = @user.errors.full_messages.to_sentence

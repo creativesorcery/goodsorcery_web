@@ -5,15 +5,18 @@ philip:
   password_digest: <%= password_digest %>
   name: Philip Nguyen
   time_zone: Europe/London
+  email_verified_at: <%= 1.month.ago.to_fs(:db) %>
 
 jo:
   email_address: jo@example.com
   password_digest: <%= password_digest %>
   name: Jo Martin
   time_zone: UTC
+  email_verified_at: <%= 1.month.ago.to_fs(:db) %>
 
 outsider:
   email_address: outsider@umbrella.test
   password_digest: <%= password_digest %>
   name: Oscar Outsider
   time_zone: UTC
+  email_verified_at: <%= 1.month.ago.to_fs(:db) %>

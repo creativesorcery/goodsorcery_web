@@ -1,4 +1,6 @@
 class User < ApplicationRecord
+  include EmailVerification
+
   has_secure_password
   has_many :sessions, dependent: :destroy
   has_many :memberships, dependent: :destroy, inverse_of: :user

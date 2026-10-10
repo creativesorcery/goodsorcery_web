@@ -3,6 +3,9 @@
 # token once, so it is sent with Cache-Control: no-store.
 class Projects::ApiKeys::RotationsController < ApplicationController
   include ProjectScoped
+  include VerifiedEmailRequired
+
+  require_verified_email
 
   def create
     @api_key = @project.api_keys.find(params[:api_key_id]).rotate

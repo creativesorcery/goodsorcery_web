@@ -1,8 +1,13 @@
-<p>Someone asked to reset the password for your Good Sorcery account.</p>
+<% content_for :preheader, "Choose a new password for your Good Sorcery account." %>
 
-<p><%= link_to "Choose a new password", edit_password_url(token: @user.password_reset_token), class: "button" %></p>
+<%= email_heading "Reset your password" %>
 
-<p class="muted">
-  This link expires in <%= distance_of_time_in_words(0, @user.password_reset_token_expires_in) %>.
-  If you didn't ask for this, you can ignore this email and your password stays the same.
-</p>
+<%= email_text "Someone asked to reset the password for your Good Sorcery account." %>
+
+<%= email_button "Choose a new password", @url %>
+
+<%= email_note "This link expires in #{distance_of_time_in_words(0, @user.password_reset_token_expires_in)}. If you didn't ask for this, you can ignore this email and your password stays the same." %>
+
+<%= email_divider %>
+
+<%= email_link_fallback @url %>
