@@ -15,13 +15,14 @@ visitor ──HTTPS──▶ Cloudflare (DNS proxy, TLS)
          │                                                               job (Sidekiq + sidekiq-cron)
          │ goodsorcery_web-db (Postgres 18)    goodsorcery_web-redis (Redis 8)    │
          └────────────────────────────────────────────────────────────────────────┘
-  open inbound ports: 22 (SSH, key only). No HTTP ports are published.
+  open inbound ports: SSH only (key only, on KAMAL_SSH_PORT). No HTTP ports are published.
 ```
 
 ## Keeping the server private in a public repo
 
-- `config/deploy.yml` holds no hosts or secrets. Kamal reads the host and
-  domain from `KAMAL_WEB_HOST` and `GOODSORCERY_HOST`, and every secret from
+- `config/deploy.yml` holds no hosts or secrets. Kamal reads the host, SSH
+  port and domain from `KAMAL_WEB_HOST`, `KAMAL_SSH_PORT` (default 22) and
+  `GOODSORCERY_HOST`, and every secret from
   the environment through `.kamal/secrets`.
 - In GitHub, all of them live in the `production` environment, which only
   `main` may deploy from. `KAMAL_WEB_HOST` is stored as a **secret** (not a
@@ -48,12 +49,13 @@ install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 # Add your own public key and the CI deploy key (step 3) to:
 #   /home/deploy/.ssh/authorized_keys   (owner deploy, mode 600)
 
-# SSH: keys only, no root login.
+# SSH: keys only, no root login. If you move SSH off port 22, also set
+# KAMAL_SSH_PORT (below) and open that port instead of OpenSSH.
 printf 'PasswordAuthentication no\nPermitRootLogin no\n' > /etc/ssh/sshd_config.d/90-hardening.conf
 systemctl reload ssh
 
 # Firewall: SSH only. Nothing else needs to be reachable; the tunnel connects out.
-ufw default deny incoming && ufw allow OpenSSH && ufw --force enable
+ufw default deny incoming && ufw allow OpenSSH && ufw --force enable   # or: ufw allow SSH_PORT/tcp
 ```
 
 Docker-published ports bypass `ufw`, which is why `deploy.yml` publishes none:
@@ -90,11 +92,12 @@ ssh-keygen -t ed25519 -N "" -C "goodsorcery_web deploy" -f goodsorcery_deploy
 # goodsorcery_deploy.pub goes into the server's authorized_keys (step 1);
 # goodsorcery_deploy (private) becomes SSH_PRIVATE_KEY.
 
-ssh-keyscan -t ed25519 SERVER_IP     # becomes SSH_KNOWN_HOSTS
+ssh-keyscan -p SSH_PORT -t ed25519 SERVER_IP   # becomes SSH_KNOWN_HOSTS
 ```
 
 Compare the `ssh-keyscan` output with `/etc/ssh/ssh_host_ed25519_key.pub` on
-the server before you trust it.
+the server before you trust it. On a port other than 22 the line starts with
+`[SERVER_IP]:SSH_PORT`; keep it that way, since that's how SSH matches it.
 
 In GitHub: **Settings → Environments → New environment** named `production`.
 Under *Deployment branches and tags*, choose *Selected branches* and allow
@@ -103,6 +106,7 @@ only `main`. Then add:
 | Kind | Name | Value |
 |---|---|---|
 | secret | `KAMAL_WEB_HOST` | the server's IP address |
+| secret | `KAMAL_SSH_PORT` | the server's SSH port (`22` if unchanged) |
 | secret | `SSH_PRIVATE_KEY` | the private deploy key |
 | secret | `SSH_KNOWN_HOSTS` | the `ssh-keyscan` line |
 | secret | `SECRET_KEY_BASE` | from `bin/rails secret` |
@@ -125,7 +129,8 @@ one-time accessory boot below needs it.
 
 ### 5. First boot
 
-From your laptop, with the values from step 3 exported in your shell (plus a
+From your laptop, with the values from step 3 exported in your shell
+(including `KAMAL_WEB_HOST`, `KAMAL_SSH_PORT` and `GOODSORCERY_HOST`) (plus a
 GitHub personal access token with `read:packages` as `KAMAL_REGISTRY_PASSWORD`
 and your GitHub username as `KAMAL_REGISTRY_USERNAME`):
 
@@ -157,7 +162,7 @@ image version) does not apply it**. Run the change from your laptop:
 
 | Situation | Command | Needs |
 |---|---|---|
-| Restart (stuck, or after a server reboot) | `bin/kamal accessory restart tunnel` | `KAMAL_WEB_HOST`, `GOODSORCERY_HOST` |
+| Restart (stuck, or after a server reboot) | `bin/kamal accessory restart tunnel` | `KAMAL_WEB_HOST`, `KAMAL_SSH_PORT`, `GOODSORCERY_HOST` |
 | New image version or rotated secret | `bin/kamal accessory reboot tunnel` | the above, every secret in `.kamal/secrets` the accessory uses, and the registry login from "First boot" |
 
 `reboot` recreates the container and re-uploads its env file from your shell.

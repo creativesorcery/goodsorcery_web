@@ -46,6 +46,7 @@ registry:
 
 ssh:
   user: <%= ENV.fetch("KAMAL_SSH_USER", "deploy") %>
+  port: <%= ENV.fetch("KAMAL_SSH_PORT", 22) %>
 
 env:
   clear:
