@@ -1,0 +1,13 @@
+# Scheduled jobs, loaded by sidekiq-cron when a Sidekiq process starts
+# (production only; development and test don't run Sidekiq). Times are UTC.
+# Jobs removed from this file are unscheduled on the next Sidekiq start.
+
+prune_expired_data:
+  cron: "17 3 * * *"   # daily at 03:17
+  class: PruneExpiredDataJob
+  description: "Delete data past each project's retention (goodsorcery:prune)"
+
+requeue_stale_events:
+  cron: "*/10 * * * *"
+  class: RequeueStaleEventsJob
+  description: "Re-enqueue inbound events never processed (goodsorcery:requeue_stale)"

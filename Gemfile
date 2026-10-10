@@ -22,6 +22,8 @@ gem "jbuilder"
 gem "redis", ">= 4.0.1"
 # Background jobs for Active Job in production [https://github.com/sidekiq/sidekiq]
 gem "sidekiq"
+# Runs the scheduled jobs in config/schedule.yml inside the Sidekiq process
+gem "sidekiq-cron", "~> 2.4"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 gem "bcrypt", "~> 3.1.7"
