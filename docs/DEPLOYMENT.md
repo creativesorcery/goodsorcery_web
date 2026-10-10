@@ -146,8 +146,24 @@ and sign up; sign-up closes after the first account.
 - **Scheduled jobs:** sidekiq-cron runs `config/schedule.yml` inside the job
   container: the retention sweep daily and the stale-event requeue every 10
   minutes. The rake tasks still work by hand: `bin/kamal app exec "bin/rails goodsorcery:prune"`.
-- **Accessories:** `bin/kamal accessory logs tunnel`, `bin/kamal accessory reboot redis`.
-  Upgrading Postgres to a new major version needs a dump and restore.
+- **Accessories:** `bin/kamal accessory logs tunnel`. Upgrading Postgres to a
+  new major version needs a dump and restore.
+
+## Accessories are managed by hand
+
+CI only deploys the app. Postgres, Redis and cloudflared keep running across
+deploys, and **merging a change to an accessory in `deploy.yml` (such as a new
+image version) does not apply it**. Run the change from your laptop:
+
+| Situation | Command | Needs |
+|---|---|---|
+| Restart (stuck, or after a server reboot) | `bin/kamal accessory restart tunnel` | `KAMAL_WEB_HOST`, `GOODSORCERY_HOST` |
+| New image version or rotated secret | `bin/kamal accessory reboot tunnel` | the above, every secret in `.kamal/secrets` the accessory uses, and the registry login from "First boot" |
+
+`reboot` recreates the container and re-uploads its env file from your shell.
+For the tunnel, export `CLOUDFLARE_TUNNEL_TOKEN` first: an empty value takes
+the tunnel, and the site, down. The token deliberately isn't stored in GitHub,
+since anyone holding it can run a connector for your hostname.
 
 ## Backups
 
