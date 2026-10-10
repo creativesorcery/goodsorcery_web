@@ -51,8 +51,11 @@ install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 
 # SSH: keys only, no root login. If you move SSH off port 22, also set
 # KAMAL_SSH_PORT (below) and open that port instead of OpenSSH.
-printf 'PasswordAuthentication no\nPermitRootLogin no\n' > /etc/ssh/sshd_config.d/90-hardening.conf
+printf 'PasswordAuthentication no\nPermitRootLogin no\n' > /etc/ssh/sshd_config.d/00-hardening.conf
 systemctl reload ssh
+# sshd keeps the first value it reads, and cloud images often ship
+# 50-cloud-init.conf with PasswordAuthentication yes, so the 00- prefix matters.
+# Check: sshd -T | grep -i passwordauthentication   (should say no)
 
 # Firewall: SSH only. Nothing else needs to be reachable; the tunnel connects out.
 ufw default deny incoming && ufw allow OpenSSH && ufw --force enable   # or: ufw allow SSH_PORT/tcp
