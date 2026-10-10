@@ -1,5 +1,5 @@
 module ApplicationHelper
-  DEFAULT_DOCS_URL = "https://github.com/goodsorcery/error_tracker/tree/main/docs".freeze
+  DEFAULT_DOCS_URL = "https://github.com/goodsorcery/goodsorcery_web/tree/main/docs".freeze
 
   GOOGLE_FONTS_URL = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700" \
     "&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap".freeze

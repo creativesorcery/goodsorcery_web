@@ -8,7 +8,7 @@ require_relative "../lib/configuration/public_url"
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
 
-module ErrorTracker
+module GoodsorceryWeb
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 8.1

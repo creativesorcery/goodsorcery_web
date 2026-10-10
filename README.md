@@ -174,7 +174,7 @@ Every variable below is read by the app's code or config.
 | `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | **yes**, unless set in credentials | credentials `active_record_encryption.deterministic_key` | Deterministic encryption key. |
 | `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` | **yes**, unless set in credentials | credentials `active_record_encryption.key_derivation_salt` | Key derivation salt. |
 | `DATABASE_URL` | yes, unless you use the `database.yml` defaults | none | Full Postgres URL. Rails merges it over `config/database.yml`. |
-| `ERROR_TRACKER_DATABASE_PASSWORD` | if not using `DATABASE_URL` | none | Password for the `error_tracker` role on the local `error_tracker_production` database. |
+| `GOODSORCERY_WEB_DATABASE_PASSWORD` | if not using `DATABASE_URL` | none | Password for the `goodsorcery_web` role on the local `goodsorcery_web_production` database. |
 | `REDIS_URL` | **yes** | `redis://localhost:6379/1` (Action Cable), `redis://localhost:6379/0` (cache), Sidekiq's own default | Sidekiq, Action Cable and, unless overridden, the cache store. |
 | `REDIS_CACHE_URL` | no | `REDIS_URL` | A separate Redis for the cache store (rate limits, quota and key-lookup caches, fragments). |
 | `SIDEKIQ_CONCURRENCY` | no | `5` | Sidekiq threads per process. Keep `RAILS_MAX_THREADS` (the database pool) at least this high in the Sidekiq process. |
@@ -258,7 +258,7 @@ Uncomment `config.action_mailer.smtp_settings` in
    Aliases: `bin/kamal console`, `logs`, `shell`, `dbc`.
 
 Plain Docker works too:
-`docker run -e RAILS_MASTER_KEY=... -e GOODSORCERY_PUBLIC_URL=... -e REDIS_URL=... -e DATABASE_URL=... error_tracker`.
+`docker run -e RAILS_MASTER_KEY=... -e GOODSORCERY_PUBLIC_URL=... -e REDIS_URL=... -e DATABASE_URL=... goodsorcery_web`.
 Run a second container from the same image with `bundle exec sidekiq -C config/sidekiq.yml`.
 
 ## Privacy
