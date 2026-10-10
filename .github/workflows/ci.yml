@@ -186,8 +186,9 @@ jobs:
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          # Refuse unknown or changed host keys instead of trusting on first use.
-          printf 'Host *\n  StrictHostKeyChecking yes\n' > ~/.ssh/config
+          # Refuse unknown or changed host keys instead of trusting on first use,
+          # and fail with an auth error instead of hanging on a password prompt.
+          printf 'Host *\n  StrictHostKeyChecking yes\n  PreferredAuthentications publickey\n' > ~/.ssh/config
 
       - name: Deploy with Kamal
         env:
