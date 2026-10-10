@@ -133,6 +133,7 @@ only `main`. Then add:
 | secret | `POSTMARK_API_TOKEN` | the Postmark **server** API token (Servers → your server → API Tokens) |
 | variable | `GOODSORCERY_HOST` | the public hostname, e.g. `errors.example.com` |
 | variable | `GOODSORCERY_MAIL_FROM` | optional: the sender, e.g. `Good Sorcery <no-reply@example.com>`; defaults to `no-reply@GOODSORCERY_HOST` |
+| variable | `GOODSORCERY_ENABLE_SIGNUPS` | optional: `1` keeps public sign-up open after the first account; unset or anything else closes it |
 | variable | `KAMAL_SSH_USER` | optional: the server user Kamal logs in as, if not `deploy` |
 
 The registry login uses the workflow's own `GITHUB_TOKEN`, so there's no

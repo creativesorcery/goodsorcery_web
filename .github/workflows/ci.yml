@@ -197,6 +197,7 @@ jobs:
           KAMAL_SSH_USER: ${{ vars.KAMAL_SSH_USER || 'deploy' }}
           GOODSORCERY_HOST: ${{ vars.GOODSORCERY_HOST }}
           GOODSORCERY_MAIL_FROM: ${{ vars.GOODSORCERY_MAIL_FROM }}
+          GOODSORCERY_ENABLE_SIGNUPS: ${{ vars.GOODSORCERY_ENABLE_SIGNUPS }}
           KAMAL_REGISTRY_USERNAME: ${{ github.actor }}
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}

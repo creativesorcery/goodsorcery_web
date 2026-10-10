@@ -56,6 +56,10 @@ env:
 <% if ENV["GOODSORCERY_MAIL_FROM"].to_s.strip != "" %>
     GOODSORCERY_MAIL_FROM: <%= ENV["GOODSORCERY_MAIL_FROM"].to_json %>
 <% end %>
+<% if ENV["GOODSORCERY_ENABLE_SIGNUPS"] == "1" %>
+    # Keep public sign-up open after the first account (see Signup.open?).
+    GOODSORCERY_ENABLE_SIGNUPS: "1"
+<% end %>
   secret:
     - SECRET_KEY_BASE
     - ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY
