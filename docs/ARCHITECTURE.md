@@ -217,7 +217,7 @@ Indexes: `[issue_id, created_at]`.
     config.active_record.encryption.deterministic_key = "dev-and-test-only-deterministic-key-not-secret"
     config.active_record.encryption.key_derivation_salt = "dev-and-test-only-key-derivation-salt-not-secret"
     ```
-  - production.rb uses `ENV.fetch("ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY") { Rails.application.credentials.dig(:active_record_encryption, :primary_key) }` (and the same for the other two keys).
+  - production.rb uses `ENV["ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY"]` (and the same for the other two keys). There is no credentials file.
 - test.rb: `config.active_record.encryption.encrypt_fixtures = true`.
 - All environments: `config.active_record.encryption.support_unencrypted_data = false`.
 - Rails 8.1 `insert_all`/`upsert_all` serialise through `model.type_for_attribute`, so bulk inserts encrypt automatically (verified in `activerecord-8.1.4/lib/active_record/insert_all.rb`). Slice A adds a model test asserting that the raw column value (`Model.connection.select_value`) is not the plaintext.

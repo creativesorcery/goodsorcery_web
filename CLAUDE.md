@@ -36,7 +36,7 @@ v1 scope:
 
 ## Ruby client gem
 
-The `goodsorcery` gem (module `GoodSorcery`) lives in `/Users/philip/projects/goodsorcery/goodsorcery-ruby`. Its `docs/DESIGN.md` is the blueprint for the gem and for the server endpoints it uses (§7: batch and verify). Keep the setup page snippets (`app/views/projects/setups/*`, `SetupHelper`) in step with its configuration API.
+The `goodsorcery` gem (module `GoodSorcery`) lives in a sibling checkout, `../goodsorcery-ruby`. Its `docs/DESIGN.md` is the blueprint for the gem and for the server endpoints it uses (§7: batch and verify). Keep the setup page snippets (`app/views/projects/setups/*`, `SetupHelper`) in step with its configuration API.
 
 ## Not built yet (each needs the user's go-ahead)
 
@@ -106,7 +106,7 @@ bin/bundler-audit && bin/importmap audit
   - `test/models/ingest/concurrent_processing_test.rb` guards this.
 - **Never put captured data in:** Sidekiq/job args, Redis, the cache store, logs, broadcasts or exception messages (Postgres errors are re-raised without row values). Dashboard pages send `Cache-Control: no-store`. Never call `raw`/`html_safe` on captured data.
 - **Plaintext columns:** only the redacted title, transaction and culprit are plaintext, for search. Everything else captured is in encrypted columns. User identities and tag values are matched by `PrivateDigest` HMAC, which is derived from `secret_key_base`; rotating it breaks digest continuity.
-- **Encryption keys:** development and test use fixed, non-secret keys (`config/environments/*.rb`). Production reads `ACTIVE_RECORD_ENCRYPTION_*` from ENV, then from credentials.
+- **Encryption keys:** development and test use fixed, non-secret keys (`config/environments/*.rb`). Production reads `ACTIVE_RECORD_ENCRYPTION_*` and `SECRET_KEY_BASE` from ENV; there is no credentials file.
 - **Production boot:** it fails without `GOODSORCERY_PUBLIC_URL`, except for asset builds, where `SECRET_KEY_BASE_DUMMY` is set.
 - **Debug logs:** SQL logs in dev and test include redacted issue titles. Keep production at `info`.
 - **Dev data:** test events overwrite a project's runtime label and use up issue numbers; deleting issues doesn't rewind the sequence. Seeds don't run again once the demo user exists (`bin/rails db:reset` to start over).

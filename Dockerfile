@@ -3,7 +3,7 @@
 
 # This Dockerfile is designed for production, not development. Use with Kamal or build'n'run by hand:
 # docker build -t goodsorcery_web .
-# docker run -d -p 80:80 -e RAILS_MASTER_KEY=<value from config/master.key> --name goodsorcery_web goodsorcery_web
+# docker run -d -p 80:80 -e SECRET_KEY_BASE=... -e ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=... (see README.md) --name goodsorcery_web goodsorcery_web
 
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 

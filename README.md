@@ -167,12 +167,12 @@ Every variable below is read by the app's code or config.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `RAILS_MASTER_KEY` | **yes** (or ship `config/master.key`) | none | Decrypts `config/credentials.yml.enc`: `secret_key_base` and, optionally, the encryption keys. |
+| `SECRET_KEY_BASE` | **yes** | none (**production refuses to boot without it**) | Signs and encrypts cookies and derives the `PrivateDigest` HMAC key. See "Secrets". |
 | `GOODSORCERY_PUBLIC_URL` | **yes** | none (**production refuses to boot without it**) | This instance's public URL, e.g. `https://errors.example.com`. Sets the host and protocol of email links (password resets) and the allowed hosts (`config.hosts`). The setup page's install snippet also shows it as the endpoint. |
 | `GOODSORCERY_EXTRA_HOSTS` | no | none | Comma-separated extra hostnames to accept besides the public URL's host. `/up` answers on any host. |
-| `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY` | **yes**, unless set in credentials | credentials `active_record_encryption.primary_key` | Encrypts captured error data, raw inbound events, API key tokens, tag values and notes. |
-| `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | **yes**, unless set in credentials | credentials `active_record_encryption.deterministic_key` | Deterministic encryption key. |
-| `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` | **yes**, unless set in credentials | credentials `active_record_encryption.key_derivation_salt` | Key derivation salt. |
+| `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY` | **yes** | none | Encrypts captured error data, raw inbound events, API key tokens, tag values and notes. |
+| `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | **yes** | none | Deterministic encryption key. |
+| `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` | **yes** | none | Key derivation salt. |
 | `DATABASE_URL` | yes, unless you use the `database.yml` defaults | none | Full Postgres URL. Rails merges it over `config/database.yml`. |
 | `GOODSORCERY_WEB_DATABASE_PASSWORD` | if not using `DATABASE_URL` | none | Password for the `goodsorcery_web` role on the local `goodsorcery_web_production` database. |
 | `REDIS_URL` | **yes** | `redis://localhost:6379/1` (Action Cable), `redis://localhost:6379/0` (cache), Sidekiq's own default | Sidekiq, Action Cable and, unless overridden, the cache store. |
@@ -194,50 +194,40 @@ Account event quotas aren't environment variables. Each account has a
 `monthly_event_quota` column (`nil` means unlimited, the self-hosted default).
 Ingest returns `429 quota_exceeded` once an account reaches it.
 
-### Secrets and credentials
+### Secrets
 
-**`secret_key_base` and `config/master.key`.** `secret_key_base` lives in
-`config/credentials.yml.enc`, which is decrypted with `config/master.key` or the
-`RAILS_MASTER_KEY` variable. `master.key` is git-ignored: keep it in a password
-manager and never commit it. `secret_key_base` signs and encrypts session cookies and
-signed Action Cable stream names. It also derives the HMAC key for the
-affected-user and tag digests (`PrivateDigest`), so **rotating it logs everyone out
-and breaks matching against existing user and tag digests**.
+Production reads every secret from environment variables. The repo has no
+`config/credentials.yml.enc` or `config/master.key` (both are git-ignored), so
+there is nothing to decrypt and nothing to share.
 
-For a fresh deployment with your own credentials:
+Generate the four secrets once, store them in a password manager, and back
+them up separately from the database:
 
 ```sh
-rm config/credentials.yml.enc config/master.key   # only if you want new ones
-bin/rails credentials:edit                        # generates a new master.key and secret_key_base
+bin/rails secret                # SECRET_KEY_BASE
+bin/rails db:encryption:init    # prints the three ACTIVE_RECORD_ENCRYPTION_* values
 ```
 
-**Active Record Encryption keys** (required in production; boot works without
-them, but every ingest and every captured-data read then fails, so nothing is
-ever stored in plaintext). Generate them once:
+`db:encryption:init` prints the keys as YAML (`primary_key`, `deterministic_key`,
+`key_derivation_salt`). Set them as `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY`,
+`ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` and
+`ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT`.
 
-```sh
-bin/rails db:encryption:init
-```
+**`SECRET_KEY_BASE`** signs and encrypts session cookies and signed Action Cable
+stream names. It also derives the HMAC key for the affected-user and tag digests
+(`PrivateDigest`), so **changing it logs everyone out and breaks matching
+against existing user and tag digests**.
 
-Then either paste the printed block into `bin/rails credentials:edit`:
-
-```yaml
-active_record_encryption:
-  primary_key: ...
-  deterministic_key: ...
-  key_derivation_salt: ...
-```
-
-or provide the three `ACTIVE_RECORD_ENCRYPTION_*` variables instead.
-Environment variables take precedence over credentials. **Losing these keys
-makes all stored error data, API key tokens and notes unreadable.** Back them
-up separately from the database. `support_unencrypted_data` is off, so
-plaintext rows are rejected rather than read.
+**Active Record Encryption keys.** Production boots without them, but every
+ingest and every captured-data read then fails, so nothing is ever stored in
+plaintext. **Losing these keys makes all stored error data, API key tokens and
+notes unreadable.** `support_unencrypted_data` is off, so plaintext rows are
+rejected rather than read.
 
 **Email.** Password resets need outgoing mail, and SMTP isn't configured yet.
 Uncomment `config.action_mailer.smtp_settings` in
-`config/environments/production.rb` and put the SMTP credentials in
-`bin/rails credentials:edit` under `smtp:`.
+`config/environments/production.rb`, set your SMTP server, and provide
+`SMTP_USERNAME` and `SMTP_PASSWORD`.
 
 ### Deploying with Kamal
 
@@ -246,9 +236,9 @@ Uncomment `config.action_mailer.smtp_settings` in
 
 1. Set real `servers`, `registry` and, for single-host SSL, `proxy` (`ssl: true`, `host:`).
 2. Under `env.clear`, set `GOODSORCERY_PUBLIC_URL` (there is a commented hint) and `REDIS_URL`.
-   Under `env.secret`, add the `ACTIVE_RECORD_ENCRYPTION_*` keys and `DATABASE_URL`
-   (or keep the encryption keys in credentials), and expose them in `.kamal/secrets`.
-   That file already reads `RAILS_MASTER_KEY` from `config/master.key`.
+   `env.secret` already lists `SECRET_KEY_BASE` and the `ACTIVE_RECORD_ENCRYPTION_*` keys,
+   and `.kamal/secrets` reads them from your shell environment (or swap in a password-manager
+   adapter there). Add `DATABASE_URL` to both.
 3. Uncomment the `job` server role with `cmd: bundle exec sidekiq -C config/sidekiq.yml`. Without it, events are accepted but never processed.
 4. Add Postgres and Redis, either as Kamal `accessories` or as managed services.
    The commented accessory example in `deploy.yml` is MySQL, so replace it.
@@ -258,7 +248,7 @@ Uncomment `config.action_mailer.smtp_settings` in
    Aliases: `bin/kamal console`, `logs`, `shell`, `dbc`.
 
 Plain Docker works too:
-`docker run -e RAILS_MASTER_KEY=... -e GOODSORCERY_PUBLIC_URL=... -e REDIS_URL=... -e DATABASE_URL=... goodsorcery_web`.
+`docker run -e SECRET_KEY_BASE=... -e ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=... -e ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=... -e ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=... -e GOODSORCERY_PUBLIC_URL=... -e REDIS_URL=... -e DATABASE_URL=... goodsorcery_web`.
 Run a second container from the same image with `bundle exec sidekiq -C config/sidekiq.yml`.
 
 ## Privacy
@@ -274,8 +264,8 @@ of `docs/INGEST_API.md`.
 ## Troubleshooting
 
 - **`PublicUrl::Missing: Set GOODSORCERY_PUBLIC_URL ...` at production boot.** Set it to an `http(s)://` URL with a host.
-- **`ActiveRecord::Encryption::Errors::Configuration` / `Decryption` errors.** The encryption keys are missing or changed. See "Secrets and credentials".
-- **`ActiveSupport::MessageEncryptor::InvalidMessage` when reading credentials.** `RAILS_MASTER_KEY` doesn't match `config/credentials.yml.enc`.
+- **`ActiveRecord::Encryption::Errors::Configuration` / `Decryption` errors.** The encryption keys are missing or changed. See "Secrets".
+- **``Missing `secret_key_base` for 'production' environment`` at boot.** Set `SECRET_KEY_BASE` (the message's `credentials:edit` hint doesn't apply; this app doesn't use credentials).
 - **"Blocked hosts" error page in production.** The request's host isn't the public URL's host. Add it to `GOODSORCERY_EXTRA_HOSTS`.
 - **Events return 202 but never appear (production).** Sidekiq isn't running, or it can't reach `REDIS_URL`. Once fixed, run `bin/rails goodsorcery:requeue_stale`.
 - **Events return 202 but never appear (development).** Check `log/development.log` for job errors. The async adapter runs jobs inside the server process.
@@ -286,3 +276,13 @@ of `docs/INGEST_API.md`.
 - **`(ruby-vips) ... vips-heif.dylib ... libx265 ... not loaded` warning on every command.** This comes from the Homebrew libvips/libheif install, not the app, and is harmless. To silence it: `brew reinstall libheif vips` (or `brew upgrade`).
 - **System tests hang or fail to start.** Install or update Google Chrome. Selenium Manager fetches a matching chromedriver.
 - **Sign-up page redirects to sign-in.** Sign-up closes once the first account exists. Set `GOODSORCERY_ENABLE_SIGNUPS=1` to keep it open.
+
+## Contributing
+
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Please report security vulnerabilities privately, as described in
+[SECURITY.md](SECURITY.md), not in a public issue.
+
+## License
+
+Good Sorcery is released under the [MIT License](LICENSE).

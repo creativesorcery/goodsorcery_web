@@ -31,8 +31,10 @@
 
 /public/assets
 
-# Ignore key files for decrypting credentials and more.
+# Secrets come from ENV (see README.md); never commit credentials or their keys.
 /config/*.key
+/config/credentials.yml.enc
+/config/credentials/
 
 
 /app/assets/builds/*

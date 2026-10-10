@@ -61,10 +61,10 @@ Rails.application.configure do
   public_url = PublicUrl.from_env(ENV, required: ENV["SECRET_KEY_BASE_DUMMY"].blank?)
   config.action_mailer.default_url_options = public_url.url_options
 
-  # Specify outgoing SMTP server. Remember to add smtp/* credentials via bin/rails credentials:edit.
+  # Specify outgoing SMTP server, reading the login from ENV.
   # config.action_mailer.smtp_settings = {
-  #   user_name: Rails.application.credentials.dig(:smtp, :user_name),
-  #   password: Rails.application.credentials.dig(:smtp, :password),
+  #   user_name: ENV["SMTP_USERNAME"],
+  #   password: ENV["SMTP_PASSWORD"],
   #   address: "smtp.example.com",
   #   port: 587,
   #   authentication: :plain
@@ -85,8 +85,9 @@ Rails.application.configure do
   config.hosts = public_url.allowed_hosts
   config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
-  # Active Record Encryption keys come from ENV, falling back to credentials.
-  config.active_record.encryption.primary_key = ENV.fetch("ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY") { Rails.application.credentials.dig(:active_record_encryption, :primary_key) }
-  config.active_record.encryption.deterministic_key = ENV.fetch("ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY") { Rails.application.credentials.dig(:active_record_encryption, :deterministic_key) }
-  config.active_record.encryption.key_derivation_salt = ENV.fetch("ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT") { Rails.application.credentials.dig(:active_record_encryption, :key_derivation_salt) }
+  # Active Record Encryption keys come from ENV. secret_key_base comes from
+  # SECRET_KEY_BASE, which Rails reads itself. There is no credentials file.
+  config.active_record.encryption.primary_key = ENV["ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY"]
+  config.active_record.encryption.deterministic_key = ENV["ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY"]
+  config.active_record.encryption.key_derivation_salt = ENV["ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT"]
 end
