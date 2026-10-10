@@ -148,3 +148,68 @@ jobs:
           name: screenshots
           path: ${{ github.workspace }}/tmp/screenshots
           if-no-files-found: ignore
+
+  # Deploys main to production with Kamal once every check above passes.
+  # Pull requests (including forks) never reach this job, and its secrets live
+  # in the "production" environment, which only main may deploy from. Secrets
+  # are passed to the deploy step alone; the server's IP is a secret too, so
+  # GitHub masks it in this public log. See docs/DEPLOYMENT.md.
+  deploy:
+    needs: [ scan_ruby, scan_js, lint, test, system-test ]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://${{ vars.GOODSORCERY_HOST }}
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@e81a8fa391b11a595c1b7ed84177cc0fe02faf83 # v1.328.0
+        with:
+          bundler-cache: true
+
+      - name: Set up SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # Refuse unknown or changed host keys instead of trusting on first use.
+          printf 'Host *\n  StrictHostKeyChecking yes\n' > ~/.ssh/config
+
+      - name: Deploy with Kamal
+        env:
+          KAMAL_WEB_HOST: ${{ secrets.KAMAL_WEB_HOST }}
+          GOODSORCERY_HOST: ${{ vars.GOODSORCERY_HOST }}
+          KAMAL_REGISTRY_USERNAME: ${{ github.actor }}
+          KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
+          ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${{ secrets.ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY }}
+          ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${{ secrets.ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY }}
+          ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${{ secrets.ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT }}
+          GOODSORCERY_WEB_DATABASE_PASSWORD: ${{ secrets.GOODSORCERY_WEB_DATABASE_PASSWORD }}
+        run: |
+          missing=0
+          for name in KAMAL_WEB_HOST GOODSORCERY_HOST SECRET_KEY_BASE ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY \
+                      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT \
+                      GOODSORCERY_WEB_DATABASE_PASSWORD; do
+            if [ -z "${!name}" ]; then echo "::error::$name is not set in the production environment"; missing=1; fi
+          done
+          [ "$missing" = 0 ] || exit 1
+          bin/kamal deploy
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519

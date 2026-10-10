@@ -10,6 +10,7 @@ or Solid Cable.
 
 - `docs/INGEST_API.md` documents the ingest API payload for client authors.
 - `docs/ARCHITECTURE.md` describes the data model, ingest pipeline, privacy model and live updates.
+- `docs/DEPLOYMENT.md` covers the production deploy: Kamal, GitHub Actions and Cloudflare Tunnel.
 
 ## Requirements
 
@@ -148,18 +149,20 @@ TEST_DB_SUFFIX=_mine bin/rails db:test:prepare test
 | Process | Command | Notes |
 |---|---|---|
 | Web | `./bin/thrust ./bin/rails server` (the Docker image's default) | Puma behind Thruster. `bin/docker-entrypoint` runs `bin/rails db:prepare` before the server starts. |
-| Jobs | `bundle exec sidekiq -C config/sidekiq.yml` | Required. Ingest is accepted by the web process but **processed** by Sidekiq. Queues, by weight: `ingest` (3), `default` (2), `mailers` (1). |
-| Redis | external | Sidekiq, the cache store and Action Cable. |
-| Postgres | external | |
+| Jobs | `bundle exec sidekiq -C config/sidekiq.yml` | Required. Ingest is accepted by the web process but **processed** by Sidekiq. Queues, by weight: `ingest` (3), `default` (2), `mailers` (1). Also runs the scheduled jobs. |
+| Redis | Kamal accessory, or external | Sidekiq, the cache store and Action Cable. |
+| Postgres | Kamal accessory, or external | |
 
 ### Scheduled tasks
 
-Nothing schedules these automatically. Use cron, a Kamal cron role, or your platform's scheduler.
+sidekiq-cron runs these inside the Sidekiq process, from `config/schedule.yml`
+(times in UTC). Development and test don't run Sidekiq, so nothing is scheduled
+there. Each has a rake task for running it by hand.
 
-| Task | When | What it does |
-|---|---|---|
-| `bin/rails goodsorcery:prune` | daily | Deletes occurrences older than each project's `retention_days` (default 90), hourly rollups older than 90 days, stale personal data on issues past retention, and inbound events never processed within a day. |
-| `bin/rails goodsorcery:requeue_stale` | every few minutes, or after a Redis outage | Re-enqueues inbound events accepted more than 10 minutes ago but never processed. |
+| Job | Schedule | Rake task | What it does |
+|---|---|---|---|
+| `PruneExpiredDataJob` | daily, 03:17 | `bin/rails goodsorcery:prune` | Deletes occurrences older than each project's `retention_days` (default 90), hourly rollups older than 90 days, stale personal data on issues past retention, and inbound events never processed within a day. |
+| `RequeueStaleEventsJob` | every 10 minutes | `bin/rails goodsorcery:requeue_stale` | Re-enqueues inbound events accepted more than 10 minutes ago but never processed (for example after a Redis outage). |
 
 ### Environment variables
 
@@ -174,7 +177,8 @@ Every variable below is read by the app's code or config.
 | `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | **yes** | none | Deterministic encryption key. |
 | `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` | **yes** | none | Key derivation salt. |
 | `DATABASE_URL` | yes, unless you use the `database.yml` defaults | none | Full Postgres URL. Rails merges it over `config/database.yml`. |
-| `GOODSORCERY_WEB_DATABASE_PASSWORD` | if not using `DATABASE_URL` | none | Password for the `goodsorcery_web` role on the local `goodsorcery_web_production` database. |
+| `DB_HOST` | if not using `DATABASE_URL` | the local socket | Postgres host for the `goodsorcery_web_production` database. The Kamal config sets it to the `db` accessory. |
+| `GOODSORCERY_WEB_DATABASE_PASSWORD` | if not using `DATABASE_URL` | none | Password for the `goodsorcery_web` role on the `goodsorcery_web_production` database. |
 | `REDIS_URL` | **yes** | `redis://localhost:6379/1` (Action Cable), `redis://localhost:6379/0` (cache), Sidekiq's own default | Sidekiq, Action Cable and, unless overridden, the cache store. |
 | `REDIS_CACHE_URL` | no | `REDIS_URL` | A separate Redis for the cache store (rate limits, quota and key-lookup caches, fragments). |
 | `SIDEKIQ_CONCURRENCY` | no | `5` | Sidekiq threads per process. Keep `RAILS_MAX_THREADS` (the database pool) at least this high in the Sidekiq process. |
@@ -231,21 +235,11 @@ Uncomment `config.action_mailer.smtp_settings` in
 
 ### Deploying with Kamal
 
-`config/deploy.yml` is still the Rails scaffold placeholder (server
-`192.168.0.1`, registry `localhost:5555`). Before the first deploy:
-
-1. Set real `servers`, `registry` and, for single-host SSL, `proxy` (`ssl: true`, `host:`).
-2. Under `env.clear`, set `GOODSORCERY_PUBLIC_URL` (there is a commented hint) and `REDIS_URL`.
-   `env.secret` already lists `SECRET_KEY_BASE` and the `ACTIVE_RECORD_ENCRYPTION_*` keys,
-   and `.kamal/secrets` reads them from your shell environment (or swap in a password-manager
-   adapter there). Add `DATABASE_URL` to both.
-3. Uncomment the `job` server role with `cmd: bundle exec sidekiq -C config/sidekiq.yml`. Without it, events are accepted but never processed.
-4. Add Postgres and Redis, either as Kamal `accessories` or as managed services.
-   The commented accessory example in `deploy.yml` is MySQL, so replace it.
-   `DB_HOST` in the comments isn't read by `database.yml`; use `DATABASE_URL`.
-5. Schedule the two `goodsorcery:` rake tasks (see above).
-6. `bin/kamal setup` for the first deploy, `bin/kamal deploy` after that.
-   Aliases: `bin/kamal console`, `logs`, `shell`, `dbc`.
+`config/deploy.yml` deploys everything to one server: web, Sidekiq, Postgres,
+Redis and a Cloudflare Tunnel, so the server publishes no HTTP ports. It holds
+no hosts or secrets; Kamal reads them from the environment. CI deploys every
+push to `main` after the checks pass. See `docs/DEPLOYMENT.md` for the server,
+Cloudflare and GitHub setup.
 
 Plain Docker works too:
 `docker run -e SECRET_KEY_BASE=... -e ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=... -e ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=... -e ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=... -e GOODSORCERY_PUBLIC_URL=... -e REDIS_URL=... -e DATABASE_URL=... goodsorcery_web`.

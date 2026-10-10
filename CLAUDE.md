@@ -42,7 +42,7 @@ The `goodsorcery` gem (module `GoodSorcery`) lives in a sibling checkout, `../go
 
 - Email verification at sign-up. Sign-up closes after the first account unless `GOODSORCERY_ENABLE_SIGNUPS=1`.
 - Production SMTP settings. Password-reset mail won't send in production yet.
-- A real Kamal config: `config/deploy.yml` is still the scaffold placeholder, and there's no Sidekiq role or cron yet.
+- Postgres backups (see `docs/DEPLOYMENT.md`).
 - Merge/unmerge, Assign and mute rules.
 - Alerts and Uptime (they show as "soon" in the sidebar), team invites, project deletion and GitHub links.
 - Geo-IP, code syntax highlighting, dark mode and mobile navigation.
@@ -108,6 +108,8 @@ bin/bundler-audit && bin/importmap audit
 - **Plaintext columns:** only the redacted title, transaction and culprit are plaintext, for search. Everything else captured is in encrypted columns. User identities and tag values are matched by `PrivateDigest` HMAC, which is derived from `secret_key_base`; rotating it breaks digest continuity.
 - **Encryption keys:** development and test use fixed, non-secret keys (`config/environments/*.rb`). Production reads `ACTIVE_RECORD_ENCRYPTION_*` and `SECRET_KEY_BASE` from ENV; there is no credentials file.
 - **Production boot:** it fails without `GOODSORCERY_PUBLIC_URL`, except for asset builds, where `SECRET_KEY_BASE_DUMMY` is set.
+- **Deploy:** CI deploys `main` with Kamal (`docs/DEPLOYMENT.md`). The repo is public: never commit hosts, IPs or secrets; `config/deploy.yml` reads them from ENV via ERB.
+- **Scheduled jobs:** sidekiq-cron loads `config/schedule.yml` in the Sidekiq process (production only).
 - **Debug logs:** SQL logs in dev and test include redacted issue titles. Keep production at `info`.
 - **Dev data:** test events overwrite a project's runtime label and use up issue numbers; deleting issues doesn't rewind the sequence. Seeds don't run again once the demo user exists (`bin/rails db:reset` to start over).
 - **libvips warning:** a `vips-heif.dylib … libx265` warning on every command is a Homebrew issue on this machine, not the app.
