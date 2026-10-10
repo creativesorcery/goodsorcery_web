@@ -61,7 +61,15 @@ Rails.application.configure do
   public_url = PublicUrl.from_env(ENV, required: ENV["SECRET_KEY_BASE_DUMMY"].blank?)
   config.action_mailer.default_url_options = public_url.url_options
 
-  # Specify outgoing SMTP server, reading the login from ENV.
+  # Outgoing mail (password resets) goes through Postmark's API when
+  # POSTMARK_API_TOKEN (a Postmark server token) is set. Self-hosters without
+  # Postmark can leave it unset and configure smtp_settings below instead.
+  if ENV["POSTMARK_API_TOKEN"].present?
+    config.action_mailer.delivery_method = :postmark
+    config.action_mailer.postmark_settings = { api_token: ENV["POSTMARK_API_TOKEN"] }
+  end
+
+  # Or specify an outgoing SMTP server, reading the login from ENV.
   # config.action_mailer.smtp_settings = {
   #   user_name: ENV["SMTP_USERNAME"],
   #   password: ENV["SMTP_PASSWORD"],

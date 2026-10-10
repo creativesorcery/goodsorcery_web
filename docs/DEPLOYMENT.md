@@ -46,7 +46,7 @@ curl -fsSL https://get.docker.com | sh
 adduser --disabled-password --gecos "" deploy
 usermod -aG docker deploy
 install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
-# Add your own public key and the CI deploy key (step 3) to:
+# Add your own public key and the CI deploy key (step 4) to:
 #   /home/deploy/.ssh/authorized_keys   (owner deploy, mode 600)
 
 # SSH: keys only, no root login. If you move SSH off port 22, also set
@@ -77,7 +77,20 @@ only listen on the private `kamal` network.
    Fight Mode off, or add a WAF custom rule that skips them for
    `starts_with(http.request.uri.path, "/api/")`.
 
-### 3. Secrets
+### 3. Postmark
+
+Password-reset mail goes through Postmark's API, which also keeps the server's
+IP out of email headers.
+
+1. Create a server in Postmark and copy its **Server API token**
+   (`POSTMARK_API_TOKEN`). Use the default transactional stream.
+2. **Sender Signatures → Add Domain** for the domain you send from (by default
+   `GOODSORCERY_HOST`, or the domain in `GOODSORCERY_MAIL_FROM`), then add the
+   DKIM and Return-Path DNS records it shows in Cloudflare.
+3. Leave link tracking off for the server, so reset links go straight to
+   your app instead of through Postmark's redirector.
+
+### 4. Secrets
 
 Generate the app secrets once and keep them in a password manager. Back up the
 encryption keys separately from the database; losing them makes stored data
@@ -114,23 +127,25 @@ only `main`. Then add:
 | secret | `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | from `db:encryption:init` |
 | secret | `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` | from `db:encryption:init` |
 | secret | `GOODSORCERY_WEB_DATABASE_PASSWORD` | the database password |
+| secret | `POSTMARK_API_TOKEN` | the Postmark **server** API token (Servers → your server → API Tokens) |
 | variable | `GOODSORCERY_HOST` | the public hostname, e.g. `errors.example.com` |
+| variable | `GOODSORCERY_MAIL_FROM` | optional: the sender, e.g. `Good Sorcery <no-reply@example.com>`; defaults to `no-reply@GOODSORCERY_HOST` |
 | variable | `KAMAL_SSH_USER` | optional: the server user Kamal logs in as, if not `deploy` |
 
 The registry login uses the workflow's own `GITHUB_TOKEN`, so there's no
 registry secret. `CLOUDFLARE_TUNNEL_TOKEN` stays out of GitHub: only the
 one-time accessory boot below needs it.
 
-### 4. Repository settings
+### 5. Repository settings
 
 - **Branch protection (or a ruleset) on `main`:** require pull requests and
   the CI checks, and block force pushes. Allow direct pushes only for yourself.
 - **Settings → Actions → General:** require approval for workflows from
   outside contributors' forks.
 
-### 5. First boot
+### 6. First boot
 
-From your laptop, with the values from step 3 exported in your shell
+From your laptop, with the values from step 4 exported in your shell
 (including `KAMAL_WEB_HOST`, `KAMAL_SSH_PORT`, `GOODSORCERY_HOST` and, if
 your server user isn't `deploy`, `KAMAL_SSH_USER`). Kamal passes its own user
 and port to SSH, overriding `User` and `Port` from an `~/.ssh/config` alias (plus a

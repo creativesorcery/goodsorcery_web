@@ -195,6 +195,7 @@ jobs:
           KAMAL_SSH_PORT: ${{ secrets.KAMAL_SSH_PORT }}
           KAMAL_SSH_USER: ${{ vars.KAMAL_SSH_USER || 'deploy' }}
           GOODSORCERY_HOST: ${{ vars.GOODSORCERY_HOST }}
+          GOODSORCERY_MAIL_FROM: ${{ vars.GOODSORCERY_MAIL_FROM }}
           KAMAL_REGISTRY_USERNAME: ${{ github.actor }}
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
@@ -202,11 +203,12 @@ jobs:
           ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${{ secrets.ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY }}
           ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${{ secrets.ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT }}
           GOODSORCERY_WEB_DATABASE_PASSWORD: ${{ secrets.GOODSORCERY_WEB_DATABASE_PASSWORD }}
+          POSTMARK_API_TOKEN: ${{ secrets.POSTMARK_API_TOKEN }}
         run: |
           missing=0
           for name in KAMAL_WEB_HOST KAMAL_SSH_PORT GOODSORCERY_HOST SECRET_KEY_BASE ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY \
                       ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT \
-                      GOODSORCERY_WEB_DATABASE_PASSWORD; do
+                      GOODSORCERY_WEB_DATABASE_PASSWORD POSTMARK_API_TOKEN; do
             if [ -z "${!name}" ]; then echo "::error::$name is not set in the production environment"; missing=1; fi
           done
           [ "$missing" = 0 ] || exit 1

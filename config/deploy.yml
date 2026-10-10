@@ -53,12 +53,16 @@ env:
     GOODSORCERY_PUBLIC_URL: https://<%= ENV.fetch("GOODSORCERY_HOST") %>
     DB_HOST: goodsorcery_web-db
     REDIS_URL: redis://goodsorcery_web-redis:6379/0
+<% if ENV["GOODSORCERY_MAIL_FROM"].to_s.strip != "" %>
+    GOODSORCERY_MAIL_FROM: <%= ENV["GOODSORCERY_MAIL_FROM"].to_json %>
+<% end %>
   secret:
     - SECRET_KEY_BASE
     - ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY
     - ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY
     - ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT
     - GOODSORCERY_WEB_DATABASE_PASSWORD
+    - POSTMARK_API_TOKEN
 
 # Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
 # "bin/kamal logs -r job" will tail logs from the first server in the job section.

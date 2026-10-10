@@ -190,6 +190,7 @@ Every variable below is read by the app's code or config.
 | `GOODSORCERY_ENABLE_SIGNUPS` | no | sign-up is open only until the first account exists | `1` keeps public sign-up open (hosted service). |
 | `GOODSORCERY_DISABLE_SIGNUPS` | no | none | `1` closes sign-up completely, even before the first account exists. It overrides `ENABLE`. |
 | `GOODSORCERY_HOSTED` | no | `false` | `true` marks this as the managed hosting service: the sidebar shows "Hosted" instead of "Self-hosted", and the setup page's install snippets drop the `config.endpoint` / `GOODSORCERY_ENDPOINT` line. |
+| `POSTMARK_API_TOKEN` | to send mail through Postmark | none | A Postmark **server** API token. When set, mail (password resets) is delivered through Postmark's API. Without it, configure SMTP instead (see "Email"). |
 | `GOODSORCERY_MAIL_FROM` | no | `Good Sorcery <no-reply@HOST>`, with HOST taken from the public URL | Sender address for password-reset emails. |
 | `GOODSORCERY_DOCS_URL` | no | the project's GitHub `docs/` folder | Target of the sidebar's Docs link. |
 | `SECRET_KEY_BASE_DUMMY` | build only | none | Set by the Dockerfile during `assets:precompile`, so the build needs no secrets or public URL. Never set it at runtime. |
@@ -228,10 +229,12 @@ plaintext. **Losing these keys makes all stored error data, API key tokens and
 notes unreadable.** `support_unencrypted_data` is off, so plaintext rows are
 rejected rather than read.
 
-**Email.** Password resets need outgoing mail, and SMTP isn't configured yet.
-Uncomment `config.action_mailer.smtp_settings` in
-`config/environments/production.rb`, set your SMTP server, and provide
-`SMTP_USERNAME` and `SMTP_PASSWORD`.
+**Email.** Password resets need outgoing mail. Set `POSTMARK_API_TOKEN` to
+send through Postmark, and verify the sender's domain in Postmark (the sender
+is `GOODSORCERY_MAIL_FROM`, by default `no-reply@` the public URL's host). To
+use another provider, leave the token unset, uncomment
+`config.action_mailer.smtp_settings` in `config/environments/production.rb`,
+set your SMTP server, and provide `SMTP_USERNAME` and `SMTP_PASSWORD`.
 
 ### Deploying with Kamal
 

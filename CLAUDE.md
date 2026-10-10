@@ -41,7 +41,6 @@ The `goodsorcery` gem (module `GoodSorcery`) lives in a sibling checkout, `../go
 ## Not built yet (each needs the user's go-ahead)
 
 - Email verification at sign-up. Sign-up closes after the first account unless `GOODSORCERY_ENABLE_SIGNUPS=1`.
-- Production SMTP settings. Password-reset mail won't send in production yet.
 - Postgres backups (see `docs/DEPLOYMENT.md`).
 - Merge/unmerge, Assign and mute rules.
 - Alerts and Uptime (they show as "soon" in the sidebar), team invites, project deletion and GitHub links.

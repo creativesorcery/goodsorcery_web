@@ -24,6 +24,8 @@ gem "redis", ">= 4.0.1"
 gem "sidekiq"
 # Runs the scheduled jobs in config/schedule.yml inside the Sidekiq process
 gem "sidekiq-cron", "~> 2.4"
+# Sends production mail (password resets) through Postmark's API
+gem "postmark-rails", "~> 0.22"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 gem "bcrypt", "~> 3.1.7"
