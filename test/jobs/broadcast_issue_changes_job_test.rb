@@ -25,9 +25,11 @@ class BroadcastIssueChangesJobTest < ActiveJob::TestCase
   test "a new issue is prepended as an empty row frame that fetches itself" do
     BroadcastIssueChangesJob.perform_now(@issue, created: true)
 
-    prepend, = capture_turbo_stream_broadcasts([ @project, :issues ])
+    prepend, production_prepend = capture_turbo_stream_broadcasts([ @project, :issues ])
     assert_equal "prepend", prepend["action"]
     assert_equal "new_issues_project_#{@project.id}", prepend["target"]
+    assert_equal "new_issues_project_#{@project.id}_production", production_prepend["target"]
+    assert_equal prepend.at("template").inner_html, production_prepend.at("template").inner_html
 
     frame = prepend.at("template").children.find(&:element?)
     assert_equal "turbo-frame", frame.name
@@ -43,7 +45,7 @@ class BroadcastIssueChangesJobTest < ActiveJob::TestCase
     BroadcastIssueChangesJob.perform_now(@issue, created: true)
 
     payloads = broadcasts(stream_name_from([ @project, :issues ])) + broadcasts(stream_name_from([ @issue ]))
-    assert_equal 3, payloads.size
+    assert_equal 4, payloads.size, "stats and chart reloads, plus prepends into the all and production lists"
     payloads.each { |payload| assert_no_captured_data payload }
   end
 

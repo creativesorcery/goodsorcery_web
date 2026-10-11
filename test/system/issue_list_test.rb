@@ -56,6 +56,26 @@ class IssueListSystemTest < ApplicationSystemTestCase
     assert_equal "1", page.evaluate_script("getComputedStyle(document.querySelector('section[aria-label=Summary]')).opacity")
   end
 
+  test "the environment switch scopes the list, shows the scope bar and is remembered" do
+    press find("nav[aria-label=Environment] a", text: "staging")
+
+    assert_selector "nav[aria-label=Environment] a[aria-current=true]", text: "staging"
+    assert_selector "[aria-label='Environment scope']", text: "Viewing staging"
+    assert_selector "[id^=row_issue_]", count: 1
+    assert_selector "##{dom_id(issues(:regressed), :row)}"
+
+    visit_connected project_issues_path(@project)
+    assert_selector "nav[aria-label=Environment] a[aria-current=true]", text: "staging"
+
+    press find("[aria-label='Environment scope'] a", text: "Back to production")
+    assert_selector "nav[aria-label=Environment] a[aria-current=true]", text: "production"
+    assert_no_selector "[aria-label='Environment scope']"
+
+    press find("nav[aria-label=Environment] a", text: "All")
+    assert_selector "nav[aria-label=Environment] a[aria-current=true]", text: "All"
+    assert_selector "[id^=row_issue_]", count: 3
+  end
+
   private
     def row_checkbox(issue)
       find("input[type=checkbox][value='#{issue.id}']")

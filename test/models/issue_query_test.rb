@@ -118,6 +118,21 @@ class IssueQueryTest < ActiveSupport::TestCase
     assert_equal "is:unresolved env:production", query.chips_string
   end
 
+  test "with_environment scopes to one environment or all, keeping chips and text" do
+    query = IssueQuery.new("is:unresolved level:error oops")
+
+    assert_equal "is:unresolved level:error env:staging oops", query.with_environment("staging").to_s
+    assert_equal "is:unresolved level:error env:production oops", query.with_environment("staging").with_environment("production").to_s
+    assert_equal "is:unresolved level:error oops", query.with_environment("staging").with_environment(nil).to_s
+    assert_same query, query.with_environment(nil)
+  end
+
+  test "default_view? ignores the environment" do
+    assert_predicate IssueQuery.new("is:unresolved env:production"), :default_view?
+    assert_predicate IssueQuery.new, :default_view?
+    assert_not IssueQuery.new("is:unresolved env:production level:error").default_view?
+  end
+
   test "default? and unresolved_only?" do
     assert_predicate IssueQuery.new, :default?
     assert_not IssueQuery.new("is:unresolved x").default?

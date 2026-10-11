@@ -77,9 +77,12 @@ module NavigationHelper
     safe_join [ (environment_text(environment) if environment), project_runtime_label(project) ].compact, " · "
   end
 
-  # Badge count: a number only, cached briefly (never any issue text).
+  # Badge count for the environment the project's issue list shows
+  # (RemembersEnvironment): a number only, cached briefly (never any issue text).
   def sidebar_unresolved_count
-    sidebar_project&.cached_unresolved_count || 0
+    return 0 unless sidebar_project
+
+    sidebar_project.cached_unresolved_count(issues_environment_for(sidebar_project))
   end
 
   # "Acme Labs · Hosted" / "Acme Labs · Self-hosted"

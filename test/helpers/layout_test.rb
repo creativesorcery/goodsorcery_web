@@ -4,6 +4,10 @@ require "test_helper"
 class LayoutTest < ActionView::TestCase
   teardown { Current.reset }
 
+  # A controller helper (RemembersEnvironment); views rendered here have no controller.
+  helper_method :issues_environment_for
+  def issues_environment_for(_project) = nil
+
   test "signed-in shell shows the switcher, nav, quota-free account and user menu" do
     Current.session = users(:philip).sessions.create!(account: accounts(:acme))
     @project = projects(:storefront)

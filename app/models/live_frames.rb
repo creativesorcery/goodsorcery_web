@@ -71,13 +71,22 @@ class LiveFrames
 
   def listening = Frame.new(setup_stream, dom_id(project, :listening), project_listening_path(project))
 
-  # Container above the issue list rows that new issues are prepended into.
-  def new_issues_target = dom_id(project, :new_issues)
+  # Container above the issue list rows that new issues are prepended into:
+  # one per environment scope ("new_issues_project_1_staging"), plus the
+  # all-environments one (nil), so a list scoped to staging never shows a new
+  # production issue. Environment names come from API keys
+  # ([a-z0-9_-]), not from captured data.
+  def new_issues_target(environment = nil)
+    [ dom_id(project, :new_issues), environment.presence ].compact.join("_")
+  end
 
-  # Prepends an empty, lazily-filled row frame for a brand-new issue.
+  # Prepends an empty, lazily-filled row frame for a brand-new issue into the
+  # all-environments list and the list of each environment it was seen in.
   def prepend_new_row
-    Turbo::StreamsChannel.broadcast_prepend_to(*issues_stream, target: new_issues_target,
-      partial: "live/new_issue_row", locals: { frame: row })
+    [ nil, *issue.environments ].each do |environment|
+      Turbo::StreamsChannel.broadcast_prepend_to(*issues_stream, target: new_issues_target(environment),
+        partial: "live/new_issue_row", locals: { frame: row })
+    end
   end
 
   private

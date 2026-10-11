@@ -34,8 +34,10 @@ class LiveFramesTest < ActiveSupport::TestCase
     assert_equal [ frames.summary, frames.card, frames.listening, frames.rows ], frames.project_frames
   end
 
-  test "new issues are prepended into the project's container" do
+  test "new issues are prepended into the project's container, one per environment scope" do
     assert_equal "new_issues_project_#{@project.id}", @frames.new_issues_target
+    assert_equal "new_issues_project_#{@project.id}", @frames.new_issues_target("")
+    assert_equal "new_issues_project_#{@project.id}_staging", @frames.new_issues_target("staging")
   end
 
   test "frame ids match the blueprint's dom_id conventions" do

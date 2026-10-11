@@ -116,8 +116,9 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     get project_issues_path(@project, q: "is:unresolved level:warning stripe")
 
     assert_select "form[role=search] .chip", 2
-    assert_select "form[role=search] .chip a[href=?]", project_issues_path(@project, q: "is:unresolved stripe"), text: "×"
+    assert_select "form[role=search] .chip a[href=?]", project_issues_path(@project, q: "is:unresolved stripe", env: ""), text: "×"
     assert_select "input[type=hidden][name=chips][value=?]", "is:unresolved level:warning"
+    assert_select "input[type=hidden][name=env][value='']"
     assert_select "input[name=text][value=?]", "stripe"
     assert_select "##{dom_id(issues(:card_error), :row)}"
     assert_select "##{dom_id(issues(:nomethod), :row)}", count: 0
@@ -136,14 +137,15 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
 
     assert_select ".menu a[href=?]", project_issues_path(@project, q: "is:unresolved env:production")
     assert_select ".menu a[href=?]", project_issues_path(@project, q: "is:unresolved env:staging")
-    assert_select ".menu a[href=?]", project_issues_path(@project, q: "is:unresolved level:fatal")
+    assert_select ".menu a[href=?]", project_issues_path(@project, q: "is:unresolved level:fatal", env: "")
+    assert_select ".menu a[href=?] span.bg-lilac-400", project_issues_path(@project, q: "is:unresolved env:staging")
   end
 
   test "sort menu and sorting" do
     get project_issues_path(@project, sort: "events")
 
     assert_select "button", text: /Sort: Events/
-    assert_select ".menu a[href=?]", project_issues_path(@project, q: "is:unresolved"), text: "Last seen"
+    assert_select ".menu a[href=?]", project_issues_path(@project, q: "is:unresolved", env: ""), text: "Last seen"
     ids = css_select("[id^=row_issue_]").map { |frame| frame["id"] }
     assert_equal dom_id(issues(:card_error), :row), ids.first
   end
@@ -195,7 +197,7 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     get project_issues_path(@project)
 
     assert_select "[id^=row_issue_]", 25
-    assert_select "turbo-frame#issues_page_2 a[href=?]", project_issues_path(@project, q: "is:unresolved", sort: "last_seen", page: 2),
+    assert_select "turbo-frame#issues_page_2 a[href=?]", project_issues_path(@project, q: "is:unresolved", env: "", page: 2),
       text: "load more"
     assert_select "turbo-frame#issues_page_2", text: /Showing 25 of 33/
 

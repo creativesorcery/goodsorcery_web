@@ -5,6 +5,9 @@ class NavigationHelperTest < ActionView::TestCase
 
   teardown { Current.reset }
 
+  # A controller helper (RemembersEnvironment): the environment the badge counts.
+  def issues_environment_for(_project) = @badge_environment
+
   test "breadcrumbs collect in order" do
     breadcrumb "Acme Labs", "/projects"
     breadcrumb "Issues"
@@ -81,6 +84,14 @@ class NavigationHelperTest < ActionView::TestCase
     @project = projects(:storefront)
 
     assert_equal projects(:storefront).issues.unresolved.count, sidebar_unresolved_count
+  end
+
+  test "sidebar_unresolved_count counts the environment the project's issue list shows" do
+    sign_in_to accounts(:acme)
+    @project = projects(:storefront)
+    @badge_environment = "staging"
+
+    assert_equal 1, sidebar_unresolved_count
   end
 
   test "sidebar_project_subtitle joins environment and runtime" do

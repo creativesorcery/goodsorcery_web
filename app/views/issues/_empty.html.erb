@@ -5,9 +5,9 @@
     <h2 class="font-display text-[22px] text-ink-50 mt-4">Listening for the first error…</h2>
     <p class="text-[14px] text-ink-400 mt-2">Install the gem and cast a test error to see it here.</p>
     <div class="mt-5"><%= link_to "Setup & API keys", project_setup_path(project), class: "btn" %></div>
-  <% elsif list.query.default? %>
+  <% elsif list.query.default_view? %>
     <h2 class="font-display text-[22px] text-ink-50 mt-4">✦ All clear</h2>
-    <p class="text-[14px] text-ink-400 mt-2">No unresolved issues in <%= project.name %>.</p>
+    <p class="text-[14px] text-ink-400 mt-2">No unresolved <%= "#{list.query.environment} " if list.query.environment %>issues in <%= project.name %>.</p>
   <% else %>
     <h2 class="font-display text-[22px] text-ink-50 mt-4">No issues match</h2>
     <p class="text-[14px] text-ink-400 mt-2">Try removing a filter or searching for something else.</p>

@@ -259,7 +259,7 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
   - `to_param` returns `slug`. Callbacks `before_validation` set slug, issue_prefix and color on create. `after_create :create_default_api_keys` creates `production` and `staging` keys with `created_by: Current.user`, then sets `default_environment` to `"production"` when it is still nil and a production key exists.
   - `#accessible_by?(user)` delegates to account. `#listening?` is `first_event_at.nil?`. `#environments` returns the api_keys environments in id order.
   - `#allocate_issue_number` runs `UPDATE projects SET issues_sequence = issues_sequence + 1 WHERE id = $1 RETURNING issues_sequence`. `#record_first_event(runtime_label:, at:)` runs `UPDATE … SET first_event_at = COALESCE(first_event_at, :at), runtime_label = :label`.
-  - `#unresolved_count`.
+  - `#unresolved_count(environment = nil)` and `#cached_unresolved_count(environment = nil)` (10 s, a number only; `#expire_unresolved_counts` on triage).
   - `include Project::Broadcasting` (stub, §4.6).
 - **ApiKey**:
   - `belongs_to :project, :created_by (User, optional)`; `encrypts :token`.
@@ -650,6 +650,10 @@ Shared (slice A):
   - `after_action :forbid_caching`, which sets `Cache-Control: no-store` for every dashboard response.
 - `Authentication` is the generator concern, changed so that `start_new_session_for(user)` creates the session with `account: user.default_account`. Sessions expire 30 days after sign-in or after 7 idle days (`Session.active`; activity is recorded at most hourly), and the cookie expires with them. Sign-in and reset requests are also rate-limited per email address (`EmailRateLimited`, keyed by an HMAC of the address). The password reset token travels as `?token=` (`/password/edit`) and a form field, never in the path, so the request log filters it.
 - `ProjectScoped`: `before_action :set_project`, which runs `@project = Current.account.projects.find_by!(slug: params[:project_id])`.
+- `RemembersEnvironment` (included by `ApplicationController`): the issue list's environment choice per project.
+  - `choose_environment(project, query)` builds an `EnvironmentChoice` (model) from the query's `env:` chip, `params[:env]` and the remembered cookie, and writes the cookie when the choice is explicit and known (`EnvironmentChoice#remember?`).
+  - The cookie is `cookies.signed["issues_environment_<project.id>"]`, holding only an environment name, `""` for all environments (`EnvironmentChoice::ALL`). 1 year, `httponly`, `same_site: :lax` (and `secure` through `force_ssl`). Signed cookies verify only under the name they were written for, so a value replayed under another project's name is ignored, and remembered values are also checked against the project's environments.
+  - `issues_environment_for(project)` (a helper method) is the environment the project's issue list shows: this request's choice on the issue list, otherwise remembered > `default_environment` > all. The sidebar badge counts for it.
 - `IssueScoped`: includes `ProjectScoped`; `@issue = @project.issues.find_by_short_id!(params[:issue_id])`.
 - `SessionsController`, `PasswordsController` (generator, `layout "auth"`), `RegistrationsController` (`new`/`create` via `Signup`; `rate_limit to: 10, within: 3.minutes, only: :create`; `allow_unauthenticated_access`). Sign-up (`Signup.open?`) is open only until the first account exists, unless `GOODSORCERY_ENABLE_SIGNUPS=1`; `GOODSORCERY_DISABLE_SIGNUPS=1` closes it completely. Closed sign-up redirects to sign-in.
 
@@ -666,7 +670,7 @@ Shared (slice A):
 | `Projects::ApiKeys::RevealsController` | D | show | frame `dom_id(api_key, :token)` with the full token and Copy/Hide |
 | `Projects::ApiKeys::RotationsController` | D | create | `button_to … data: { turbo_confirm: "The old key stops working immediately." }`; turbo_stream replaces the row in revealed state |
 | `RecentIssuesController` | D | show | live frame `dom_id(Current.account, :recent_issues)` |
-| `IssuesController` | E | index, show | `show` is exactly: `@occurrence = @issue.occurrences.latest` and renders `issues/show` (template owned by F). Uses its own `set_issue` with `params[:id]` |
+| `IssuesController` | E | index, show | `index` scopes the parsed `IssueQuery` to the resolved environment (`query.with_environment(choose_environment(@project, query).environment)`), so the `env:` chip is the one filter the list, tab counts and summary frame read. `show` is exactly: `@occurrence = @issue.occurrences.latest` and renders `issues/show` (template owned by F). Uses its own `set_issue` with `params[:id]` |
 | `Projects::SummariesController` | E | show | live frame `dom_id(project, :summary)`, `period` param |
 | `Projects::BulkTriagesController` | E | create | params `issue_ids[]` (max 100, scoped `@project.issues.where(id:)`), `triage` ∈ resolve/ignore/reopen or `assignee_id` (must be an account member). Redirects back to the list with a notice |
 | `Issues::RowsController` | E | show | live frame `dom_id(issue, :row)` |
@@ -686,7 +690,7 @@ All dashboard controllers inherit `ApplicationController`. Feature controllers `
 | Frame id | Where | Purpose |
 |---|---|---|
 | `dom_id(issue, :row)` | issue list row (`target="_top"`) | live reload of one row |
-| `dom_id(project, :new_issues)` | a container (plain `div`) above the rows, rendered only in the default list state (Unresolved tab, no extra chips, default sort, page 1) | live prepend target |
+| `dom_id(project, :new_issues)`, or `"#{dom_id(project, :new_issues)}_<env>"` when the list is scoped to one environment | a container (plain `div`) above the rows, rendered only in the default list state (Unresolved tab, no extra chips apart from `env:`, default sort, page 1; `IssueQuery#default_view?`) | live prepend target, per environment scope (`LiveFrames#new_issues_target(environment)`) |
 | `dom_id(project, :summary)` | list summary strip | live and period switch |
 | `issues_page_<n>` | list pagination ("Showing 25 of 230 · load more") | lazy "load more" |
 | `occurrence` (`data-turbo-action="advance"`) | detail: wraps the whole two-column grid below the hero | occurrence navigator |
@@ -746,7 +750,7 @@ All dashboard controllers inherit `ApplicationController`. Feature controllers `
   The signature stops tampering, and the membership check also rejects stale signed names after a user loses access. `ApplicationCable::Connection` (A, from the generator) identifies `current_user` from the signed `session_id` cookie and rejects anonymous connections.
 - **Broadcasting.** G replaces the A stubs `Issue::Broadcasting` and `Project::Broadcasting`:
   - `Issue#broadcast_changes_later(created: false)`:
-    - When `created`, it runs `BroadcastIssueChangesJob.perform_later(self, created: true)` immediately: a prepend into `dom_id(project, :new_issues)` of `turbo_frame_tag(dom_id(issue, :row), src: project_issue_row_path(project, issue), target: "_top")`.
+    - When `created`, it runs `BroadcastIssueChangesJob.perform_later(self, created: true)` immediately: a prepend of `turbo_frame_tag(dom_id(issue, :row), src: project_issue_row_path(project, issue), target: "_top")` into the all-environments container `dom_id(project, :new_issues)` and into the container of each environment in `issue.environments` (one at creation), so a list scoped to staging never gets a new production issue. Environment names come from API keys (`[a-z0-9_-]`), not from captured data.
     - Otherwise it is debounced. When `Rails.cache.write(["live", "issue", id], 1, unless_exist: true, expires_in: 2.seconds)` succeeds, it runs `BroadcastIssueChangesJob.set(wait: 2.seconds).perform_later(self)`, which sends `reload_frame` for stats and chart on `[issue]`. List rows are reloaded by the project broadcast below.
   - `Project#broadcast_changes_later` uses the same debounce with key `["live", "project", id]`, then `BroadcastProjectChangesJob`. That job sends `reload_frame` for summary on `[project, :issues]`, for card on `[account, :projects]` and for listening on `[project, :setup]`, plus one `reload_rows` action on `[project, :issues]` (target `dom_id(project, :issues)`, src `project_rows_path`): each browser fetches all its visible row frames in one request (`?ids=…`, at most 200, answered with `turbo_stream.replace` per row and a fixed number of queries). The account-wide recent feed is debounced per account (`["live", "recent_issues", account_id]`) and sent by `BroadcastRecentIssuesJob`, so N busy projects send one feed reload per window, not N.
   - Use `Turbo::StreamsChannel.broadcast_action_to(*streamables, action: :reload_frame, target:, attributes: { src: path })`. Paths come from `Rails.application.routes.url_helpers` inside a small PORO `LiveFrames` (G), which has `#row_path`, `#stats_path` and so on. Job arguments are GlobalIDs only.
@@ -785,6 +789,7 @@ A creates `app/models/issue/broadcasting.rb` and `app/models/project/broadcastin
 | Live-update debounce gates | `["live", "issue"/"project", id]` | 2 s | G |
 | Account events-this-month | `[account, :events_this_month, month]` | 5 min | A |
 | Issue list summary numbers | `["summary", project.id, env, period]` | 30 s | E |
+| Unresolved counts (sidebar badge, list heading), per environment or all (nil) | `["unresolved_count", project.id, env]` | 10 s; triage deletes the all and per-key-environment entries | A |
 | Issue chart series 7d/30d (numbers only) | `["issue_chart", issue.id, period]` | 5 min (24h is uncached so live reloads are fresh) | F |
 
 **Counter caches:** `issues.events_count` and `issues.users_count` are maintained by atomic SQL. There are deliberately **no** project-level counter caches, because they would be a hot row on every event and would drift on bulk triage. Unresolved and new counts per project come from one grouped query on `[project_id, status, …]` indexes. Last error time comes from `MAX(last_seen_at)` grouped.
@@ -870,7 +875,7 @@ Other rules:
 - `layouts/_sidebar.html.erb`:
   - logo (`shared/_sigil`) and the "Good Sorcery / Error Tracker" wordmark
   - `layouts/_project_switcher` (dropdown of `Current.account.projects` showing name · first environment · `runtime_label || platform`)
-  - nav section "Grimoire": Projects; Issues with an unresolved badge for `sidebar_project`; Alerts as "soon" (not a link)
+  - nav section "Grimoire": Projects; Issues with an unresolved badge for `sidebar_project`, counted for the environment its issue list shows (`issues_environment_for`, §4.2); Alerts as "soon" (not a link)
   - "Coming from the suite": Uptime ("soon")
   - "Project": "Settings & setup" → `project_setup_path(sidebar_project)`; Docs → `docs_url` (external)
   - `layouts/_usage_meter` (events this month / quota, hidden when quota is nil)
@@ -930,6 +935,11 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
   - **Recent feed (`RecentFeed`, D):** issues seen in the last hour across the account (8 newest, `includes(:project)`), merged with `resolved` activities from the last hour (4 newest). The dot is coral-pulsing for new, lilac for regressed, solid coral otherwise, and mint for resolved.
 - **Issue list (E)**:
   - Heading: eyebrow "project · env-chip-or-all environments", then "Issues — N unresolved" and the period `segmented` control (1h/24h/7d/30d, which drives **only** the summary strip).
+  - **Environment scope (`EnvironmentChoice`, `RemembersEnvironment`).** The list shows one environment or all of them, resolved per request in this order: an explicit choice in the request (the `env:` chip in `q`/`chips`, else the `env` param, where blank means all) > the viewer's remembered choice for this project (signed cookie, §4.2) > `project.default_environment` > all. Remembered and default values count only while they are among `project.environments`. The resolved environment becomes the query's `env:` chip (`IssueQuery#with_environment`), which is the single source of truth for the rows, tab counts, heading count and the summary frame's `env` param. Explicit choices of a known environment or of all are remembered; an unknown `env:` chip filters but is not remembered.
+    - Every list link (`issues_query_path`: tabs, sort, Filters, chip ×, switch, load more) states its environment, as an `env:` chip or as `env=` (blank) for all, and the filter bar form carries a blank `env` hidden field when no `env:` chip is set, so following a link never falls back to the remembered choice. Entry links without either (sidebar, cards, breadcrumbs, switcher, search results, "all their errors") land in the remembered/default scope.
+    - **Environment switch:** a `segmented` nav (`aria-label="Environment"`) at the right of the tabs row, reading "All · <env> · <env>" from `project.environments`, each with its `environment_dot`; the current segment has `aria-current="true"`. Links keep the other chips, text and sort.
+    - **Scope bar:** while the scope is one non-production environment (`EnvironmentChoice#outside_production?`), a thin full-width strip directly under the topbar in that environment's tone (`environment_bar_classes`) reads "Viewing <env> · Back to production" (the project's first production-tone environment), or "· Show all environments" when it has none. It is a scope indicator (`role="status"`), not a callout.
+    - The empty state of a scoped default view reads "No unresolved <env> issues in <project>."
   - **Summary strip (`IssueSummary`):**
     - Events in the period with a sparkline and the delta against the previous period (coral ▲ / mint ▼)
     - New issues, with "N in the last hour"
@@ -938,7 +948,7 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
   - **Filter bar:**
     - Chips are parsed from `q` and rendered as pills with × remove links.
     - A text input `text` and a hidden `chips`. `IssueQuery.from_params` composes `q = chips + text`.
-    - The "Filters" dropdown lists `env:<each project environment>` and `level:<each>` links.
+    - The "Filters" dropdown lists `env:<each project environment>` (with its swatch) and `level:<each>` links. `env:` pills take their environment's chip tone.
     - The "Sort:" dropdown offers last seen, first seen, events and users.
   - **Query language (`IssueQuery`):**
     - `is:unresolved|resolved|ignored|for_review|new|regressed`

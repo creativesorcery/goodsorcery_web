@@ -4,7 +4,7 @@ class IssuesController < ApplicationController
   before_action :set_issue, only: :show
 
   def index
-    @query = IssueQuery.from_params(params, user: Current.user)
+    @query = environment_scoped_query
     @list = IssueList.new(@project, @query, page: params[:page], sort: params[:sort])
     return render(partial: "issues/page", locals: { list: @list }) if load_more_request?
 
@@ -19,6 +19,14 @@ class IssuesController < ApplicationController
   private
     def set_issue
       @issue = @project.issues.find_by_short_id!(params[:id])
+    end
+
+    # The request's query, scoped to the environment the request resolves to:
+    # its env: chip or env param, the remembered choice, the project's
+    # default, or all (EnvironmentChoice).
+    def environment_scoped_query
+      query = IssueQuery.from_params(params, user: Current.user)
+      query.with_environment(choose_environment(@project, query).environment)
     end
 
     # "load more" swaps the issues_page_<n> frame for just the next rows.

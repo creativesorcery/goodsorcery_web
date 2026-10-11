@@ -4,6 +4,7 @@
 <% breadcrumb @project.name, project_issues_path(@project) %>
 <% breadcrumb "Issues" %>
 <%= render "live/issues_stream", project: @project %>
+<%= render "issues/environment_bar", project: @project, list: @list, choice: @environment_choice %>
 
 <div class="px-8 pt-8 pb-16 max-w-[1400px]">
   <%= turbo_frame_tag dom_id(@project, :summary), src: project_summary_path(@project, env: @summary.environment), complete: true do %>
@@ -12,8 +13,8 @@
 
   <div data-controller="bulk-selection">
     <section class="mt-8 rise rise-2">
-      <%= render "issues/filter_bar", project: @project, list: @list %>
-      <%= render "issues/tabs", project: @project, list: @list %>
+      <%= render "issues/filter_bar", project: @project, list: @list, choice: @environment_choice %>
+      <%= render "issues/tabs", project: @project, list: @list, choice: @environment_choice %>
     </section>
 
     <section id="<%= dom_id(@project, :issues) %>" class="panel mt-4 overflow-hidden rise rise-3" aria-label="Issues">
@@ -24,7 +25,7 @@
       </div>
 
       <% if @list.default_state? %>
-        <%= render "live/new_issues", project: @project %>
+        <%= render "live/new_issues", project: @project, environment: @list.query.environment %>
       <% end %>
 
       <% if @list.empty? %>

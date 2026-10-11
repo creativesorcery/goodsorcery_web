@@ -70,6 +70,9 @@ class IssueQuery
 
   def default? = to_s == DEFAULT
 
+  # The default unresolved view, whichever environment it is scoped to.
+  def default_view? = without_key("env").default?
+
   def blank? = to_s.blank?
 
   def tab
@@ -105,6 +108,13 @@ class IssueQuery
 
   def without_key(key)
     rebuild(chips.reject { |chip| chip.key == key })
+  end
+
+  # Scoped to one environment, or to all of them (nil).
+  def with_environment(environment)
+    return self if self.environment == environment
+
+    environment ? with_chip("env", environment) : without_key("env")
   end
 
   private

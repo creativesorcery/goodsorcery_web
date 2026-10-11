@@ -62,9 +62,10 @@ class IssueList
 
   def sort_label = SORT_LABELS.fetch(sort)
 
-  # Unfiltered first page: where live-created issues get prepended.
+  # Unfiltered first page (in any one environment, or all): where
+  # live-created issues get prepended.
   def default_state?
-    page == 1 && sort == DEFAULT_SORT && query.default?
+    page == 1 && sort == DEFAULT_SORT && query.default_view?
   end
 
   private

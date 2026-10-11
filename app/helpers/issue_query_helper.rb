@@ -9,8 +9,30 @@ module IssueQueryHelper
   }.freeze
   COUNTED_TABS = %w[unresolved for_review assigned].freeze
 
-  def issues_query_path(project, query, sort: IssueList::DEFAULT_SORT)
-    project_issues_path(project, q: query.to_s, sort: (sort unless sort == IssueList::DEFAULT_SORT))
+  # Every list link states its environment, as an env: chip or as a blank env
+  # param for all environments, so following it never falls back to a
+  # remembered choice or the project's default (EnvironmentChoice).
+  def issues_query_path(project, query, sort: IssueList::DEFAULT_SORT, **options)
+    project_issues_path(project, q: query.to_s, env: (EnvironmentChoice::ALL unless query.environment),
+      sort: (sort unless sort == IssueList::DEFAULT_SORT), **options)
+  end
+
+  # One segment of the environment switch: "All" (nil) or an environment.
+  def environment_switch_link(project, list, environment)
+    current = list.query.environment == environment
+    link_to issues_query_path(project, list.query.with_environment(environment), sort: list.sort),
+      class: "inline-flex items-center gap-1.5", aria: { current: current.to_s } do
+      environment ? safe_join([ environment_dot(environment), environment ]) : "All"
+    end
+  end
+
+  # The scope bar's way out of a non-production environment: to production
+  # when the project has one, otherwise to all environments.
+  def environment_scope_exit_link(project, list, choice)
+    production = choice.production_environment
+    label = production ? "Back to #{production}" : "Show all environments"
+    link_to label, issues_query_path(project, list.query.with_environment(production), sort: list.sort),
+      class: "font-semibold underline underline-offset-2 hover:opacity-80"
   end
 
   # Pill with a × link that drops the chip; status chips are iris, environment

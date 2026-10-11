@@ -1,4 +1,4 @@
-<%# locals: (project:, list:) -%>
+<%# locals: (project:, list:, choice:) -%>
 <% query = list.query %>
 <div class="flex items-center gap-3">
   <%= form_with url: project_issues_path(project), method: :get, html: { role: "search" },
@@ -8,6 +8,9 @@
       <%= issue_query_chip(project, query, chip, sort: list.sort) %>
     <% end %>
     <%= hidden_field_tag :chips, query.chips_string, id: nil %>
+    <% unless query.environment %>
+      <%= hidden_field_tag :env, EnvironmentChoice::ALL, id: nil %>
+    <% end %>
     <% unless list.sort == IssueList::DEFAULT_SORT %>
       <%= hidden_field_tag :sort, list.sort, id: nil %>
     <% end %>
@@ -25,7 +28,7 @@
     <div class="menu right-0 w-56" data-dropdown-target="menu" hidden>
       <div class="px-3 pt-2 pb-1 text-[10.5px] uppercase tracking-[.2em] text-ink-400/70">Environment</div>
       <%= issue_filter_link project, list, "env", nil, label: "all environments" %>
-      <% project.environments.each do |environment| %>
+      <% choice.environments.each do |environment| %>
         <%= issue_filter_link project, list, "env", environment %>
       <% end %>
       <div class="px-3 pt-3 pb-1 text-[10.5px] uppercase tracking-[.2em] text-ink-400/70">Level</div>
