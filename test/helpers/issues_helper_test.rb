@@ -15,9 +15,11 @@ class IssuesHelperTest < ActionView::TestCase
     assert_nil issue_environment_chips(Issue.new(environments: []))
   end
 
-  test "issue_summary_classes fades issues seen only outside production" do
-    assert_equal "min-w-0", issue_summary_classes(Issue.new(environments: %w[production]))
-    assert_equal "min-w-0 opacity-60", issue_summary_classes(Issue.new(environments: %w[staging]))
+  test "issue_title_classes softens the ink of issues seen only outside production, without opacity" do
+    assert_includes issue_title_classes(Issue.new(environments: %w[production staging])), "text-ink-50"
+    assert_includes issue_title_classes(Issue.new(environments: [])), "text-ink-50"
+    assert_includes issue_title_classes(Issue.new(environments: %w[staging])), "text-ink-300"
+    assert_not_includes issue_title_classes(Issue.new(environments: %w[staging])), "opacity"
   end
 
   test "hourly histogram titles keep the minutes of half-hour zones" do

@@ -1,5 +1,6 @@
 <%# locals: (project:, list:, choice:) -%>
-<div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 mt-5 border-b border-paper-700">
+<%# wrap-reverse: when the switch doesn't fit beside the tabs it moves above them, so the active tab's underline stays on the divider. -%>
+<div class="flex flex-wrap-reverse items-start justify-between gap-x-6 gap-y-2 mt-5 border-b border-paper-700">
   <nav class="flex items-center gap-6 text-[14px]" aria-label="Triage">
     <% IssueQuery::TABS.each_key do |tab| %>
       <%= issue_tab_link project, list, tab %>

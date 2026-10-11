@@ -77,11 +77,12 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     regressed = "##{dom_id(issues(:regressed), :row)}"
     assert_select "#{regressed} .chip.chip-sm.chip-coral", text: "production"
     assert_select "#{regressed} .chip.chip-sm.chip-lilac", text: "staging"
-    assert_select "#{regressed} .opacity-60", count: 0
+    assert_select "#{regressed} a.text-ink-50[href=?]", project_issue_path(@project, issues(:regressed))
 
     card_error = "##{dom_id(issues(:card_error), :row)}"
     assert_select "#{card_error} .chip.chip-sm.chip-lilac", text: "staging"
-    assert_select "#{card_error} .min-w-0.opacity-60 a[href=?]", project_issue_path(@project, issues(:card_error))
+    assert_select "#{card_error} a.text-ink-300[href=?]", project_issue_path(@project, issues(:card_error))
+    assert_select "#{card_error} [class*=opacity-60]", count: 0
   end
 
   test "rows of issues that reached production carry a small coral marker" do

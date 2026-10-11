@@ -1,7 +1,11 @@
 # Issue list rows: tone (new / regressed / steady), stripes, chips, histograms.
 # Issue text is always rendered through ERB escaping.
 module IssuesHelper
-  ROW_GRID = "grid grid-cols-[28px_1fr_150px_90px_90px_110px_44px] items-center gap-4".freeze
+  # The Last 24h histogram column shows from xl up, so the issue column keeps
+  # a usable width on narrower screens.
+  ROW_GRID = "grid grid-cols-[28px_1fr_90px_90px_110px_44px] xl:grid-cols-[28px_1fr_150px_90px_90px_110px_44px] " \
+    "items-center gap-4".freeze
+  HISTOGRAM_CELL = "hidden xl:block".freeze
   CLASS_NAME_TONES = { new: "text-coral-300", regressed: "text-lilac-300", steady: "text-ink-100" }.freeze
   EDGE_STRIPES = { new: "edge-stripe edge-coral", regressed: "edge-stripe edge-lilac" }.freeze
   HISTOGRAM_COLORS = { new: ChartHelper::CORAL, regressed: ChartHelper::LILAC, steady: ChartHelper::IRIS_SOFT }.freeze
@@ -20,10 +24,12 @@ module IssuesHelper
     [ ROW_GRID, "group relative px-5 py-4 border-b border-paper-700/70 hover:bg-iris-500/[.04] transition", quiet ].compact.join(" ")
   end
 
-  # The title block of issues never seen in production fades back, so
-  # production issues stand out.
-  def issue_summary_classes(issue)
-    issue.only_outside_production? ? "min-w-0 opacity-60" : "min-w-0"
+  # Titles of issues never seen in production are drawn in a softer ink, so
+  # production issues stand out. Colour rather than opacity keeps the text
+  # readable and leaves the row's quick actions at full strength.
+  def issue_title_classes(issue)
+    tone = issue.only_outside_production? ? "text-ink-300" : "text-ink-50"
+    "block text-[14.5px] #{tone} truncate mt-0.5 after:absolute after:inset-0 focus:outline-none"
   end
 
   # Small chips for where the issue was seen: the first three, then "+N".
@@ -69,7 +75,7 @@ module IssuesHelper
       (tag.span(issue.transaction_name, class: "truncate shrink-0 max-w-[50%]") if issue.transaction_name.present?),
       (tag.span(issue.culprit, class: "truncate") if issue.culprit.present?)
     ].compact
-    return tag.span("unknown origin", class: "text-ink-400/70") if spans.empty?
+    return tag.span("unknown origin", class: "truncate text-ink-400/70") if spans.empty?
 
     safe_join spans, tag.span("•", class: "text-paper-500")
   end
@@ -77,8 +83,9 @@ module IssuesHelper
   # 24 hourly bars; the last (current hour) highlighted for new and regressed issues.
   def issue_histogram(issue, values)
     tone = issue_tone(issue)
-    histogram_svg values, color: HISTOGRAM_COLORS.fetch(tone), width: 150, height: 30,
+    chart = histogram_svg values, color: HISTOGRAM_COLORS.fetch(tone), width: 150, height: 30,
       highlight_last: tone != :steady, titles: hourly_titles(values)
+    tag.div chart, class: HISTOGRAM_CELL
   end
 
   def issue_assignee_avatar(issue)

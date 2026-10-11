@@ -22,7 +22,7 @@
       <div class="<%= IssuesHelper::ROW_GRID %> px-5 py-2.5 text-[11px] uppercase tracking-[.16em] text-ink-400/80 border-b border-paper-700 bg-paper-850/60">
         <input type="checkbox" class="accent-iris-500" aria-label="Select all issues on screen"
                data-bulk-selection-target="all" data-action="bulk-selection#toggleAll">
-        <span>Issue</span><span>Last 24h</span><span class="text-right">Events</span><span class="text-right">Users</span><span>Seen</span><span></span>
+        <span>Issue</span><span class="<%= IssuesHelper::HISTOGRAM_CELL %>">Last 24h</span><span class="text-right">Events</span><span class="text-right">Users</span><span>Seen</span><span></span>
       </div>
 
       <% if @list.default_state? %>

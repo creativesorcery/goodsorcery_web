@@ -1,7 +1,7 @@
 <%# locals: (project:, list:, choice:) -%>
 <%# "All · production · staging": sets the list's env: chip (blank env param for All), which the request remembers per project. -%>
 <% if choice.environments.any? %>
-  <nav class="segmented mb-2" aria-label="Environment">
+  <nav class="segmented mb-2 ml-auto" aria-label="Environment">
     <%= environment_switch_link project, list, nil %>
     <% choice.environments.each do |environment| %>
       <%= environment_switch_link project, list, environment %>
