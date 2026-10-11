@@ -12,7 +12,8 @@
   <% end %>
 
   <div data-controller="bulk-selection">
-    <section class="mt-8 rise rise-2">
+    <%# No hover prefetch: these links set the list's environment, which the request remembers (RemembersEnvironment). -%>
+    <section class="mt-8 rise rise-2" data-turbo-prefetch="false">
       <%= render "issues/filter_bar", project: @project, list: @list, choice: @environment_choice %>
       <%= render "issues/tabs", project: @project, list: @list, choice: @environment_choice %>
     </section>

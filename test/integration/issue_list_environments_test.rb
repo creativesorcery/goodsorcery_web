@@ -7,6 +7,8 @@ require "test_helper"
 class IssueListEnvironmentsTest < ActionDispatch::IntegrationTest
   include ActionView::RecordIdentifier
 
+  COOKIE = RemembersEnvironment::COOKIE.to_s
+
   setup do
     @project = projects(:storefront)
     sign_in_as users(:philip)
@@ -130,7 +132,7 @@ class IssueListEnvironmentsTest < ActionDispatch::IntegrationTest
 
   test "a remembered value that is not one of the project's environments is ignored" do
     @project.update!(default_environment: "staging")
-    cookies[cookie_name(@project)] = signed_cookie(cookie_name(@project), "qa")
+    cookies[COOKIE] = signed_cookie(@project.id.to_s => "qa")
 
     get project_issues_path(@project)
 
@@ -138,7 +140,7 @@ class IssueListEnvironmentsTest < ActionDispatch::IntegrationTest
   end
 
   test "a tampered or unsigned cookie is ignored" do
-    cookies[cookie_name(@project)] = "staging"
+    cookies[COOKIE] = { @project.id.to_s => "staging" }.to_json
 
     get project_issues_path(@project)
 
@@ -153,11 +155,41 @@ class IssueListEnvironmentsTest < ActionDispatch::IntegrationTest
 
     get project_issues_path(marketing)
     assert_select "nav.segmented a[aria-current=true]", text: "All"
+    assert_equal({ @project.id.to_s => "production" }, remembered_environments)
+  end
 
-    # storefront's signed value replayed under marketing's cookie name does not verify.
-    cookies[cookie_name(marketing)] = cookies[cookie_name(@project)]
-    get project_issues_path(marketing)
-    assert_select "nav.segmented a[aria-current=true]", text: "All"
+  test "one cookie holds the choices, keeping only the most recently chosen projects" do
+    stale = (1..RemembersEnvironment::REMEMBERED_PROJECTS).to_h { |n| [ "-#{n}", "production" ] }
+    cookies[COOKIE] = signed_cookie(stale.merge(@project.id.to_s => "production"))
+
+    get project_issues_path(@project, q: "is:unresolved env:staging")
+
+    choices = remembered_environments
+    assert_equal RemembersEnvironment::REMEMBERED_PROJECTS, choices.size
+    assert_equal [ @project.id.to_s, "staging" ], choices.to_a.last
+    assert_not choices.key?("-1")
+    assert_nil cookies["issues_environment_#{@project.id}"]
+  end
+
+  test "a hover prefetch never changes the remembered choice" do
+    get project_issues_path(@project, q: "is:unresolved env:production")
+
+    get project_issues_path(@project, q: "is:unresolved env:staging"), headers: { "X-Sec-Purpose" => "prefetch" }
+    assert_equal "production", remembered_environment(@project)
+
+    get project_issues_path(@project, env: ""), headers: { "Sec-Purpose" => "prefetch;prerender" }
+    assert_equal "production", remembered_environment(@project)
+  end
+
+  test "links that change the list's scope are never prefetched on hover" do
+    get project_issues_path(@project, q: "is:unresolved env:staging")
+
+    assert_select "[data-turbo-prefetch=false]" do
+      assert_select "form[role=search]"
+      assert_select "nav.segmented[aria-label=Environment]"
+      assert_select "nav[aria-label=Triage]"
+    end
+    assert_select "[aria-label='Environment scope'][data-turbo-prefetch=false]"
   end
 
   test "the sidebar badge follows the remembered choice on other pages" do
@@ -201,23 +233,24 @@ class IssueListEnvironmentsTest < ActionDispatch::IntegrationTest
     get project_issues_path(@project, env: "staging")
 
     assert_response :not_found
-    assert_nil cookies[cookie_name(@project)]
+    assert_nil cookies[COOKIE]
   end
 
   private
-    def cookie_name(project) = "issues_environment_#{project.id}"
-
-    def signed_cookie(name, value)
+    def signed_cookie(value)
       jar = ActionDispatch::Request.new(Rails.application.env_config.deep_dup).cookie_jar
-      jar.signed[name] = value
-      jar[name]
+      jar.signed[COOKIE] = { value: }
+      jar[COOKIE]
     end
 
     def remembered_environment(project)
-      name = cookie_name(project)
-      return if cookies[name].blank?
+      remembered_environments&.fetch(project.id.to_s, nil)
+    end
 
-      env = Rails.application.env_config.deep_dup.merge("HTTP_COOKIE" => "#{name}=#{CGI.escape(cookies[name])}")
-      ActionDispatch::Request.new(env).cookie_jar.signed[name]
+    def remembered_environments
+      return if cookies[COOKIE].blank?
+
+      env = Rails.application.env_config.deep_dup.merge("HTTP_COOKIE" => "#{COOKIE}=#{CGI.escape(cookies[COOKIE])}")
+      ActionDispatch::Request.new(env).cookie_jar.signed[COOKIE]
     end
 end

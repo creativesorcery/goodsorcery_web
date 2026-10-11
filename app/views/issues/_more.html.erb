@@ -2,7 +2,7 @@
 <% project = list.project %>
 <% summary = "Showing #{delimited(list.shown_count)} of #{delimited(list.total_count)}" %>
 <% if list.next_page? %>
-  <%= turbo_frame_tag "issues_page_#{list.next_page}" do %>
+  <%= turbo_frame_tag "issues_page_#{list.next_page}", data: { turbo_prefetch: false } do %>
     <p class="px-5 py-3 text-center text-[12px] text-ink-400">
       <%= summary %> ·
       <%= link_to "load more", issues_query_path(project, list.query, sort: list.sort, page: list.next_page),
