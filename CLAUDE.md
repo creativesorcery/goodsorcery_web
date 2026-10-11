@@ -112,6 +112,5 @@ bin/bundler-audit && bin/importmap audit
 - **Scheduled jobs:** sidekiq-cron loads `config/schedule.yml` in the Sidekiq process (production only).
 - **Debug logs:** SQL logs in dev and test include redacted issue titles. Keep production at `info`.
 - **Dev data:** test events overwrite a project's runtime label and use up issue numbers; deleting issues doesn't rewind the sequence. Seeds don't run again once the demo user exists (`bin/rails db:reset` to start over).
-- **libvips warning:** a `vips-heif.dylib … libx265` warning on every command is a Homebrew issue on this machine, not the app.
 - **Port 3917:** something else on this machine has used it. Don't kill processes you didn't start; give dev servers you start their own pid file (`-P tmp/pids/server_PORT.pid`).
 - **Bash tool:** in this environment, compound commands starting with `cd dir; …` have returned empty output. Use absolute paths instead.

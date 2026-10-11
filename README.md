@@ -20,7 +20,6 @@ or Solid Cable.
 | Bundler | ships with Ruby | everything | `bin/setup` runs `bundle install`. |
 | PostgreSQL | 14 or newer recommended | everything | Migrations enable `pg_trgm` (trigram search). The dev/test role is your OS user over the local socket. |
 | Redis | 6 or newer | production only | Sidekiq jobs, the cache store and Action Cable. Development and test need no Redis. |
-| libvips | any | optional | Pulled in by the scaffold's `image_processing` gem; the app doesn't process images. |
 | Google Chrome | current | system tests only | `bin/rails test:system` drives headless Chrome through Selenium. |
 
 Node.js is **not** needed. Tailwind runs through the standalone binary in the
@@ -272,7 +271,6 @@ of `docs/INGEST_API.md`.
 - **`PG::ConnectionBad` or "database does not exist".** Start Postgres (`brew services start postgresql@16`), then run `bin/rails db:prepare`.
 - **Migration fails with `extension "pg_trgm" is not available`.** Install the Postgres contrib package (Homebrew's postgresql includes it).
 - **Styles missing or stale.** Run `bin/dev` (it starts the Tailwind watcher), or `bin/rails tailwindcss:build` once.
-- **`(ruby-vips) ... vips-heif.dylib ... libx265 ... not loaded` warning on every command.** This comes from the Homebrew libvips/libheif install, not the app, and is harmless. To silence it: `brew reinstall libheif vips` (or `brew upgrade`).
 - **System tests hang or fail to start.** Install or update Google Chrome. Selenium Manager fetches a matching chromedriver.
 - **Sign-up page redirects to sign-in.** Sign-up closes once the first account exists. Set `GOODSORCERY_ENABLE_SIGNUPS=1` to keep it open.
 
