@@ -154,6 +154,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     staging = api_keys(:storefront_staging)
     assert_select "turbo-frame##{dom_id(production)}" do
       assert_select ".chip", "default"
+      assert_select "span.bg-coral-500[aria-hidden=true]"
       assert_select "turbo-frame##{dom_id(production, :token)} code", text: /\Ags_live_Stor.*0001\z/
       assert_select "a[href=?]", project_api_key_reveal_path(projects(:storefront), production), text: "Reveal"
       assert_select "form[action=?] button", project_api_key_rotation_path(projects(:storefront), production), text: "Rotate…"
@@ -162,6 +163,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     end
     assert_select "turbo-frame##{dom_id(staging)}" do
       assert_select ".chip", count: 0
+      assert_select "span.bg-lilac-400[aria-hidden=true]"
       assert_select "*", text: /never used/
     end
     assert_select "form[action=?] input[name=?]", project_api_keys_path(projects(:storefront)), "api_key[environment]"

@@ -1,7 +1,7 @@
 require "test_helper"
 
 class NavigationHelperTest < ActionView::TestCase
-  include NavigationHelper, ::NumberHelper, IconHelper, ApplicationHelper, Turbo::StreamsHelper
+  include NavigationHelper, ::NumberHelper, IconHelper, ApplicationHelper, EnvironmentsHelper, Turbo::StreamsHelper
 
   teardown { Current.reset }
 
@@ -87,7 +87,9 @@ class NavigationHelperTest < ActionView::TestCase
     sign_in_to accounts(:acme)
     project = projects(:storefront)
 
-    assert_equal [ "production", project_runtime_label(project) ].join(" · "), sidebar_project_subtitle(project)
+    subtitle = sidebar_project_subtitle(project)
+    assert_equal [ "production", project_runtime_label(project) ].join(" · "), strip_tags(subtitle)
+    assert_includes subtitle, %(<span class="text-coral-300">production</span>)
   end
 
   test "live_stream_from subscribes through the authorised channel" do

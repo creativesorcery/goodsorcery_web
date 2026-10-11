@@ -33,8 +33,8 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
       assert_select ".font-display", text: projects(:storefront).issues.unresolved.count.to_s
       assert_select "span.text-coral-300", text: "1 new"
       assert_select "svg path", minimum: 2
-      assert_select ".chip", text: "production"
-      assert_select ".chip", text: "staging"
+      assert_select ".chip.chip-coral", text: "production"
+      assert_select ".chip.chip-lilac", text: "staging"
       assert_select "span", text: "last error 2 min ago"
     end
   end

@@ -4,6 +4,7 @@
   <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-4">
     <div class="min-w-0">
       <div class="flex items-center gap-2 text-[14px] text-ink-50">
+        <%= environment_dot(api_key.environment) %>
         <%= api_key_label(api_key) %>
         <% if default %><%= chip "default", small: true %><% end %>
       </div>

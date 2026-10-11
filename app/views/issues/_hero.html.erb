@@ -3,7 +3,7 @@
     <div class="flex flex-wrap items-center gap-2.5">
       <%= issue_status_chip(issue) %>
       <% issue.environments.each do |environment| %>
-        <%= chip environment %>
+        <%= environment_chip environment %>
       <% end %>
       <%= level_chip(issue.level) %>
     </div>

@@ -65,6 +65,12 @@ module IssueDetailHelper
     link_to label, project_issue_occurrence_path(project, issue, target), class: "btn btn-sm", aria:
   end
 
+  # "Today 09:14 · staging · v42", the environment in its tone.
+  def occurrence_summary_line(occurrence)
+    parts = [ clock_label(occurrence.occurred_at), (environment_text(occurrence.environment) if occurrence.environment.present?), occurrence.release.presence ]
+    safe_join parts.compact, " · "
+  end
+
   def occurrence_shortcut_class(navigator, shortcut)
     base = "flex-1 rounded-md py-1 text-center transition"
     navigator.selected_shortcut == shortcut ? "#{base} bg-paper-700 text-ink-50" : "#{base} text-ink-400 hover:bg-paper-800"

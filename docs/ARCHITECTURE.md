@@ -898,6 +898,9 @@ Other rules:
   - `meter_svg(fraction, height: 6)`.
   - Colour constants: `CORAL "#ef6f7c"`, `IRIS "#8f94ee"`, `IRIS_SOFT "#b7baf3"`, `IRIS_DEEP "#6f75e0"`, `LILAC "#b39cf2"`, `MINT "#5cc29a"`, `PAPER "#b5b1a7"`.
 - `ChipHelper`: `chip(text, tone: :neutral, dot: false, mono: false)`, where `dot` adds a `coral-dot`.
+- **Environment colours.** `EnvironmentTone` (model, `app/models/environment_tone.rb`) maps an environment name, case-insensitively, to a tone: `production|prod|live` → `:coral`, `staging|stage|preview|qa|uat` → `:lilac`, `development|dev|test|local` → `:muted`, anything else → `:iris`. `EnvironmentTone.production?(name)` means "coral". It is plain Ruby with no view code, so models and ingest can use it too. `EnvironmentsHelper` draws names in their tone and is the only place views pick environment colours:
+  - `environment_chip(name, small: false)` (the chip tones above), `environment_dot(name)` (a 2×2 swatch, `aria-hidden`), `environment_text(name)` (the name in the tone's text colour, for running text), `environment_bar_classes(name)` (border/background/text for a full-width strip) and `environment_color(name)` (hex for SVG charts: CORAL, LILAC, PAPER, IRIS).
+  - Used everywhere an environment is shown: issue hero chips, issue rows, project cards, the occurrence navigator line, the Filters menu entries and `env:` query chips, the environment switch and scope bar on the issues page, the issues eyebrow, the project switcher subtitle and the API key rows on the setup page (a swatch before the label).
 - `TimeHelper`:
   - `time_ago_compact(time)` gives "just now", "2 min ago", "3h ago", "12d ago", "9mo ago" or "1y ago".
   - `first_seen_label(time)` gives "first 3h ago".

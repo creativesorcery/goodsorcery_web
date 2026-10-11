@@ -1,5 +1,7 @@
 <%# locals: (card:, card_counter: 0, card_iteration: nil) -%>
 <%# Fragment-cached: the key covers every number and label drawn here, and a card holds no captured error data. -%>
+<%# Template Dependency: projects/card_stats -%>
+<%# Template Dependency: projects/card_listening -%>
 <%= turbo_frame_tag dom_id(card.project, :card), target: "_top", class: "min-w-0 #{project_card_rise(card_counter)}" do %>
   <% cache [ card, project_card_subtitle(card), project_last_error_label(card) ], expires_in: 10.minutes do %>
     <% health = card.health %>

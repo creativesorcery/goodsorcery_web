@@ -71,10 +71,10 @@ module NavigationHelper
     sidebar_projects.min_by.with_index { |project, index| [ -project.last_issue_seen_at.to_i, index ] }
   end
 
-  # "production · Rails 8.0 · Ruby 3.4"
+  # "production · Rails 8.0 · Ruby 3.4", the environment in its tone.
   def sidebar_project_subtitle(project)
     environment = sidebar_projects.find { |item| item.id == project.id }&.first_environment
-    [ environment, project_runtime_label(project) ].compact.join(" · ")
+    safe_join [ (environment_text(environment) if environment), project_runtime_label(project) ].compact, " · "
   end
 
   # Badge count: a number only, cached briefly (never any issue text).

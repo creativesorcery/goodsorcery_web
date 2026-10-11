@@ -16,6 +16,7 @@ class IssueDetailTest < ActionDispatch::IntegrationTest
     assert_select "p.font-display span.font-mono", "price_cents"
     assert_select "p.font-mono", text: /CheckoutsController#create · app\/services\/cart_total.rb:42 in line_total/
     assert_select "span.chip", text: "New · unresolved"
+    assert_select "span.chip.chip-coral", text: "production"
     assert_select "turbo-frame##{dom_id(@issue, :stats)} dd", text: "1,284"
     assert_select "turbo-frame##{dom_id(@issue, :chart)} svg rect", minimum: 24
     assert_select "turbo-frame#occurrence[data-turbo-action=advance]"

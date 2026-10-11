@@ -12,7 +12,7 @@
       <%= occurrence_link "›", project, issue, navigator.newer_uuid, aria: { label: "Newer occurrence" } %>
     </div>
     <div class="mt-2 text-[11.5px] text-ink-400 font-mono truncate">
-      <%= [ clock_label(occurrence.occurred_at), occurrence.environment, occurrence.release ].compact_blank.join(" · ") %>
+      <%= occurrence_summary_line(occurrence) %>
     </div>
   <% else %>
     <p class="mt-2 text-[12.5px] text-ink-400">No occurrences are stored for this issue.</p>
