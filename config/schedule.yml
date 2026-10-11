@@ -11,3 +11,18 @@ requeue_stale_events:
   cron: "*/10 * * * *"
   class: RequeueStaleEventsJob
   description: "Re-enqueue inbound events never processed (goodsorcery:requeue_stale)"
+
+check_still_happening:
+  cron: "*/5 * * * *"
+  class: CheckStillHappeningJob
+  description: "Still-happening alerts for issues over their app threshold in the last hour"
+
+send_daily_digests:
+  cron: "0 * * * *"   # hourly: each run mails the members whose local time is 09:xx
+  class: SendDailyDigestsJob
+  description: "Daily alert digests at 09:00 in each recipient time zone"
+
+send_alert_summaries:
+  cron: "2 * * * *"   # just after each hour
+  class: SendAlertSummariesJob
+  description: "One and-N-more email per user for alerts folded over the hourly cap"

@@ -1,7 +1,9 @@
 # Sidekiq runs Active Job in production. Redis connection comes from REDIS_URL.
 # Weighted queues: ingest is drained first, but never starves the others.
+# alerts holds the alert jobs and sweeps (the emails go through mailers).
 :concurrency: <%= ENV.fetch("SIDEKIQ_CONCURRENCY", 5) %>
 :queues:
   - [ingest, 3]
   - [default, 2]
+  - [alerts, 2]
   - [mailers, 1]

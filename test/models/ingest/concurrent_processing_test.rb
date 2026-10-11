@@ -44,9 +44,17 @@ class Ingest::ConcurrentProcessingTest < ActiveSupport::TestCase
     assert_equal EVENTS + 1, issue.events_count
     assert_predicate issue, :reached_production?
     assert_equal 1, issue.activities.where(kind: "reached_production").count
+    assert_equal 1, alert_jobs_for(issue, "reached_production").size, "flagged once, by the event that stamped it"
   end
 
   private
+    # The test adapter (config/environments/test.rb) keeps what every thread enqueued.
+    def alert_jobs_for(issue, kind)
+      IssueAlertJob.queue_adapter.enqueued_jobs.select do |job|
+        job["job_class"] == "IssueAlertJob" && job["arguments"].first(2) == [ issue.id, kind ]
+      end
+    end
+
     def process_concurrently(inbound)
       errors = Queue.new
       threads = inbound.each_slice(EVENTS / THREADS).map do |slice|

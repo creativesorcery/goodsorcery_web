@@ -1,6 +1,7 @@
 # Turns one stored InboundEvent into an occurrence of a (new or existing)
 # issue, with all counters and rollups, in a single short transaction
-# (ARCHITECTURE.md §2.5). Live updates are announced after commit.
+# (ARCHITECTURE.md §2.5). Live updates are announced, and alerts for the
+# transitions the event caused flagged (§11.4), after commit.
 class Ingest::Processor
   TRIM_EVERY = 250
 
@@ -37,6 +38,7 @@ class Ingest::Processor
       return discard("duplicate") unless issue
 
       announce(issue, created: tally.created?)
+      flag_alerts(issue, created: tally.created?)
       issue
     end
 
@@ -56,8 +58,10 @@ class Ingest::Processor
       issue
     end
 
+    # The new occurrence id, or nil for a duplicate event id.
     def insert_occurrence(issue_id, event)
-      Occurrence.insert(occurrence_attributes(issue_id, event), unique_by: %i[project_id uuid], returning: %i[id]).rows.any?
+      result = Occurrence.insert(occurrence_attributes(issue_id, event), unique_by: %i[project_id uuid], returning: %i[id])
+      @occurrence_id = result.rows.first&.first
     end
 
     def occurrence_attributes(issue_id, event)
@@ -77,6 +81,14 @@ class Ingest::Processor
       issue.broadcast_changes_later(created:)
       project.broadcast_changes_later
       TrimOccurrencesJob.perform_later(issue) if (issue.events_count % TRIM_EVERY).zero?
+    end
+
+    # Read from what the counter UPDATE already returned, so an ordinary event
+    # of an existing issue costs nothing here. The job gets ids and the kind.
+    def flag_alerts(issue, created:)
+      IssueAlert.transitions(issue, created:).each do |kind|
+        IssueAlertJob.perform_later(issue.id, kind, @occurrence_id)
+      end
     end
 
     def discard(reason)
