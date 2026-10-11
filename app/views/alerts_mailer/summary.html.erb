@@ -1,0 +1,17 @@
+<% content_for :preheader, "You reached #{AlertDelivery::HOURLY_CAP} alert emails in an hour, so #{pluralize(@total, 'more alert')} were held back." %>
+<% content_for :footer do %>
+  You're receiving this because more than <%= AlertDelivery::HOURLY_CAP %> alerts were due for you within an hour.
+  <% if @mute_url %><%= email_footer_link "Mute #{@projects.first.name} alerts", @mute_url %> · <% end %><%= email_footer_link "Notification settings", notifications_url %>
+<% end %>
+
+<%= email_heading "And #{pluralize(delimited(@total), 'more alert')}" %>
+
+<%= email_text "To keep your inbox usable, Good Sorcery sends at most #{AlertDelivery::HOURLY_CAP} alert emails an hour. These alerts were due after that and weren't sent one by one:" %>
+
+<%= email_details(@projects.map { |project| [ project.name, alert_summary_line(@counts.fetch(project.id.to_s)) ] }) %>
+
+<% if @projects.one? %>
+  <%= email_button "Open #{@projects.first.name}", project_issues_url(@projects.first) %>
+<% else %>
+  <%= email_button "Open Good Sorcery", projects_url %>
+<% end %>

@@ -1,0 +1,29 @@
+<%# Only the issue's redacted summary columns, environment names, numbers and times. Never occurrence data. -%>
+<% content_for :preheader, "#{alert_label(@kind)} in #{@project.name}: #{alert_issue_title(@issue).truncate(120)}" %>
+<% content_for :footer do %>
+  You're receiving this because you're a member of <%= @project.account.name %> and <%= @project.name %> sends <%= alert_label(@kind).downcase %> alerts.
+  <%= email_footer_link "Mute #{@project.name} alerts", @mute_url %> · <%= email_footer_link "Notification settings", notifications_url %>
+<% end %>
+
+<%= email_heading "#{alert_label(@kind)} in #{@project.name}" %>
+
+<%= email_text alert_intro(@kind) %>
+
+<%= email_code @issue.exception_class %>
+<%= email_title alert_issue_title(@issue) %>
+
+<%= email_details [
+      [ "Issue", @issue.short_id ],
+      [ "Environments", email_environments(@issue.environments) ],
+      [ "Where", alert_issue_origin(@issue) ],
+      [ "Last hour", (pluralize(delimited(@last_hour_events), "event") + " (threshold #{delimited(@project.still_happening_threshold)})" if @last_hour_events) ],
+      [ "Events", alert_events_line(@issue) ],
+      [ "First seen", alert_time(@issue.first_seen_at) ],
+      [ "Last seen", alert_time(@issue.last_seen_at) ]
+    ] %>
+
+<%= email_button "Open #{@issue.short_id}", @issue_url %>
+
+<%= email_divider %>
+
+<%= email_link_fallback @issue_url %>

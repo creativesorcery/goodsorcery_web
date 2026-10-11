@@ -34,4 +34,22 @@ class IssueHourlyCount < ApplicationRecord
     dates.map { |date| [ date.in_time_zone(zone), counts.fetch(date, 0) ] }
   end
   private_class_method :local_daily_series
+
+  # Events in the trailing 60 minutes, from hourly rows: the current clock
+  # hour plus the not-yet-elapsed share of the previous one, evenly spread
+  # (as ProjectHealth estimates it). Rows must start at .trailing_hour_start.
+  TRAILING_HOUR_SUM = "SUM(CASE WHEN issue_hourly_counts.hour >= CAST(:current_hour AS timestamp) THEN issue_hourly_counts.count " \
+                      "ELSE issue_hourly_counts.count * CAST(:previous_share AS double precision) END)".freeze
+
+  def self.trailing_hour_start(now = Time.current) = TimeSeries.align(now, 1.hour) - 1.hour
+
+  def self.trailing_hour_values(now = Time.current)
+    { current_hour: TimeSeries.align(now, 1.hour), previous_share: 1 - TimeSeries.elapsed_fraction(1.hour, now:) }
+  end
+
+  # The estimate for one issue, e.g. for the still_happening email.
+  def self.trailing_hour(issue, now: Time.current)
+    sum = Arel.sql(sanitize_sql_array([ TRAILING_HOUR_SUM, trailing_hour_values(now) ]))
+    where(issue:, hour: trailing_hour_start(now)..).pick(sum).to_f.round
+  end
 end

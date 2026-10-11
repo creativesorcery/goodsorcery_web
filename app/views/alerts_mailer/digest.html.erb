@@ -1,0 +1,31 @@
+<%# Only the issues' redacted summary columns, environment names, numbers and times. Never occurrence data. -%>
+<% count = @digest.issue_count %>
+<% content_for :preheader, "#{count} open #{'issue'.pluralize(count)} in #{@project.name} had events in the last 24 hours." %>
+<% content_for :footer do %>
+  You're receiving this because you're a member of <%= @project.account.name %> and <%= @project.name %> sends a daily digest at 09:00 in your time zone (<%= @user.time_zone %>).
+  <%= email_footer_link "Stop #{@project.name} digests", @mute_url %> · <%= email_footer_link "Notification settings", notifications_url %>
+<% end %>
+
+<%= email_heading "Daily digest for #{@project.name}" %>
+
+<%= email_text "#{pluralize(delimited(count), 'open issue')} had events in the last 24 hours#{', busiest first' if count > 1}." %>
+
+<% @digest.issues.each do |issue| %>
+  <%= email_divider %>
+  <%= email_code "#{issue.short_id} · #{issue.exception_class}" %>
+  <%= email_title_link alert_issue_title(issue), project_issue_url(@project, issue) %>
+  <%= email_details [
+        [ "Environments", email_environments(issue.environments) ],
+        [ "Last 24h", "#{pluralize(delimited(issue.recent_events), 'event')} · last seen #{alert_time(issue.last_seen_at)}" ]
+      ] %>
+<% end %>
+
+<%= email_divider %>
+
+<% if @digest.more_count.positive? %>
+  <%= email_note "And #{pluralize(delimited(@digest.more_count), 'more issue')}." %>
+<% end %>
+
+<%= email_button "Open #{@project.name}", @issues_url %>
+
+<%= email_link_fallback @issues_url %>

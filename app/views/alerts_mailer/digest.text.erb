@@ -1,0 +1,20 @@
+<%# Plain text: values are output raw, since HTML escaping would show up literally. Redacted summary columns only. -%>
+<% count = @digest.issue_count -%>
+<% content_for :footer, raw("You're receiving this because you're a member of #{@project.account.name} and #{@project.name} sends a daily digest at 09:00 in your time zone (#{@user.time_zone}).\nStop #{@project.name} digests: #{@mute_url}\nNotification settings: #{notifications_url}") -%>
+Daily digest for <%= raw @project.name %>
+
+<%= pluralize(delimited(count), "open issue") %> had events in the last 24 hours<%= ", busiest first" if count > 1 %>.
+<% @digest.issues.each do |issue| -%>
+
+<%= issue.short_id %> · <%= raw issue.exception_class %>
+<%= raw alert_issue_title(issue) %>
+<%= issue.environments.join(", ") %> · <%= pluralize(delimited(issue.recent_events), "event") %> · last seen <%= alert_time(issue.last_seen_at) %>
+<%= project_issue_url(@project, issue) %>
+<% end -%>
+
+<% if @digest.more_count.positive? -%>
+And <%= pluralize(delimited(@digest.more_count), "more issue") %>.
+<% end -%>
+
+Open <%= raw @project.name %>:
+<%= @issues_url %>

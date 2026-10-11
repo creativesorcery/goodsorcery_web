@@ -73,4 +73,16 @@ class Ingest::RetentionTest < ActiveSupport::TestCase
     assert_not InboundEvent.exists?(old.id)
     assert InboundEvent.exists?(fresh.id)
   end
+
+  test "deletes alert deliveries older than their keep window" do
+    recent = alert_deliveries(:philip_nomethod_new_issue)
+    old = travel_to(31.days.ago) do
+      AlertDelivery.record(user: users(:jo), project: projects(:storefront), kind: :new_issue, dedupe_key: "old")
+    end
+
+    Ingest::Retention.new.prune_alert_deliveries
+
+    assert_not AlertDelivery.exists?(old)
+    assert AlertDelivery.exists?(recent.id)
+  end
 end

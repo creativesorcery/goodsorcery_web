@@ -4,7 +4,8 @@
 # - affected-user rows not seen within it, and tag values of issues not seen
 #   within it (both hold captured personal data, encrypted or digested);
 # - hourly rollups older than ROLLUP_DAYS, one hour slice at a time;
-# - inbound events that never processed within UNPROCESSED_TTL.
+# - inbound events that never processed within UNPROCESSED_TTL;
+# - alert deliveries (throttle keys, ids only) older than AlertDelivery::KEPT_FOR.
 class Ingest::Retention
   ROLLUP_DAYS = 90
   UNPROCESSED_TTL = 1.day
@@ -19,6 +20,7 @@ class Ingest::Retention
     prune_issue_data
     prune_rollups
     prune_unprocessed
+    prune_alert_deliveries
   end
 
   # One batched delete per distinct retention period, not per project.
@@ -49,6 +51,10 @@ class Ingest::Retention
       Rails.logger.info { "Retention deleted unprocessed inbound events #{batch.ids.join(', ')}" }
       batch.delete_all
     end
+  end
+
+  def prune_alert_deliveries
+    AlertDelivery.where(created_at: ...(@now - AlertDelivery::KEPT_FOR)).in_batches(of: BATCH).delete_all
   end
 
   private

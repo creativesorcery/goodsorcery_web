@@ -64,6 +64,27 @@ class AlertDeliveryTest < ActiveSupport::TestCase
     assert_not AlertDelivery.cap_reached?(users(:jo))
   end
 
+  test "claim sends under the cap, folds at the cap, and skips a used key" do
+    (AlertDelivery::HOURLY_CAP - 1).times do |n|
+      assert_equal "sent", AlertDelivery.claim(user: @user, project: @project, kind: :new_issue, dedupe_key: "test:#{n}")
+    end
+
+    assert_equal "sent", AlertDelivery.claim(user: @user, project: @project, kind: :regression, issue: @issue, dedupe_key: "last")
+    assert_equal "folded", AlertDelivery.claim(user: @user, project: @project, kind: :new_issue, dedupe_key: "over")
+    assert_nil AlertDelivery.claim(user: @user, project: @project, kind: :new_issue, dedupe_key: "over")
+    assert_equal "sent", AlertDelivery.claim(user: users(:jo), project: @project, kind: :new_issue, dedupe_key: "over")
+  end
+
+  test "digests and summaries don't count towards the cap" do
+    AlertDelivery::HOURLY_CAP.times do |n|
+      AlertDelivery.record(user: @user, project: @project, kind: :daily_digest, dedupe_key: "digest:#{n}")
+    end
+    AlertDelivery.record(user: @user, project: @project, kind: :summary, dedupe_key: AlertDelivery.summary_key)
+
+    assert_equal 0, AlertDelivery.sent_in_last_hour(@user)
+    assert_equal "sent", AlertDelivery.claim(user: @user, project: @project, kind: :new_issue, dedupe_key: "test")
+  end
+
   test "folded deliveries await the summary until summarized" do
     AlertDelivery.record(user: @user, project: @project, kind: :new_issue, dedupe_key: "test:folded", status: :folded)
 

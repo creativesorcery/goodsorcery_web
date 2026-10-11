@@ -1,0 +1,23 @@
+<%# Plain text: values are output raw, since HTML escaping would show up literally. Redacted summary columns only. -%>
+<% content_for :footer, raw("You're receiving this because you're a member of #{@project.account.name} and #{@project.name} sends #{alert_label(@kind).downcase} alerts.\nMute #{@project.name} alerts: #{@mute_url}\nNotification settings: #{notifications_url}") -%>
+<%= raw alert_label(@kind) %> in <%= raw @project.name %>
+
+<%= alert_intro(@kind) %>
+
+<%= raw @issue.exception_class %>
+<%= raw alert_issue_title(@issue) %>
+
+Issue: <%= @issue.short_id %>
+Environments: <%= @issue.environments.join(", ") %>
+<% if alert_issue_origin(@issue).present? -%>
+Where: <%= raw alert_issue_origin(@issue) %>
+<% end -%>
+<% if @last_hour_events -%>
+Last hour: <%= pluralize(delimited(@last_hour_events), "event") %> (threshold <%= delimited(@project.still_happening_threshold) %>)
+<% end -%>
+Events: <%= alert_events_line(@issue) %>
+First seen: <%= alert_time(@issue.first_seen_at) %>
+Last seen: <%= alert_time(@issue.last_seen_at) %>
+
+Open <%= @issue.short_id %>:
+<%= @issue_url %>

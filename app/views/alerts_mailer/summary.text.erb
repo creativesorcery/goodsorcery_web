@@ -1,0 +1,11 @@
+<%# Plain text: values are output raw, since HTML escaping would show up literally. -%>
+<% content_for :footer, raw(["You're receiving this because more than #{AlertDelivery::HOURLY_CAP} alerts were due for you within an hour.", ("Mute #{@projects.first.name} alerts: #{@mute_url}" if @mute_url), "Notification settings: #{notifications_url}"].compact.join("\n")) -%>
+And <%= pluralize(delimited(@total), "more alert") %>
+
+To keep your inbox usable, Good Sorcery sends at most <%= AlertDelivery::HOURLY_CAP %> alert emails an hour. These alerts were due after that and weren't sent one by one:
+
+<% @projects.each do |project| -%>
+<%= raw project.name %>: <%= alert_summary_line(@counts.fetch(project.id.to_s)) %>
+<% end -%>
+
+<%= @projects.one? ? project_issues_url(@projects.first) : projects_url %>
