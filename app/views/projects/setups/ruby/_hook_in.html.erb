@@ -1,0 +1,58 @@
+<%# Where the gem hooks into a plain Ruby app; each tab is one integration. -%>
+<section class="panel overflow-hidden rise rise-2" data-controller="tabs">
+  <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
+    <%= setup_step_heading "ii.", "Hook it in" %>
+    <div class="flex flex-wrap items-center gap-5" role="tablist" aria-label="Integration">
+      <%= setup_tab "Rack / Sinatra", "hook_rack", selected: true %>
+      <%= setup_tab "Sidekiq", "hook_sidekiq" %>
+      <%= setup_tab "Rake", "hook_rake" %>
+      <%= setup_tab "Anywhere", "hook_notify" %>
+    </div>
+  </div>
+
+  <div id="hook_rack" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3">
+<%= render layout: "projects/setups/snippet", locals: { label: "config.ru" } do %><span class="tok-k">require_relative</span> <span class="tok-s">"config/goodsorcery"</span>
+
+use <span class="tok-sym">GoodSorcery</span>::<span class="tok-sym">Rack</span>::<span class="tok-sym">Middleware</span>
+run <span class="tok-sym">MyApp</span><% end %>
+    <p class="text-[13px] text-ink-400">
+      Reports exceptions that escape a request, then re-raises them, plus errors Sinatra turned into a 5xx.
+      It never reads the request body or loads a session that wasn't loaded.
+    </p>
+  </div>
+
+  <div id="hook_sidekiq" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3" hidden>
+<%= render layout: "projects/setups/snippet", locals: { label: "Sidekiq boot file" } do %><span class="tok-k">require</span> <span class="tok-s">"sidekiq"</span>
+<span class="tok-k">require_relative</span> <span class="tok-s">"config/goodsorcery"</span>  <span class="tok-c"># after Sidekiq, so it hooks itself in</span>
+
+<span class="tok-c"># Required goodsorcery before Sidekiq? Hook it in by hand:</span>
+<span class="tok-c"># require "goodsorcery/integrations/sidekiq"</span>
+<span class="tok-c"># GoodSorcery::Integrations::Sidekiq.install</span><% end %>
+    <p class="text-[13px] text-ink-400">
+      Reports failed jobs on every attempt, as Sidekiq retries them, with the job class, queue, jid and filtered arguments.
+    </p>
+  </div>
+
+  <div id="hook_rake" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3" hidden>
+<%= render layout: "projects/setups/snippet", locals: { label: "Rakefile" } do %><span class="tok-k">require_relative</span> <span class="tok-s">"config/goodsorcery"</span>
+<span class="tok-k">require</span> <span class="tok-s">"goodsorcery/tasks"</span><% end %>
+    <p class="text-[13px] text-ink-400">
+      Reports an exception that ends a rake run and sends it before rake exits.
+      Also adds <span class="font-mono text-ink-200">goodsorcery:verify</span> and <span class="font-mono text-ink-200">goodsorcery:test</span>.
+    </p>
+  </div>
+
+  <div id="hook_notify" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3" hidden>
+<%= render layout: "projects/setups/snippet", locals: { label: "anywhere" } do %><span class="tok-k">begin</span>
+  charge_card!
+<span class="tok-k">rescue</span> =&gt; e
+  <span class="tok-sym">GoodSorcery</span>.notify(e, context: { order_id: order.id })
+  <span class="tok-k">raise</span>
+<span class="tok-k">end</span><% end %>
+    <p class="text-[13px] text-ink-400">
+      <span class="font-mono text-ink-200">notify</span> never raises; it returns the event id, or nil when nothing was sent.
+      Set the affected user with <span class="font-mono text-ink-200">GoodSorcery.user = { id: user.id, email: user.email }</span>
+      (a User object works too).
+    </p>
+  </div>
+</section>

@@ -43,6 +43,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#install_manual pre", text: /config\.environment\s+= Rails\.env/
     assert_select "#install_generator p", text: /plugin "goodsorcery"/
     assert_select "#install_env[hidden] pre", text: /GOODSORCERY_ENV=production/
+    assert_select "#install_env p", count: 0
     assert_select "*", text: /Reveal your key under/
     assert_select "pre", text: /bin\/rails goodsorcery:test/
   end
@@ -68,6 +69,81 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#install_manual pre", text: %r{config\.endpoint\s+= "http://www\.example\.com"}
     assert_select "#install_env pre", text: %r{GOODSORCERY_ENDPOINT=http://www\.example\.com}
     assert_select "aside code", text: %(config.endpoint = "http://www.example.com")
+  end
+
+  test "rails apps number two steps and keep the rails side panel" do
+    get project_setup_path(projects(:storefront))
+
+    assert_equal [ "i.Add the gem", "ii.Cast a test error", "API keys" ], step_headings
+    assert_select "#hook_rack", count: 0
+    assert_select "pre", text: /rake goodsorcery:test/, count: 0
+    assert_select "aside", text: /Rails\.application\.config\.filter_parameters/
+    assert_select "aside", text: /current_user/
+  end
+
+  test "ruby apps get the plain ruby install without generator or rails lines" do
+    projects(:marketing).update!(platform: "ruby")
+
+    get project_setup_path(projects(:marketing))
+
+    assert_select "[role=tab]", text: "Generator", count: 0
+    assert_select "#install_generator", count: 0
+    assert_select "[aria-label='Install method'] [role=tab]", count: 2
+    assert_select "[role=tab][aria-selected=true][aria-controls=install_manual]", "Manual"
+    assert_select "#install_manual:not([hidden]) pre", text: /bundle add goodsorcery/
+    assert_select "#install_manual pre [data-clipboard-skip]", text: "gs_live_Mark…0001"
+    assert_select "#install_manual pre", text: /require "goodsorcery"\s+GoodSorcery\.configure do \|config\|/
+    assert_select "#install_manual pre", text: /config\.api_key\s+= ENV\["GOODSORCERY_API_KEY"\]/
+    assert_select "#install_manual pre .tok-c", text: /# config\.environment = "production"\s+# default: GOODSORCERY_ENV, RACK_ENV or APP_ENV/
+    assert_no_match(/ENV\.fetch\("RACK_ENV"/, response.body)
+    assert_select "#install_manual pre", text: /config\.filter_params \+= %i\[card_token ssn\]/
+    assert_select "#install_manual pre", text: %r{config\.endpoint\s+= "http://www\.example\.com"}
+    assert_select "#install_env[hidden] pre", text: %r{GOODSORCERY_ENV=production\s+GOODSORCERY_ENDPOINT=http://www\.example\.com}
+    assert_select "#install_env p", text: /add require "goodsorcery" at boot/
+    assert_no_match(/bin\/rails|generate goodsorcery|Rails\.application|Rails\.env|credentials/, response.body)
+  end
+
+  test "ruby apps copy a placeholder instead of the masked key" do
+    projects(:marketing).update!(platform: "ruby")
+
+    get project_setup_path(projects(:marketing))
+
+    pre = css_select("#install_manual pre").first.dup
+    pre.css("[data-clipboard-skip]").each(&:remove)
+    assert_equal "bundle add goodsorcery\nexport GOODSORCERY_API_KEY=YOUR_PRODUCTION_KEY", pre.text.strip
+  end
+
+  test "ruby apps hook in rack, sidekiq, rake and notify, then test with rake" do
+    projects(:marketing).update!(platform: "ruby")
+
+    get project_setup_path(projects(:marketing))
+
+    assert_equal [ "i.Add the gem", "ii.Hook it in", "iii.Cast a test error", "API keys" ], step_headings
+    assert_select "#hook_rack:not([hidden]) pre", text: /use GoodSorcery::Rack::Middleware/
+    assert_select "#hook_sidekiq[hidden] pre", text: /require "goodsorcery\/integrations\/sidekiq"\s+# GoodSorcery::Integrations::Sidekiq\.install/
+    assert_select "#hook_rake[hidden] pre", text: /require "goodsorcery\/tasks"/
+    assert_select "#hook_notify[hidden] pre", text: /GoodSorcery\.notify\(e, context: \{ order_id: order\.id \}\)/
+    assert_select "pre", text: /\$ bundle exec rake goodsorcery:test/
+  end
+
+  test "ruby side panel makes no rails-only claims and keeps self-hosting" do
+    projects(:marketing).update!(platform: "ruby")
+
+    get project_setup_path(projects(:marketing))
+
+    assert_select "aside", text: /Rack and Sinatra requests, Sidekiq jobs and rake tasks/
+    assert_select "aside", text: /Scrubbed by default/
+    assert_select "aside", text: /filter_parameters|current_user|ActiveSupport|ActiveJob/, count: 0
+    assert_select "aside code", text: %(config.endpoint = "http://www.example.com")
+  end
+
+  test "hosted instances keep the gem's default endpoint on the ruby page" do
+    projects(:marketing).update!(platform: "ruby")
+
+    with_env("GOODSORCERY_HOSTED" => "1") { get project_setup_path(projects(:marketing)) }
+
+    assert_select "#install_manual pre", text: /# config\.endpoint = "https:\/\/errors\.yourco\.internal"  # self-hosted/
+    assert_select "#install_env pre", text: /GOODSORCERY_ENDPOINT/, count: 0
   end
 
   test "lists api keys with reveal and rotate" do
@@ -118,4 +194,18 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
   end
+
+  private
+    # "i.Add the gem": the step number and title of each panel, in page order.
+    def step_headings
+      css_select("section h2").map { |heading| heading.text.squish }
+    end
+
+    def with_env(values)
+      previous = values.keys.index_with { |key| ENV[key] }
+      values.each { |key, value| ENV[key] = value }
+      yield
+    ensure
+      previous.each { |key, value| ENV[key] = value }
+    end
 end

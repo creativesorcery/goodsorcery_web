@@ -98,19 +98,23 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", "Add a new app"
     assert_select "form[action=?][method=post]", projects_path do
       assert_select "input[name=?]", "project[name]"
-      assert_select "select[name=?] option", "project[platform]", count: Project.platforms.size
+      assert_select "select[name=?]", "project[platform]" do
+        assert_select "option", count: 2
+        assert_select "option[value=rails][selected]", "Ruby on Rails"
+        assert_select "option[value=ruby]", "Ruby"
+      end
       assert_select "input[type=submit][value=?]", "Add a new app"
     end
   end
 
   test "create adds a project with default keys and redirects to setup" do
     assert_difference -> { accounts(:acme).projects.count } => 1, -> { ApiKey.count } => 2 do
-      post projects_path, params: { project: { name: "Checkout Web", platform: "sidekiq" } }
+      post projects_path, params: { project: { name: "Checkout Web", platform: "ruby" } }
     end
 
     project = accounts(:acme).projects.find_by!(slug: "checkout-web")
     assert_redirected_to project_setup_path(project)
-    assert_predicate project, :sidekiq?
+    assert_predicate project, :ruby?
     assert_predicate project, :listening?
     assert_equal [ users(:philip) ], project.api_keys.map(&:created_by).uniq
   end
@@ -138,6 +142,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "nav[aria-label='Project settings'] a[aria-current=page]", "General"
     assert_select "form[action=?]", project_path(projects(:storefront)) do
+      assert_select "select[name=?] option[selected]", "project[platform]", "Ruby on Rails"
       assert_select "input[name=?][value=?]", "project[issue_prefix]", "GS"
       assert_select "input[name=?][value=?]", "project[scrub_fields]", "loyalty_number"
       assert_select "input[name=?][value=?]", "project[retention_days]", "90"
@@ -146,13 +151,14 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
   test "update saves general settings and splits scrub fields" do
     patch project_path(projects(:storefront)), params: { project: {
-      name: "Storefront Web", platform: "rails_api", issue_prefix: "sf", scrub_fields: "Passport, loyalty_number, ,iban", retention_days: "30"
+      name: "Storefront Web", platform: "ruby", issue_prefix: "sf", scrub_fields: "Passport, loyalty_number, ,iban", retention_days: "30"
     } }
 
     project = projects(:storefront).reload
     assert_redirected_to edit_project_path(project)
     assert_equal "Storefront Web", project.name
     assert_equal "storefront", project.slug
+    assert_predicate project, :ruby?
     assert_equal "SF", project.issue_prefix
     assert_equal %w[passport loyalty_number iban], project.scrub_fields
     assert_equal 30, project.retention_days

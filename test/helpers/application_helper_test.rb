@@ -26,9 +26,10 @@ class ApplicationHelperTest < ActionView::TestCase
   end
 
   test "platform and runtime labels" do
-    assert_equal "Rails API", platform_label("rails_api")
+    assert_equal "Ruby on Rails", platform_label("rails")
+    assert_equal "Ruby", platform_label("ruby")
     assert_equal "Rails 8.0 · Ruby 3.4", project_runtime_label(Project.new(platform: "rails", runtime_label: "Rails 8.0 · Ruby 3.4"))
-    assert_equal "Sidekiq", project_runtime_label(Project.new(platform: "sidekiq"))
+    assert_equal "Ruby on Rails", project_runtime_label(Project.new(platform: "rails"))
   end
 
   test "document_title appends the product name without double escaping" do

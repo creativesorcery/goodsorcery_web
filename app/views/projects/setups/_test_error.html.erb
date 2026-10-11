@@ -1,8 +1,9 @@
-<%# locals: (project:, progress:) -%>
+<%# locals: (project:, progress:, number:) -%>
+<%# Layout: the platform's steps partial yields the test command. -%>
 <section class="panel p-5 rise rise-2">
-  <h2 class="font-display text-[20px] text-ink-50"><span class="text-iris-400 font-mono text-[14px] mr-2">ii.</span>Cast a test error</h2>
-  <div class="mt-4">
-<%= render layout: "projects/setups/snippet", locals: { label: "terminal" } do %><span class="text-iris-400 select-none" data-clipboard-skip>$ </span>bin/rails goodsorcery:test<% end %>
+  <%= setup_step_heading number, "Cast a test error" %>
+  <div class="mt-4 space-y-3">
+    <%= yield %>
   </div>
   <%# Live frame: slice G sends reload_frame here on [project, :setup]. -%>
   <%= turbo_frame_tag dom_id(project, :listening), target: "_top", class: "mt-5" do %>

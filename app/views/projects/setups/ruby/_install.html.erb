@@ -1,0 +1,35 @@
+<%# locals: (api_key:) -%>
+<%# Plain Ruby: no generator, credentials or Rails.env. The key comes from ENV;
+    snippets show the masked default key only, the full key sits behind Reveal below. -%>
+<section class="panel overflow-hidden rise rise-1" data-controller="tabs">
+  <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
+    <%= setup_step_heading "i.", "Add the gem" %>
+    <div class="flex items-center gap-5" role="tablist" aria-label="Install method">
+      <%= setup_tab "Manual", "install_manual", selected: true %>
+      <%= setup_tab "ENV only", "install_env" %>
+    </div>
+  </div>
+
+  <div id="install_manual" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3">
+<%= render layout: "projects/setups/snippet", locals: { label: "terminal" } do %><span class="text-iris-400 select-none" data-clipboard-skip>$ </span>bundle add goodsorcery
+<span class="text-iris-400 select-none" data-clipboard-skip>$ </span>export GOODSORCERY_API_KEY=<span class="tok-s"><%= install_key_hint(api_key) %></span><% end %>
+<%= render layout: "projects/setups/snippet", locals: { label: "config/goodsorcery.rb" } do %><span class="tok-k">require</span> <span class="tok-s">"goodsorcery"</span>
+
+<span class="tok-sym">GoodSorcery</span>.configure <span class="tok-k">do</span> |config|
+  config.api_key      = ENV[<span class="tok-s">"GOODSORCERY_API_KEY"</span>]
+  <span class="tok-c"># config.environment = "production"  # default: GOODSORCERY_ENV, RACK_ENV or APP_ENV; development and test don't report</span>
+  config.filter_params += <span class="tok-n">%i[card_token ssn]</span>  <span class="tok-c"># on top of the defaults</span>
+  <%= endpoint_config_line %>
+<span class="tok-k">end</span><% end %>
+    <p class="text-[13px] text-ink-400">
+      Require this file once at boot, before anything can fail: from <span class="font-mono text-ink-200">config.ru</span>,
+      your Sidekiq boot file and your <span class="font-mono text-ink-200">Rakefile</span>.
+    </p>
+  </div>
+
+  <% boot_note = capture do %>
+    Outside Rails nothing loads the gem from env vars alone: add <span class="font-mono text-ink-200">require "goodsorcery"</span> at boot,
+    in place of <span class="font-mono text-ink-200">require_relative "config/goodsorcery"</span> in the snippets below.
+  <% end %>
+  <%= render "projects/setups/install_env", api_key:, note: boot_note %>
+</section>

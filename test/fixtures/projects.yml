@@ -16,7 +16,7 @@ billing:
   account: acme
   name: billing-api
   slug: billing-api
-  platform: rails_api
+  platform: rails
   runtime_label: Rails 7.2 API · Ruby 3.3
   issue_prefix: BA
   issues_sequence: 7

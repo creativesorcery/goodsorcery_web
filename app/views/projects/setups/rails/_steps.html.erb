@@ -1,0 +1,5 @@
+<%# locals: (project:, progress:, api_key:) -%>
+<%= render "projects/setups/rails/install", api_key: %>
+<%= render layout: "projects/setups/test_error", locals: { project:, progress:, number: "ii." } do %>
+<%= render layout: "projects/setups/snippet", locals: { label: "terminal" } do %><span class="text-iris-400 select-none" data-clipboard-skip>$ </span>bin/rails goodsorcery:test<% end %>
+<% end %>

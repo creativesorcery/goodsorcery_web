@@ -3,7 +3,6 @@ require "test_helper"
 class Ingest::RuntimeLabelTest < ActiveSupport::TestCase
   test "labels rails and ruby by major.minor" do
     assert_equal "Rails 8.0 · Ruby 3.4", Ingest::RuntimeLabel.new({ "rails" => "8.0.1", "ruby" => "3.4.1 (YJIT on)" }).to_s
-    assert_equal "Rails 7.2 API · Ruby 3.3", Ingest::RuntimeLabel.new({ "rails" => "7.2.0", "ruby" => "3.3.5" }, api: true).to_s
     assert_equal "Ruby 3.4", Ingest::RuntimeLabel.new({ "ruby" => "3.4.1" }).to_s
   end
 

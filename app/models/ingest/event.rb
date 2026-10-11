@@ -77,7 +77,7 @@ class Ingest::Event
     @tags ||= Ingest::TagSet.new(@data["tags"], environment:, release:, host: context["host"], scrubber: @scrubber).to_h
   end
 
-  def runtime_label = Ingest::RuntimeLabel.new(context["runtime"], api: project.rails_api?).to_s
+  def runtime_label = Ingest::RuntimeLabel.new(context["runtime"]).to_s
 
   def fingerprint
     @fingerprint ||= Ingest::Fingerprint.new(exception_class:, top_app_frame:, redacted_message:,

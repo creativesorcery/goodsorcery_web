@@ -92,7 +92,7 @@ Indexes: unique `[account_id, user_id]`, `[user_id]`.
 | account_id | references → accounts, cascade | false | | |
 | name | string | false | | 1..60 chars |
 | slug | string | false | | `name.parameterize`. Unique per account; `-2`, `-3` suffix on collision; immutable |
-| platform | string | false | `"rails"` | enum: `rails`, `rails_api`, `sidekiq`, `ruby` |
+| platform | string | false | `"rails"` | enum: `rails` ("Ruby on Rails"), `ruby` ("Ruby"); picks the Setup page snippets. Older `rails_api`/`sidekiq` rows were migrated to `rails` |
 | runtime_label | string | true | | e.g. "Rails 8.0 · Ruby 3.4". Set when a new issue is created (§2.5) |
 | issue_prefix | string | false | | `/\A[A-Z]{1,6}\z/`, unique per account. Default: initials of the slug words, or the first 3 letters when there is one word, with a letter swapped in when taken ("STOB") |
 | issues_sequence | integer | false | 0 | per-project short-number counter |
@@ -978,14 +978,16 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
 - **Setup & settings (D)**:
   - The settings sub-nav lists only "Setup & API keys" and "General".
   - The hero runs the stepper from `SetupProgress` (D). Step 1 is always done. Step 2 is current while listening. Step 3 is done once `first_event_at` is set, and the hero then becomes "✦ <name> is connected", with a link to issues.
-  - Install tabs (Generator / Manual / ENV only) show the **masked** default key with the note "Reveal your key under API keys below". Copy copies the snippet text.
-  - "Cast a test error" with the listening panel frame.
+  - The install steps and right rail depend on `project.platform`: `show` renders `projects/setups/<platform>/_steps` and `projects/setups/<platform>/_rail`. Shared pieces: `_snippet` (copyable code pane), `_install_env` (the "ENV only" tab), `_test_error` (a layout around the platform's test command, with the listening frame) and `_self_hosting`. Step numbers come from `SetupHelper#setup_step_heading` and stay sequential per platform.
+  - **Ruby on Rails** (`rails/`): i. "Add the gem" tabs Generator / Manual / ENV only; ii. "Cast a test error" with `bin/rails goodsorcery:test`. The rail mentions `filter_parameters`, ActiveSupport breadcrumbs and `current_user`.
+  - **Ruby** (`ruby/`): i. "Add the gem" tabs Manual (`bundle add goodsorcery`, `export GOODSORCERY_API_KEY`, a `config/goodsorcery.rb` boot file reading ENV, leaving `config.environment` to the gem's lookup and showing it only as a comment) / ENV only (with a note to `require "goodsorcery"` at boot, since nothing else loads it outside Rails); ii. "Hook it in" tabs Rack / Sinatra (`GoodSorcery::Rack::Middleware`), Sidekiq (automatic when Sidekiq is required first, else `GoodSorcery::Integrations::Sidekiq.install`), Rake (`require "goodsorcery/tasks"`) and Anywhere (`GoodSorcery.notify`); iii. "Cast a test error" with `bundle exec rake goodsorcery:test`. The rail makes no Rails-only claims.
+  - Snippets show the **masked** default key with the note "Reveal your key under API keys below". Copy copies the snippet text, with a `YOUR_<ENV>_KEY` placeholder instead of the masked key.
   - API keys panel:
     - Each row shows the masked key with Reveal → a frame with the full key, Copy and Hide.
     - "Created X ago by Name · last used X ago" or "· never used", and Rotate….
     - "+ New key" opens an inline form (environment name).
-  - Right rail: "What gets captured", "Scrubbed by default" and the Self-hosting card (copy from the mockup).
-  - `projects/new` shows the "Add a new app" form panel (name, platform select).
+  - Right rail: "What gets captured", "Scrubbed by default" (per platform) and the Self-hosting card.
+  - `projects/new` shows the "Add a new app" form panel (name, platform select: "Ruby on Rails" or "Ruby"; Settings › General can switch it).
 
 ---
 

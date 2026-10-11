@@ -1,0 +1,11 @@
+<div class="rounded-[14px] border border-iris-500/20 p-5 bg-iris-100 rise rise-4">
+  <div class="font-display text-[18px] text-ink-50">Self-hosting?</div>
+  <p class="text-[13px] text-ink-300 mt-2">
+    Point <span class="font-mono text-[12px]">config.endpoint</span> at your own instance. Same gem, same UI, MIT licensed.
+  </p>
+  <div class="mt-3 flex items-center gap-2 rounded-lg border border-iris-500/20 bg-paper-900 px-3 py-2" data-controller="clipboard">
+    <code class="flex-1 min-w-0 break-all font-mono text-[11.5px] text-ink-100" data-clipboard-target="source">config.endpoint = "<%= instance_endpoint %>"</code>
+    <button type="button" class="shrink-0 text-[11.5px] text-ink-400 hover:text-iris-300" data-action="clipboard#copy">Copy</button>
+  </div>
+  <%= link_to "Self-host guide →", docs_url, class: "inline-block mt-3 text-[13px] text-iris-300 hover:underline", target: "_blank", rel: "noopener noreferrer" %>
+</div>

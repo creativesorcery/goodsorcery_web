@@ -2,11 +2,11 @@
 <%# Snippets show the masked default key only; the full key sits behind Reveal below. -%>
 <section class="panel overflow-hidden rise rise-1" data-controller="tabs">
   <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
-    <h2 class="font-display text-[20px] text-ink-50"><span class="text-iris-400 font-mono text-[14px] mr-2">i.</span>Add the gem</h2>
+    <%= setup_step_heading "i.", "Add the gem" %>
     <div class="flex items-center gap-5" role="tablist" aria-label="Install method">
-      <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="install_generator" data-tabs-target="tab" data-action="tabs#select">Generator</button>
-      <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="install_manual" data-tabs-target="tab" data-action="tabs#select">Manual</button>
-      <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="install_env" data-tabs-target="tab" data-action="tabs#select">ENV only</button>
+      <%= setup_tab "Generator", "install_generator", selected: true %>
+      <%= setup_tab "Manual", "install_manual" %>
+      <%= setup_tab "ENV only", "install_env" %>
     </div>
   </div>
 
@@ -31,10 +31,5 @@ plugin <span class="tok-s">"goodsorcery"</span>  <span class="tok-c"># optional:
 <span class="tok-k">end</span><% end %>
   </div>
 
-  <div id="install_env" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4" hidden>
-<%= render layout: "projects/setups/snippet", locals: { label: ".env / platform config" } do %>GOODSORCERY_API_KEY=<span class="tok-s"><%= install_key_hint(api_key) %></span>
-GOODSORCERY_ENV=<span class="tok-s"><%= api_key&.environment || "production" %></span><%= endpoint_env_line %><% end %>
-  </div>
-
-  <p class="px-5 pb-4 text-[12.5px] text-ink-400">Reveal your key under <a href="#api_keys" class="text-iris-300 hover:underline">API keys</a> below.</p>
+  <%= render "projects/setups/install_env", api_key: %>
 </section>

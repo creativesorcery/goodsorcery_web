@@ -23,6 +23,19 @@ module SetupHelper
     tag.li class: previous_step.done? ? "w-12 h-px bg-mint-400/40" : "w-12 h-px bg-paper-600", "aria-hidden": true
   end
 
+  # "i. Add the gem": numbering is per platform, so each steps partial passes it.
+  def setup_step_heading(number, title)
+    tag.h2 class: "font-display text-[20px] text-ink-50" do
+      safe_join [ tag.span(number, class: "text-iris-400 font-mono text-[14px] mr-2"), title ]
+    end
+  end
+
+  # A tab for the tabs controller; the panel with id +panel_id+ is shown when selected.
+  def setup_tab(label, panel_id, selected: false)
+    tag.button label, type: "button", class: "tab", role: "tab", aria: { selected:, controls: panel_id },
+      data: { tabs_target: "tab", action: "tabs#select" }
+  end
+
   # Install snippets show the short masked key ("gs_live_9f2c…e81a"); the full
   # key is behind Reveal. Copy skips the masked key and takes a placeholder
   # instead, so a copied command never contains an unusable key.

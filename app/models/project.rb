@@ -13,7 +13,7 @@ class Project < ApplicationRecord
   has_many :inbound_events, inverse_of: :project
   has_many :project_hourly_counts, inverse_of: :project
 
-  enum :platform, { rails: "rails", rails_api: "rails_api", sidekiq: "sidekiq", ruby: "ruby" }, validate: true
+  enum :platform, { rails: "rails", ruby: "ruby" }, validate: true
   enum :color, COLORS.index_by(&:itself), validate: true, prefix: true
 
   attr_readonly :slug

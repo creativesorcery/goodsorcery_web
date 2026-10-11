@@ -19,11 +19,11 @@ class DemoSeeds
   PROJECTS = [
     { name: "storefront", platform: "rails", runtime_label: "Rails 8.0 · Ruby 3.4", issue_prefix: "GS",
       issues_sequence: 1041, environments: %w[production staging], first_event_at: 280.days.ago, color: "coral" },
-    { name: "billing-api", platform: "rails_api", runtime_label: "Rails 7.2 API · Ruby 3.3", issue_prefix: "BA",
+    { name: "billing-api", platform: "rails", runtime_label: "Rails 7.2 API · Ruby 3.3", issue_prefix: "BA",
       issues_sequence: 0, environments: %w[production], first_event_at: 200.days.ago, color: "iris" },
     { name: "backoffice", platform: "rails", runtime_label: "Rails 8.0 · Hotwire", issue_prefix: "BO",
       issues_sequence: 0, environments: %w[production], first_event_at: 90.days.ago, color: "mint" },
-    { name: "fulfillment-workers", platform: "sidekiq", runtime_label: "Sidekiq · Rails 8.0", issue_prefix: "FW",
+    { name: "fulfillment-workers", platform: "rails", runtime_label: "Sidekiq · Rails 8.0", issue_prefix: "FW",
       issues_sequence: 0, environments: %w[production], first_event_at: 150.days.ago, color: "lilac" },
     { name: "marketing-site", platform: "rails", runtime_label: nil, issue_prefix: "MS",
       issues_sequence: 0, environments: %w[production staging], first_event_at: nil, color: "iris" }

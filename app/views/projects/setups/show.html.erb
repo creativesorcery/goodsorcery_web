@@ -15,11 +15,11 @@
 
     <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-6 mt-6">
       <div class="space-y-6 min-w-0">
-        <%= render "projects/setups/install", api_key: @api_keys.first %>
-        <%= render "projects/setups/test_error", project: @project, progress: @progress %>
+        <%# Install steps and side panel per platform: projects/setups/rails/*, projects/setups/ruby/*. -%>
+        <%= render "projects/setups/#{@project.platform}/steps", project: @project, progress: @progress, api_key: @api_keys.first %>
         <%= render "projects/setups/api_keys", project: @project, api_keys: @api_keys %>
       </div>
-      <%= render "projects/setups/rail" %>
+      <%= render "projects/setups/#{@project.platform}/rail" %>
     </div>
   </div>
 </div>
