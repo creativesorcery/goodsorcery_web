@@ -39,6 +39,14 @@ class Issue < ApplicationRecord
 
   def regressed? = unresolved? && regressed_at.present?
 
+  # Seen in at least one production-like environment (EnvironmentTone).
+  def seen_in_production?
+    environments.any? { |environment| EnvironmentTone.production?(environment) }
+  end
+
+  # Seen somewhere, but never in production: the issue list plays these down.
+  def only_outside_production? = environments.any? && !seen_in_production?
+
   def accessible_by?(user) = project.accessible_by?(user)
 
   def fingerprint_label = fingerprint.to_s.first(12)

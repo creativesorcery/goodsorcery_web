@@ -953,6 +953,7 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
     - The left stripe and class colour are coral with a "New" chip (dot) when `new?`, lilac with "↺ Regressed" when `regressed?`, and neutral otherwise.
     - The 24h histogram (`IssueHourlyCount.histograms`, one query per page) is coral, LILAC or IRIS_SOFT, with the last bar highlighted for new and regressed issues.
     - Events, users, "seen" (`time_ago_compact` plus "first …"), and the assignee avatar or `empty_avatar`. Rows not seen for over an hour get `opacity-80`.
+    - **Environments:** small `environment_chip`s from `issue.environments` (a column, so no extra query) open the transaction/culprit line: the first three, then a muted "+N" (`IssuesHelper#issue_environment_chips`). Issues seen only outside production (`Issue#only_outside_production?`: environments present, none production-tone) get `opacity-60` on the title block (`issue_summary_classes`) so production issues stand out. This depends on the issue alone, never on the list's scope, so live row reloads render the same.
   - **Bulk bar** (shown by `bulk_selection` when count > 0): "N selected", ✓ Resolve (`btn-mint`), Ignore, Assign ▾ (members). There is no Merge.
 - **Issue detail (F)**:
   - **Hero:**

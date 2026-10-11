@@ -5,6 +5,7 @@ module IssuesHelper
   CLASS_NAME_TONES = { new: "text-coral-300", regressed: "text-lilac-300", steady: "text-ink-100" }.freeze
   EDGE_STRIPES = { new: "edge-stripe edge-coral", regressed: "edge-stripe edge-lilac" }.freeze
   HISTOGRAM_COLORS = { new: ChartHelper::CORAL, regressed: ChartHelper::LILAC, steady: ChartHelper::IRIS_SOFT }.freeze
+  ROW_ENVIRONMENTS = 3
 
   def issue_tone(issue)
     return :new if issue.new?
@@ -17,6 +18,20 @@ module IssuesHelper
   def issue_row_classes(issue)
     quiet = issue.last_seen_at < 1.hour.ago ? "opacity-80" : nil
     [ ROW_GRID, "group relative px-5 py-4 border-b border-paper-700/70 hover:bg-iris-500/[.04] transition", quiet ].compact.join(" ")
+  end
+
+  # The title block of issues never seen in production fades back, so
+  # production issues stand out.
+  def issue_summary_classes(issue)
+    issue.only_outside_production? ? "min-w-0 opacity-60" : "min-w-0"
+  end
+
+  # Small chips for where the issue was seen: the first three, then "+N".
+  def issue_environment_chips(issue)
+    shown = issue.environments.first(ROW_ENVIRONMENTS).map { |environment| environment_chip(environment, small: true) }
+    hidden = issue.environments.size - ROW_ENVIRONMENTS
+    shown << chip("+#{hidden}", tone: :muted, small: true) if hidden.positive?
+    tag.span safe_join(shown), class: "flex items-center gap-1 shrink-0 font-sans" if shown.any?
   end
 
   def issue_edge_stripe(issue)

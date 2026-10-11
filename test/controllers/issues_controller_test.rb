@@ -69,6 +69,21 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#{card_error} .text-ink-100", text: "Stripe::CardError"
   end
 
+  test "rows carry environment chips in their tone and play down issues never seen in production" do
+    issues(:card_error).update_columns(environments: %w[staging])
+
+    get project_issues_path(@project)
+
+    regressed = "##{dom_id(issues(:regressed), :row)}"
+    assert_select "#{regressed} .chip.chip-sm.chip-coral", text: "production"
+    assert_select "#{regressed} .chip.chip-sm.chip-lilac", text: "staging"
+    assert_select "#{regressed} .opacity-60", count: 0
+
+    card_error = "##{dom_id(issues(:card_error), :row)}"
+    assert_select "#{card_error} .chip.chip-sm.chip-lilac", text: "staging"
+    assert_select "#{card_error} .min-w-0.opacity-60 a[href=?]", project_issue_path(@project, issues(:card_error))
+  end
+
   test "captured text is escaped" do
     issues(:card_error).update_columns(message: "<script>alert(1)</script>")
 

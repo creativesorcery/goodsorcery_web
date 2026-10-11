@@ -33,6 +33,24 @@ class IssueTest < ActiveSupport::TestCase
     assert_not issues(:regressed).regressed?
   end
 
+  test "seen in production when any environment is production-like" do
+    issue = issues(:regressed)
+
+    assert issue.seen_in_production?
+    assert_not issue.only_outside_production?
+
+    issue.environments = %w[staging Live]
+    assert issue.seen_in_production?
+
+    issue.environments = %w[staging qa]
+    assert_not issue.seen_in_production?
+    assert issue.only_outside_production?
+
+    issue.environments = []
+    assert_not issue.seen_in_production?
+    assert_not issue.only_outside_production?
+  end
+
   test "status and level enums validate" do
     issue = issues(:nomethod)
     issue.status = "snoozed"

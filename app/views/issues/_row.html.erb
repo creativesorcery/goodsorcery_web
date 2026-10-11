@@ -7,7 +7,7 @@
            class="accent-iris-500 relative z-10" aria-label="Select <%= issue.short_id %>"
            data-bulk-selection-target="checkbox" data-action="bulk-selection#toggle">
 
-    <div class="min-w-0">
+    <div class="<%= issue_summary_classes(issue) %>">
       <div class="relative flex items-center gap-2 min-w-0">
         <%= issue_class_name(issue) %>
         <%= issue_badge(issue) %>
@@ -27,6 +27,7 @@
       <%= link_to issue_title(issue), project_issue_path(project, issue),
             class: "block text-[14.5px] text-ink-50 truncate mt-0.5 after:absolute after:inset-0 focus:outline-none" %>
       <div class="text-[12px] text-ink-400 mt-1 flex items-center gap-3 font-mono min-w-0">
+        <%= issue_environment_chips(issue) %>
         <%= issue_origin(issue) %>
       </div>
     </div>
