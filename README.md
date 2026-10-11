@@ -190,6 +190,7 @@ Every variable below is read by the app's code or config.
 | `GOODSORCERY_DISABLE_SIGNUPS` | no | none | `1` closes sign-up completely, even before the first account exists. It overrides `ENABLE`. |
 | `GOODSORCERY_HOSTED` | no | `false` | `true` marks this as the managed hosting service: the sidebar shows "Hosted" instead of "Self-hosted", and the setup page's install snippets drop the `config.endpoint` / `GOODSORCERY_ENDPOINT` line. |
 | `POSTMARK_API_TOKEN` | to send mail through Postmark | none | A Postmark **server** API token. When set, mail (password resets) is delivered through Postmark's API. Without it, configure SMTP instead (see "Email"). |
+| `GOODSORCERY_API_KEY` | no | none | Ingest key the `goodsorcery` gem uses to report this app's own errors (`config/initializers/goodsorcery.rb`). Unset, nothing is sent. |
 | `GOODSORCERY_MAIL_FROM` | no | `Good Sorcery <no-reply@HOST>`, with HOST taken from the public URL | Sender address for password-reset emails. |
 | `GOODSORCERY_DOCS_URL` | no | the project's GitHub `docs/` folder | Target of the sidebar's Docs link. |
 | `SECRET_KEY_BASE_DUMMY` | build only | none | Set by the Dockerfile during `assets:precompile`, so the build needs no secrets or public URL. Never set it at runtime. |

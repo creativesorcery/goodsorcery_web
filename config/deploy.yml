@@ -67,6 +67,10 @@ env:
     - ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT
     - GOODSORCERY_WEB_DATABASE_PASSWORD
     - POSTMARK_API_TOKEN
+<% if ENV["GOODSORCERY_API_KEY"].to_s.strip != "" %>
+    # Optional: Good Sorcery reports its own errors (config/initializers/goodsorcery.rb).
+    - GOODSORCERY_API_KEY
+<% end %>
 
 # Aliases are triggered with "bin/kamal <alias>". You can overwrite arguments on invocation:
 # "bin/kamal logs -r job" will tail logs from the first server in the job section.

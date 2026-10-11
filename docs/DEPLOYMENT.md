@@ -131,6 +131,7 @@ only `main`. Then add:
 | secret | `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` | from `db:encryption:init` |
 | secret | `GOODSORCERY_WEB_DATABASE_PASSWORD` | the database password |
 | secret | `POSTMARK_API_TOKEN` | the Postmark **server** API token (Servers → your server → API Tokens) |
+| secret | `GOODSORCERY_API_KEY` | optional: a production ingest key for an app that tracks this instance's own errors; unset, the gem sends nothing |
 | variable | `GOODSORCERY_HOST` | the public hostname, e.g. `errors.example.com` |
 | variable | `GOODSORCERY_MAIL_FROM` | optional: the sender, e.g. `Good Sorcery <no-reply@example.com>`; defaults to `no-reply@GOODSORCERY_HOST` |
 | variable | `GOODSORCERY_ENABLE_SIGNUPS` | optional: `1` keeps public sign-up open after the first account; unset or anything else closes it |
