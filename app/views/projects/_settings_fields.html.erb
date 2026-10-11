@@ -7,6 +7,12 @@
 </div>
 
 <div>
+  <%= form.label :default_environment, "Default environment", class: "label" %>
+  <%= form.select :default_environment, project.environments, { include_blank: "All environments" }, class: "field max-w-[16rem]" %>
+  <p class="hint">The issue list opens on this environment. Each person's last pick in the list's environment switch wins over it.</p>
+</div>
+
+<div>
   <%= form.label :scrub_fields, "Extra scrubbed fields", class: "label" %>
   <%= form.text_field :scrub_fields, value: project.scrub_fields.join(", "), class: "field font-mono",
         placeholder: "loyalty_number, passport", autocomplete: "off" %>

@@ -164,6 +164,33 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 30, project.retention_days
   end
 
+  test "the general settings pick a default environment from the app's environments, or all" do
+    get edit_project_path(projects(:storefront))
+
+    assert_select "select[name=?]", "project[default_environment]" do
+      assert_select "option[value='']", "All environments"
+      assert_select "option[value=production]", "production"
+      assert_select "option[value=staging]", "staging"
+    end
+
+    patch project_path(projects(:storefront)), params: { project: { default_environment: "staging" } }
+    assert_redirected_to edit_project_path(projects(:storefront))
+    assert_equal "staging", projects(:storefront).reload.default_environment
+
+    patch project_path(projects(:storefront)), params: { project: { default_environment: "" } }
+    assert_nil projects(:storefront).reload.default_environment
+  end
+
+  test "an environment the app has no key for is rejected as the default" do
+    projects(:storefront).update_columns(default_environment: "production")
+
+    patch project_path(projects(:storefront)), params: { project: { default_environment: "qa" } }
+
+    assert_response :unprocessable_entity
+    assert_select "[role=alert]", text: /Default environment must be one of this app's environments/
+    assert_equal "production", projects(:storefront).reload.default_environment
+  end
+
   test "update with invalid values re-renders with the saved name in the breadcrumb" do
     patch project_path(projects(:storefront)), params: { project: { name: "", retention_days: "999" } }
 
@@ -182,6 +209,10 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     patch project_path(projects(:storefront)), params: { project: { name: "pwned" } }
     assert_response :not_found
     assert_equal "storefront", projects(:storefront).reload.name
+
+    patch project_path(projects(:storefront)), params: { project: { default_environment: "staging" } }
+    assert_response :not_found
+    assert_nil projects(:storefront).reload.default_environment
   end
 
   test "outsiders only see their own projects" do

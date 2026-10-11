@@ -46,7 +46,7 @@ class ProjectsController < ApplicationController
 
     # scrub_fields arrives as a comma separated list.
     def project_params
-      params.expect(project: %i[name platform issue_prefix scrub_fields retention_days]).tap do |attributes|
+      params.expect(project: %i[name platform issue_prefix scrub_fields retention_days default_environment]).tap do |attributes|
         attributes[:scrub_fields] = attributes[:scrub_fields].to_s.split(",") if attributes.key?(:scrub_fields)
       end
     end

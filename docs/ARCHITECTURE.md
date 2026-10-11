@@ -100,6 +100,7 @@ Indexes: unique `[account_id, user_id]`, `[user_id]`.
 | scrub_fields | string, array | false | `[]` | extra server-side scrub keys |
 | retention_days | integer | false | 90 | 1..365 |
 | first_event_at | datetime | true | | nil means "Listening…" |
+| default_environment | string | true | | the environment the issue list opens on; nil means all environments. Must be one of `environments` (validated, normalised to lowercase, blank → nil). Set to `"production"` once at creation when the new app has a production key (always, given the default keys); later nil is a deliberate "All environments" and is kept. Migration `20261010000003` backfilled `"production"` for apps with a production key |
 | timestamps | | | | |
 Indexes: unique `[account_id, slug]`.
 
@@ -255,7 +256,7 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
 - **Signup** (ActiveModel PORO): attributes `account_name, name, email_address, password, time_zone`. `#save` creates the account, user and owner membership in one transaction and returns the user, or false with errors.
 - **Project**:
   - `belongs_to :account`; `has_many :api_keys, :issues, :occurrences, :inbound_events, :project_hourly_counts`.
-  - `to_param` returns `slug`. Callbacks `before_validation` set slug, issue_prefix and color on create. `after_create :create_default_api_keys` creates `production` and `staging` keys with `created_by: Current.user`.
+  - `to_param` returns `slug`. Callbacks `before_validation` set slug, issue_prefix and color on create. `after_create :create_default_api_keys` creates `production` and `staging` keys with `created_by: Current.user`, then sets `default_environment` to `"production"` when it is still nil and a production key exists.
   - `#accessible_by?(user)` delegates to account. `#listening?` is `first_event_at.nil?`. `#environments` returns the api_keys environments in id order.
   - `#allocate_issue_number` runs `UPDATE projects SET issues_sequence = issues_sequence + 1 WHERE id = $1 RETURNING issues_sequence`. `#record_first_event(runtime_label:, at:)` runs `UPDATE … SET first_event_at = COALESCE(first_event_at, :at), runtime_label = :label`.
   - `#unresolved_count`.
@@ -657,7 +658,7 @@ Shared (slice A):
 | `Api::V1::EventsController` | C | create | §2.1 |
 | `Api::V1::Events::BatchesController` | C | create | §2.1.1 |
 | `Api::V1::VerificationsController` | C | show | §2.1.2 |
-| `ProjectsController` | D | index, new, create, edit, update | index = overview; create → `redirect_to project_setup_path`; edit/update = Settings › General (name, platform, issue_prefix, scrub_fields as comma list, retention_days) |
+| `ProjectsController` | D | index, new, create, edit, update | index = overview; create → `redirect_to project_setup_path`; edit/update = Settings › General (name, platform, issue_prefix, scrub_fields as comma list, retention_days, default_environment: a select of "All environments" (blank) plus `project.environments`) |
 | `Projects::SetupsController` | D | show | Setup & API keys page |
 | `Projects::CardsController` | D | show | live frame `dom_id(project, :card)` |
 | `Projects::ListeningsController` | D | show | live frame `dom_id(project, :listening)` |

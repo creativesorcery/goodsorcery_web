@@ -3,6 +3,7 @@ class Project < ApplicationRecord
 
   COLORS = %w[iris coral lilac mint].freeze
   DEFAULT_ENVIRONMENTS = %w[production staging].freeze
+  PRODUCTION = "production".freeze
   MAX_PER_ACCOUNT = 100
   UNRESOLVED_COUNT_TTL = 10.seconds
 
@@ -21,11 +22,13 @@ class Project < ApplicationRecord
   normalizes :name, with: ->(name) { name.squish }
   normalizes :issue_prefix, with: ->(prefix) { prefix.strip.upcase }
   normalizes :scrub_fields, with: ->(fields) { Array(fields).map { |f| f.to_s.strip.downcase }.compact_blank.uniq.first(50) }
+  normalizes :default_environment, with: ->(environment) { environment.strip.downcase.presence }
 
   validates :name, presence: true, length: { maximum: 60 }
   validates :slug, presence: true, uniqueness: { scope: :account_id }
   validates :issue_prefix, format: { with: /\A[A-Z]{1,6}\z/ }, uniqueness: { scope: :account_id }
   validates :retention_days, numericality: { only_integer: true, in: 1..365 }
+  validates :default_environment, inclusion: { in: :environments, message: "must be one of this app's environments" }, allow_nil: true
   validate :account_has_room, on: :create
 
   before_validation :assign_defaults, on: :create
@@ -94,5 +97,13 @@ class Project < ApplicationRecord
 
     def create_default_api_keys
       DEFAULT_ENVIRONMENTS.each { |environment| api_keys.create!(environment:, created_by: Current.user) }
+      start_on_production
+    end
+
+    # A new app's issue list opens on production when it has a production
+    # key once created. Only at creation: later, nil is someone's choice of
+    # "All environments" and is kept.
+    def start_on_production
+      update_column(:default_environment, PRODUCTION) if default_environment.nil? && api_keys.exists?(environment: PRODUCTION)
     end
 end

@@ -20,6 +20,32 @@ class ProjectTest < ActiveSupport::TestCase
     assert_equal users(:philip), project.api_keys.first.created_by
   end
 
+  test "a new app opens on production, since it is created with a production key" do
+    project = accounts(:acme).projects.create!(name: "Fulfillment Workers")
+
+    assert_equal "production", project.default_environment
+    assert_equal "production", project.reload.default_environment
+  end
+
+  test "default environment is one of the app's environments, or nil for all" do
+    project = projects(:storefront)
+
+    project.default_environment = "staging"
+    assert project.valid?
+
+    project.default_environment = " "
+    assert project.valid?
+    assert_nil project.default_environment
+
+    project.default_environment = "Production"
+    assert project.valid?
+    assert_equal "production", project.default_environment
+
+    project.default_environment = "qa"
+    assert_not project.valid?
+    assert_includes project.errors[:default_environment], "must be one of this app's environments"
+  end
+
   test "slug collisions within an account get a numeric suffix" do
     first = accounts(:acme).projects.create!(name: "storefront")
     second = accounts(:acme).projects.create!(name: "Storefront!")
