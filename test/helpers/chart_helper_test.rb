@@ -21,6 +21,27 @@ class ChartHelperTest < ActionView::TestCase
     assert_equal "M0,2 L120,2", parse(sparkline_svg([ 7 ], color: ChartHelper::IRIS)).css("path")[1]["d"]
   end
 
+  test "stacked sparkline stacks each layer on the ones below, scaled to the largest total" do
+    svg = parse(stacked_sparkline_svg([ { values: [ 0, 5, 10 ], color: ChartHelper::CORAL },
+                                        { values: [ 0, 5, 0 ], color: ChartHelper::LILAC } ]))
+
+    bottom_area, bottom_line, top_area, top_line = svg.css("path")
+    assert_equal "M0,26 L60,14 L120,2 L120,28 L0,28 Z", bottom_area["d"]
+    assert_equal [ ChartHelper::CORAL, "M0,26 L60,14 L120,2" ], [ bottom_line["stroke"], bottom_line["d"] ]
+    assert_equal "M0,26 L60,2 L120,2 L120,2 L60,14 L0,26 Z", top_area["d"]
+    assert_equal [ ChartHelper::LILAC, "M0,26 L60,2 L120,2" ], [ top_line["stroke"], top_line["d"] ]
+    dot = svg.at_css("circle")
+    assert_equal [ "120", "2", ChartHelper::LILAC ], [ dot["cx"], dot["cy"], dot["fill"] ]
+    assert_equal "true", svg["aria-hidden"]
+  end
+
+  test "a one-layer stacked sparkline is a plain area in that colour" do
+    svg = parse(stacked_sparkline_svg([ { values: [ 0, 0, 0 ], color: ChartHelper::IRIS } ], width: 140, height: 44))
+
+    assert_equal 2, svg.css("path").size
+    assert_equal "M0,42 L70,42 L140,42", svg.css("path")[1]["d"]
+  end
+
   test "fluid charts stretch to their container" do
     svg = parse(sparkline_svg([ 1, 2 ], color: ChartHelper::MINT, width: 140, height: 44, fluid: true))
 
@@ -76,7 +97,8 @@ class ChartHelperTest < ActionView::TestCase
 
   test "charts never use inline styles" do
     output = [ sparkline_svg([ 1 ], color: ChartHelper::IRIS), histogram_svg([ 1 ], color: ChartHelper::IRIS),
-               stacked_bar_svg([ { share: 1, color: ChartHelper::MINT } ]), meter_svg(0.5) ].join
+               stacked_bar_svg([ { share: 1, color: ChartHelper::MINT } ]), meter_svg(0.5),
+               stacked_sparkline_svg([ { values: [ 1, 2 ], color: ChartHelper::CORAL } ]) ].join
 
     assert_no_match(/style=/, output)
   end

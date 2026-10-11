@@ -39,6 +39,21 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "cards split unresolved counts and the sparkline by environment colour" do
+    get projects_path
+
+    assert_select "turbo-frame##{dom_id(projects(:storefront), :card)}" do
+      assert_select "div[title='Unresolved issues per environment']" do
+        assert_select "span.text-coral-300", text: "3 production"
+        assert_select "span.text-lilac-300", text: "1 staging"
+      end
+      assert_select "span[title='Events per day by environment, last 14 days'] svg" do
+        assert_select "path[stroke=?]", ChartHelper::CORAL, count: 1
+        assert_select "path[stroke=?]", ChartHelper::LILAC, count: 1
+      end
+    end
+  end
+
   test "a project waiting for its first event links to setup and is listening" do
     get projects_path
 

@@ -38,6 +38,30 @@ class ProjectOverviewTest < ActiveSupport::TestCase
     assert_equal [], card_for(:billing).environments
   end
 
+  test "unresolved issues are broken down per environment, production first" do
+    issues(:card_error).update_columns(environments: %w[staging])
+
+    assert_equal [ [ "production", 2 ], [ "staging", 2 ] ], card_for(:storefront).unresolved_by_environment
+    assert_equal [ [ "production", 1 ] ], card_for(:billing).unresolved_by_environment
+    assert_equal [], card_for(:marketing).unresolved_by_environment
+  end
+
+  test "environments outside the key list follow by name, production-like ones lead" do
+    issues(:nomethod).update_columns(environments: %w[qa])
+    issues(:card_error).update_columns(environments: %w[live])
+
+    assert_equal %w[production live staging qa], card_for(:storefront).unresolved_by_environment.map(&:first)
+  end
+
+  test "daily series are kept per environment and summed for the total" do
+    card = card_for(:storefront)
+
+    assert_equal %w[production staging], card.series_by_environment.map(&:first)
+    assert_equal card.series_by_environment.map(&:last).transpose.map(&:sum), card.daily_series
+    assert_equal 6, card.series_by_environment.to_h.fetch("staging").last
+    assert_equal [], card_for(:marketing).series_by_environment
+  end
+
   test "daily series has fourteen zero-filled days" do
     assert_equal 14, card_for(:storefront).daily_series.size
     assert_equal Array.new(14, 0), card_for(:marketing).daily_series
@@ -52,9 +76,20 @@ class ProjectOverviewTest < ActiveSupport::TestCase
   test "uses a fixed number of queries however many projects there are" do
     few = count_queries { ProjectOverview.new(@projects.first(1)).cards }
     many = count_queries { ProjectOverview.new(@projects).cards }
+    more = accounts(:acme).projects.create!(name: "Extra app")
+    issues(:nomethod).dup.tap { |issue| issue.assign_attributes(project: more, number: 1, environments: %w[staging]) }.save!
+    most = count_queries { ProjectOverview.new(@projects + [ more ]).cards.each(&:unresolved_by_environment) }
 
     assert_equal few, many
+    assert_equal many, most
     assert_operator many, :<=, 6
+  end
+
+  test "per-environment counts and series come from one grouped query each" do
+    sql = capture_sql { ProjectOverview.new(@projects).cards }
+
+    assert_equal 1, sql.grep(/unnest\(issues\.environments\)/).size
+    assert_equal 1, sql.grep(/FROM "project_hourly_counts".*GROUP BY "project_hourly_counts"\."project_id", "project_hourly_counts"\."environment"/).size
   end
 
   test "never loads encrypted api key tokens" do
@@ -78,6 +113,13 @@ class ProjectOverviewTest < ActiveSupport::TestCase
 
     assert_equal ProjectOverview.new(@projects, now:).card_for(projects(:billing)).cache_key,
       ProjectOverview.new(@projects, now:).card_for(projects(:billing)).cache_key
+  end
+
+  test "cache key changes when an issue reaches another environment" do
+    before = card_for(:storefront).cache_key
+    issues(:card_error).update_columns(environments: %w[production staging])
+
+    assert_not_equal before, card_for(:storefront).cache_key
   end
 
   test "cache key holds no issue text" do

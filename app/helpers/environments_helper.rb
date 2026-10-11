@@ -28,7 +28,12 @@ module EnvironmentsHelper
 
   # The bare name in its tone, for running text such as "12:04 · staging · v42".
   def environment_text(name)
-    tag.span name, class: TEXT_TONES.fetch(environment_tone(name))
+    tag.span name, class: environment_text_classes(name)
+  end
+
+  # The text colour class alone, for a span holding more than the name.
+  def environment_text_classes(name)
+    TEXT_TONES.fetch(environment_tone(name))
   end
 
   # Border, background and text classes for a full-width strip in the tone.

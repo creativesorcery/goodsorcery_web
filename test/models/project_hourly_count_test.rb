@@ -3,14 +3,18 @@ require "test_helper"
 class ProjectHourlyCountTest < ActiveSupport::TestCase
   setup { @ids = projects(:storefront, :billing, :marketing).map(&:id) }
 
-  test "daily series for many projects in one query" do
+  test "daily series per environment for many projects in one query" do
     result = nil
-    assert_queries_count(1) { result = ProjectHourlyCount.daily_series(@ids) }
+    assert_queries_count(1) { result = ProjectHourlyCount.daily_series_by_environment(@ids) }
 
-    assert_equal 14, result[projects(:storefront).id].size
-    assert_equal [ 0 ] * 14, result[projects(:marketing).id]
-    today = ProjectHourlyCount.where(project: projects(:storefront), hour: Time.current.utc.beginning_of_day..).sum(:count)
-    assert_equal today, result[projects(:storefront).id].last
+    storefront = result[projects(:storefront).id]
+    assert_equal %w[production staging], storefront.keys.sort
+    assert_equal [ 14, 14 ], storefront.values.map(&:size)
+    assert_equal({}, result[projects(:marketing).id])
+    today = (Time.current.utc.beginning_of_day..)
+    assert_equal ProjectHourlyCount.where(project: projects(:storefront), environment: "production", hour: today).sum(:count),
+      storefront["production"].last
+    assert_equal [ 0 ] * 13 + [ 6 ], storefront["staging"]
   end
 
   test "hourly totals sum environments" do

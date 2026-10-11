@@ -4,9 +4,18 @@ class ProjectHourlyCount < ApplicationRecord
   scope :in_environment, ->(environment) { environment.present? ? where(environment:) : all }
 
   class << self
-    # { project_id => [count] * days } of UTC days, oldest first, in one query.
-    def daily_series(project_ids, days: 14)
-      grouped_series(project_ids, step: 1.day, buckets: days)
+    # { project_id => { environment => [count] * days } } of UTC days, oldest
+    # first, in one query. Only environments with events in the window appear.
+    def daily_series_by_environment(project_ids, days: 14)
+      from = TimeSeries.window_start(1.day, days)
+      counts = where(project_id: project_ids, hour: from..)
+        .group(:project_id, :environment, TimeSeries.bucket_sql(1.day)).sum(:count)
+      by_environment = counts.group_by { |(id, environment, _), _| [ id, environment ] }
+      result = project_ids.index_with { {} }
+      by_environment.each do |(id, environment), rows|
+        result[id][environment] = TimeSeries.new(rows.to_h { |(*, time), n| [ time, n ] }, from:, step: 1.day, buckets: days).values
+      end
+      result
     end
 
     # { project_id => [count] * hours }, oldest first, in one query.

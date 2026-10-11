@@ -297,7 +297,7 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
   - `.histograms(issue_ids, hours: 24)` returns `{ issue_id => [Integer] * hours }` in one grouped query, zero-filled via `TimeSeries`.
   - `.series(issue, period)` takes period `"24h"` (24 hourly buckets), `"7d"` (28 six-hour buckets) or `"30d"` (30 daily buckets, the viewer's local days via `DATE((hour AT TIME ZONE 'UTC') AT TIME ZONE zone)`) and returns `[[bucket_start, count], …]`. One query using `date_bin`/`date_trunc`.
 - **ProjectHourlyCount**:
-  - `.daily_series(project_ids, days: 14)` returns `{ project_id => [Integer]*14 }`.
+  - `.daily_series_by_environment(project_ids, days: 14)` returns `{ project_id => { environment => [Integer]*14 } }` of UTC days in one query grouped by project, environment and day (the `[project_id, environment, hour]` primary key). Only environments with events in the window appear; a project with none maps to `{}`.
   - `.hourly_totals(project_ids, hours: 24)` returns `{ project_id => [Integer]*24 }`.
   - `.total(project, from:, to:, environment: nil)`.
   - `.series(project, from:, buckets:, environment: nil)` serves the summary sparkline.
@@ -908,13 +908,14 @@ Other rules:
 - `IconHelper`: `icon(name, classes: "w-[17px] h-[17px]")` covers projects, issues, alerts, uptime, settings, book, search, filter, chevron_updown, check, plus.
 - `ChartHelper` (pure SVG built with `tag`, numbers formatted to 1 dp, each bar has a `<title>`):
   - `sparkline_svg(values, color:, width: 120, height: 28, fluid: false)`: area at 0.18 opacity, 2px line and an end dot. The geometry matches `theme.js`.
+  - `stacked_sparkline_svg(layers, width: 120, height: 28)`: `layers` is `[{ values:, color: }]`, bottom first. Each layer is an area (0.22 opacity) between its running total and the layer below (the chart floor for the first), with a 1.5px line along its top, all scaled to the largest total; one end dot on the total in the top layer's colour. Same point geometry as `sparkline_svg`.
   - `histogram_svg(values, color:, width: 150, height: 30, highlight_last: false, fluid: false, titles: nil)`: bars at opacity 0.8, with the last bar at 1.0 when highlighted, minimum height 1.5.
   - `stacked_bar_svg(segments, height: 8)`: `segments` is `[{ share:, color:, opacity: }]` with 1px gaps and rounded ends.
   - `meter_svg(fraction, height: 6)`.
   - Colour constants: `CORAL "#ef6f7c"`, `IRIS "#8f94ee"`, `IRIS_SOFT "#b7baf3"`, `IRIS_DEEP "#6f75e0"`, `LILAC "#b39cf2"`, `MINT "#5cc29a"`, `PAPER "#b5b1a7"`.
 - `ChipHelper`: `chip(text, tone: :neutral, dot: false, mono: false)`, where `dot` adds a `coral-dot`.
 - **Environment colours.** `EnvironmentTone` (model, `app/models/environment_tone.rb`) maps an environment name, case-insensitively, to a tone: `production|prod|live` → `:coral`, `staging|stage|preview|qa|uat` → `:lilac`, `development|dev|test|local` → `:muted`, anything else → `:iris`. `EnvironmentTone.production?(name)` means "coral". It is plain Ruby with no view code, so models and ingest can use it too. `EnvironmentsHelper` draws names in their tone and is the only place views pick environment colours:
-  - `environment_chip(name, small: false)` (the chip tones above), `environment_dot(name)` (a 2×2 swatch, `aria-hidden`), `environment_text(name)` (the name in the tone's text colour, for running text), `environment_bar_classes(name)` (border/background/text for a full-width strip) and `environment_color(name)` (hex for SVG charts: CORAL, LILAC, PAPER, IRIS).
+  - `environment_chip(name, small: false)` (the chip tones above), `environment_dot(name)` (a 2×2 swatch, `aria-hidden`), `environment_text(name)` (the name in the tone's text colour, for running text), `environment_text_classes(name)` (that text colour class alone), `environment_bar_classes(name)` (border/background/text for a full-width strip) and `environment_color(name)` (hex for SVG charts: CORAL, LILAC, PAPER, IRIS).
   - Used everywhere an environment is shown: issue hero chips, issue rows, project cards, the occurrence navigator line, the Filters menu entries and `env:` query chips, the environment switch and scope bar on the issues page, the issues eyebrow, the project switcher subtitle and the API key rows on the setup page (a swatch before the label).
 - `TimeHelper`:
   - `time_ago_compact(time)` gives "just now", "2 min ago", "3h ago", "12d ago", "9mo ago" or "1y ago".
@@ -933,14 +934,16 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
 - **Projects overview (D)**:
   - Header: eyebrow with the account name, then "Projects — N" and an "Add a new app" `btn-primary`.
   - A 3-column grid of `_card` partials, followed by the dashed "Add a new app" tile ("One gem, one key, two minutes.").
-  - Each card shows the tile, name, `runtime_label || platform label`, a status chip, the unresolved count, "unresolved · N new" (coral when > 0), a 14-day sparkline (`ProjectHourlyCount.daily_series`), environment chips (`project.environments`) and "last error X ago".
+  - Each card shows the tile, name, `runtime_label || platform label`, a status chip, the unresolved count, "unresolved · N new" (coral when > 0), the per-environment split, a 14-day sparkline, environment chips (`project.environments`) and "last error X ago".
+  - **Per-environment split:** under the caption, "● 9 production · ● 3 staging" (`ProjectsHelper#project_environment_breakdown`), each entry with its `environment_dot` and in its tone's text colour, from `Card#unresolved_by_environment` (environments with unresolved issues only). An issue seen in several environments counts in each, so the parts can add up to more than the total. Hidden when nothing is unresolved.
+  - **Sparkline:** `stacked_sparkline_svg` of `Card#series_by_environment` (events per UTC day per environment), each layer in `environment_color`. Order, for the split and the stack alike (`Card#in_display_order`): production-tone environments first (so production is the bottom layer), then the project's key order, then other names alphabetically. A project with no events in the 14 days falls back to the flat `sparkline_svg` in the health colour.
   - **Status (`ProjectHealth`, D):**
     - "Listening…" when `listening?` (the card links to setup and shows the ping dot)
     - "✦ All clear" (mint) when 0 unresolved, with the subtitle "N days clean"
     - "Spiking" (coral and dot) when last-hour events are ≥ 10 and ≥ 3× the average hourly count of the previous 23 hours. Last-hour events are the trailing 60 minutes: the current clock hour plus the unelapsed share of the previous one. The summary strip's events use the same trailing-window estimate for every period, so "1h" early in an hour is not just a few minutes.
     - otherwise "Steady" (iris)
-  - Sparkline colour is coral when spiking, mint when all clear, and IRIS otherwise.
-  - `ProjectOverview` (D) runs a fixed number of grouped queries for all cards: unresolved counts, new counts, last seen, daily series and hourly totals.
+  - The fallback sparkline's colour is coral when spiking, mint when all clear, and IRIS otherwise.
+  - `ProjectOverview` (D) runs six grouped queries for all cards, however many there are: unresolved and new counts together (`COUNT(*)` plus `COUNT(*) FILTER (WHERE first_seen_at >= now − 24h)` grouped by project), unresolved counts per environment (`CROSS JOIN LATERAL unnest(issues.environments)` grouped by project and environment), last seen, environments (key names only), daily series per environment and hourly totals. `Card#daily_series` is the per-environment series summed. The card fragment cache key (`Card#cache_key`) includes the split and the per-environment series, so it changes whenever either does.
   - **Recent feed (`RecentFeed`, D):** issues seen in the last hour across the account (8 newest, `includes(:project)`), merged with `resolved` activities from the last hour (4 newest). The dot is coral-pulsing for new, lilac for regressed, solid coral otherwise, and mint for resolved.
 - **Issue list (E)**:
   - Heading: eyebrow "project · env-chip-or-all environments", then "Issues — N unresolved" and the period `segmented` control (1h/24h/7d/30d, which drives **only** the summary strip).

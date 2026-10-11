@@ -22,10 +22,25 @@ module ProjectsHelper
     chip label, tone:, dot: health.spiking?
   end
 
-  # Coral when spiking, mint when all clear, iris otherwise.
+  # Events per day stacked by environment, each in its colour (production at
+  # the bottom). With no events in the window, a flat line in the health colour.
   def project_sparkline(card)
-    sparkline_svg card.daily_series, color: project_sparkline_color(card.health), width: 140, height: 44
+    layers = card.series_by_environment.map { |name, values| { values:, color: environment_color(name) } }
+    return sparkline_svg(card.daily_series, color: project_sparkline_color(card.health), width: 140, height: 44) if layers.empty?
+
+    stacked_sparkline_svg layers, width: 140, height: 44
   end
+
+  # "9 production · 3 staging", each count and name in its environment's colour.
+  def project_environment_breakdown(card)
+    parts = card.unresolved_by_environment.map do |name, count|
+      tag.span safe_join([ environment_dot(name), "#{delimited(count)} #{name}" ], " "),
+        class: "inline-flex items-center gap-1 #{environment_text_classes(name)}"
+    end
+    safe_join parts, tag.span("·", class: "text-paper-500") if parts.any?
+  end
+
+  # Coral when spiking, mint when all clear, iris otherwise.
 
   def project_sparkline_color(health)
     return ChartHelper::CORAL if health.spiking?
