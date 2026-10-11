@@ -8,4 +8,4 @@ To keep your inbox usable, Good Sorcery sends at most <%= AlertDelivery::HOURLY_
 <%= raw project.name %>: <%= alert_summary_line(@counts.fetch(project.id.to_s)) %>
 <% end -%>
 
-<%= @projects.one? ? project_issues_url(@projects.first) : projects_url %>
+<%= @open_url %>

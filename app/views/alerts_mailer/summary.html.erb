@@ -10,8 +10,8 @@
 
 <%= email_details(@projects.map { |project| [ project.name, alert_summary_line(@counts.fetch(project.id.to_s)) ] }) %>
 
-<% if @projects.one? %>
-  <%= email_button "Open #{@projects.first.name}", project_issues_url(@projects.first) %>
-<% else %>
-  <%= email_button "Open Good Sorcery", projects_url %>
-<% end %>
+<%= email_button(@projects.one? ? "Open #{@projects.first.name}" : "Open Good Sorcery", @open_url) %>
+
+<%= email_divider %>
+
+<%= email_link_fallback @open_url %>

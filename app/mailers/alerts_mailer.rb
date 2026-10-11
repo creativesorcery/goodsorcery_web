@@ -41,6 +41,7 @@ class AlertsMailer < ApplicationMailer
 
     @counts = counts.slice(*@projects.map { |project| project.id.to_s })
     @total = @counts.values.sum { |by_kind| by_kind.values.sum }
+    @open_url = @projects.one? ? project_issues_url(@projects.first) : projects_url
     allow_unsubscribe(@projects.first, "alerts") if @projects.one?
     mail_in_zone "And #{@total} more #{'alert'.pluralize(@total)} from Good Sorcery"
   end

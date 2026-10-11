@@ -22,7 +22,7 @@ module MailerHelper
     title: "margin: 0 0 20px; font-size: 17px; line-height: 1.45; font-weight: 600; color: #{EMAIL_COLORS[:heading]}; " \
            "word-break: break-word;",
     title_link: "color: #{EMAIL_COLORS[:heading]}; text-decoration: none;",
-    detail_label: "padding: 6px 16px 6px 0; vertical-align: top; white-space: nowrap; font-size: 13px; color: #{EMAIL_COLORS[:muted]};",
+    detail_label: "width: 110px; padding: 6px 16px 6px 0; vertical-align: top; white-space: nowrap; font-size: 13px; color: #{EMAIL_COLORS[:muted]};",
     detail_value: "padding: 6px 0; vertical-align: top; font-size: 13px; line-height: 1.5; color: #{EMAIL_COLORS[:text]}; " \
                   "word-break: break-word;",
     pill: "display: inline-block; padding: 2px 9px; margin: 0 4px 2px 0; border-radius: 999px; font-size: 12px; " \

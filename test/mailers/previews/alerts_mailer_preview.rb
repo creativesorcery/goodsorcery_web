@@ -1,7 +1,17 @@
+require "active_support/testing/time_helpers"
+
 # Preview all emails at http://localhost:3000/rails/mailers/alerts_mailer
 # (needs the demo data: bin/rails db:seed). Each preview uses an unresolved
-# issue and a verified member, or the mailer sends nothing.
+# issue inside its app's alert environments and a verified member, or the
+# mailer sends nothing.
+#
+# Demo data ages, so each email is rendered as if it were a minute after the
+# issue was last seen: the digest then has its issue in the last 24 hours and
+# "Last hour" isn't always 0. (travel_to stubs the clock process-wide while it
+# renders; previews only run in development.)
 class AlertsMailerPreview < ActionMailer::Preview
+  include ActiveSupport::Testing::TimeHelpers
+
   def new_issue = issue_alert("new_issue")
 
   def regression = issue_alert("regression")
@@ -11,8 +21,8 @@ class AlertsMailerPreview < ActionMailer::Preview
   def still_happening = issue_alert("still_happening")
 
   def digest
-    issue = Issue.unresolved.order(last_seen_at: :desc).first
-    AlertsMailer.digest(recipient(issue.project), issue.project)
+    issue = alertable_issue
+    just_after(issue) { AlertsMailer.digest(recipient(issue.project), issue.project) }
   end
 
   def summary
@@ -23,8 +33,18 @@ class AlertsMailerPreview < ActionMailer::Preview
 
   private
     def issue_alert(kind)
-      issue = Issue.unresolved.order(last_seen_at: :desc).first
-      AlertsMailer.issue_alert(recipient(issue.project), issue, kind)
+      issue = alertable_issue
+      just_after(issue) { AlertsMailer.issue_alert(recipient(issue.project), issue, kind) }
+    end
+
+    def alertable_issue
+      Issue.unresolved.includes(:project).order(last_seen_at: :desc).limit(50)
+        .find { |issue| issue.project.alerts_cover?(issue.environments) }
+    end
+
+    # Builds the message inside the block, while the clock is moved.
+    def just_after(issue)
+      travel_to(issue.last_seen_at + 1.minute) { yield.message }
     end
 
     def recipient(project)

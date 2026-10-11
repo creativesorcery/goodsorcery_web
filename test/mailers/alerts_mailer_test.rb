@@ -135,6 +135,8 @@ class AlertsMailerTest < ActionMailer::TestCase
     assert_includes text, "billing-api: Still happening: 2"
     assert_nil mail["List-Unsubscribe"], "covers more than one app"
     assert_includes mail.html_part.body.to_s, "And 6 more alerts"
+    assert_includes mail.html_part.body.to_s, "paste this link into your browser"
+    assert_match %r{^http\S+/projects$}, text
   end
 
   test "the summary of one app can mute it, and never shows another account's apps" do
