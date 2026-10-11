@@ -22,6 +22,14 @@ class EmailVerificationsControllerTest < ActionDispatch::IntegrationTest
     assert @user.reload.email_verified?
   end
 
+  test "show works in an old mobile browser (mail apps open links in any browser)" do
+    get email_verification_path(token: @user.email_verification_token),
+        headers: { "User-Agent" => "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) Version/16.6 Mobile/15E148 Safari/604.1" }
+
+    assert_redirected_to new_session_path
+    assert @user.reload.email_verified?
+  end
+
   test "show rejects an invalid or expired token" do
     token = @user.email_verification_token
     travel User::EmailVerification::EXPIRES_IN + 1.minute

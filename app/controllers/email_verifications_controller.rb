@@ -1,5 +1,6 @@
 # Confirms a user's email address from the link in the verification email
-# (show), and sends a fresh link from the dashboard banner (create).
+# (show), and sends a fresh link from the dashboard banner (create). The
+# link opens in whatever browser the mail app uses, so any browser may open it.
 class EmailVerificationsController < ApplicationController
   allow_unauthenticated_access only: :show
   rate_limit to: 3, within: 10.minutes, only: :create, name: "resend", by: -> { Current.user.id },
@@ -20,6 +21,8 @@ class EmailVerificationsController < ApplicationController
   end
 
   private
+    def any_browser_allowed? = action_name == "show"
+
     def after_verification_path
       authenticated? ? root_path : new_session_path
     end

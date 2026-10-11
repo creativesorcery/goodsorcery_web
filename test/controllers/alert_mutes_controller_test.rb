@@ -1,6 +1,9 @@
 require "test_helper"
 
 class AlertMutesControllerTest < ActionDispatch::IntegrationTest
+  OLD_SAFARI = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 " \
+               "(KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1".freeze
+
   setup do
     @user = users(:philip)
     @project = projects(:storefront)
@@ -64,7 +67,7 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
     travel AlertMute::EXPIRES_IN + 1.minute do
       get alert_mute_path(token: @token)
       assert_response :not_found
-      assert_select "h1", "This link has expired"
+      assert_select "h1", "This link no longer works"
 
       post alert_mute_path, params: { token: @token }
       assert_response :not_found
@@ -94,6 +97,23 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
     assert_equal 1, NotificationPreference.count
+  end
+
+  test "an old mobile browser can still confirm and mute (no modern-browser gate)" do
+    headers = { "User-Agent" => OLD_SAFARI }
+
+    get alert_mute_path(token: @token), headers: headers
+    assert_response :success
+
+    post alert_mute_path, params: { token: @token }, headers: headers
+    assert_response :success
+    assert_not memberships(:philip_acme).reload.receives_alerts?(@project)
+  end
+
+  test "the dashboard still turns old browsers away" do
+    get new_session_path, headers: { "User-Agent" => OLD_SAFARI }
+
+    assert_response :not_acceptable
   end
 
   test "the token is filtered from the request log" do
