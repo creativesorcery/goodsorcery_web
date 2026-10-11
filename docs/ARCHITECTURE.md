@@ -238,13 +238,13 @@ Indexes: unique `[membership_id, project_id]`, `[project_id]`.
 | column | type | null | default | notes |
 |---|---|---|---|---|
 | user_id | references → users, cascade | false | | recipient |
-| project_id | references → projects, cascade | false | | |
+| project_id | references → projects, cascade | false | | for a summary row, the first app it covers |
 | issue_id | references → issues, cascade | true | | nil for digests and summaries |
 | kind | string | false | | `AlertRule::KINDS` plus `summary` |
 | dedupe_key | string | false | | `AlertDelivery.issue_key` / `.digest_key` / `.summary_key` |
 | status | string | false | `"sent"` | `sent` or `folded` (over the hourly cap, awaiting the summary) |
 | summarized_at | datetime | true | | set on folded rows once the summary email covered them |
-| created_at | datetime | false | | no `updated_at` |
+| created_at | datetime | false | | set from the app clock (`Time.current`) by `.record`; no `updated_at`; pruned after 30 days |
 Indexes: unique `[user_id, dedupe_key]` (the race-safe throttle), `[user_id, status, created_at]` (hourly cap, folded lookup), `[issue_id, kind, created_at]` ("alerted recently?", FK cascade), `[project_id]`, `[created_at]` (pruning).
 
 ### 1.4 Active Record Encryption
@@ -344,6 +344,7 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
 - **IssueActivity**: `enum :kind`; `encrypts :body`; `belongs_to :user, :subject_user` (optional). `scope :recent`.
 - **TimeSeries** (PORO): `TimeSeries.new(counts_by_time, from:, step:, buckets:)#values` and `#points`. Zero-fills and aligns buckets.
 - **PrivateDigest** (§1.6).
+- **Alert delivery** (§11.4): `IssueAlert` (`.transitions`, `#due?`, `#deliver`), `StillHappeningCheck` (`#hot_issue_ids`, `#alert_hot_issues`), `DailyDigest` (`.deliver_due`, `#deliver`, `#due_recipients`, `#issues`, `#issue_count`, `#more_count`) and `AlertSummary` (`.deliver_due`, `#deliver`). `IssueHourlyCount.trailing_hour(issue)` and `TRAILING_HOUR_SUM` give the trailing-60-minute estimate.
 
 ---
 
@@ -428,6 +429,7 @@ The two ingest controllers include the `IngestEndpoint` concern, which holds eve
 | `Ingest::Rollups` | hourly, project, tag and user upserts | `#increment` → `new_user?` |
 | `ProcessInboundEventJob` | queue `ingest` | `perform(inbound_event)` → `Ingest::Processor.new(inbound_event).process` |
 | `TrimOccurrencesJob` | keep newest 1,000 per issue | `perform(issue)` |
+| `IssueAlertJob` | queue `alerts`, enqueued after commit for an alert transition (§11.4) | `perform(issue_id, kind, occurrence_id = nil)` → `IssueAlert#deliver` |
 
 ### 2.4 Normalisation, scrubbing and fingerprinting
 
@@ -472,6 +474,7 @@ ApplicationRecord.transaction do
 end
 after commit (only if issue): issue.broadcast_changes_later(created: tally.created?); project.broadcast_changes_later;
                                TrimOccurrencesJob.perform_later(issue) if (issue.events_count % 250).zero?
+                               IssueAlert.transitions(issue, created:).each { IssueAlertJob.perform_later(issue.id, kind, occurrence_id) }  # §11.4
 ```
 
 **Issue creation** (only when the plain `SELECT id FROM issues WHERE project_id = ? AND fingerprint = ?` finds nothing):
@@ -520,14 +523,14 @@ Ignored issues stay ignored. Only `resolved` regresses.
 ### 2.6 Query budget
 
 - **Request:** 1 INSERT (multi-row for a batch), plus at most 1 throttled UPDATE (`last_used_at`), plus cache reads and counter increments, plus one (bulk) enqueue.
-- **Job, existing issue:** inbound + project + select issue + occurrence + 4 upserts + issue UPDATE + delete, about 10 statements. A new issue adds 3 more. A regression, and the one event that takes an issue to production, each add one activity INSERT.
+- **Job, existing issue:** inbound + project + select issue + occurrence + 4 upserts + issue UPDATE + delete, about 10 statements. A new issue adds 3 more. A regression, and the one event that takes an issue to production, each add one activity INSERT. Alert flagging (§11.4) adds no statement: it reads `tally.created?`, `previous_status` and `just_reached_production`, which the counter UPDATE already returned, and only a transition enqueues a job (`test/models/ingest/alert_flags_test.rb` asserts the 12 statements of an ordinary event).
 
 ### 2.7 Maintenance (slice C, `lib/tasks/goodsorcery.rake`)
 
-- `goodsorcery:prune` deletes occurrences older than `project.retention_days` (`in_batches(of: 1_000).delete_all`), `issue_users` rows and `issue_tag_counts` of issues not seen within it, `issue_hourly_counts` / `project_hourly_counts` older than 90 days (one `hour` slice per DELETE, using the `hour` indexes) and inbound events still unprocessed after a day (deleted unread, logged by id). Schedule it daily with cron or a Kamal accessory, as documented in `docs/INGEST_API.md` › Operating.
+- `goodsorcery:prune` deletes occurrences older than `project.retention_days` (`in_batches(of: 1_000).delete_all`), `issue_users` rows and `issue_tag_counts` of issues not seen within it, `issue_hourly_counts` / `project_hourly_counts` older than 90 days (one `hour` slice per DELETE, using the `hour` indexes) inbound events still unprocessed after a day (deleted unread, logged by id) and `alert_deliveries` older than `AlertDelivery::KEPT_FOR` (30 days). Schedule it daily with cron or a Kamal accessory, as documented in `docs/INGEST_API.md` › Operating.
 - `goodsorcery:requeue_stale` re-enqueues `InboundEvent.stale`.
 - `TrimOccurrencesJob` keeps the newest `Occurrence::RETAINED_PER_ISSUE` per issue. The cutoff id is `issue.occurrences.latest_first.offset(1_000).pick(:id)`.
-- `config/sidekiq.yml` queues: `[ingest, 3]`, `[default, 2]`, `[mailers, 1]`.
+- `config/sidekiq.yml` queues: `[ingest, 3]`, `[default, 2]`, `[alerts, 2]` (alert jobs and sweeps, §11.4), `[mailers, 1]`.
 
 ---
 
@@ -1198,7 +1201,7 @@ Never edit a file you don't own. If you need a change in another slice's file, r
 
 ## 11. Email alerts (approved 2026-10-11)
 
-Built in two slices. **Slice A** (data model and UI, this section's §11.1–§11.3) is done. **Slice B** (ingest triggers, jobs, `AlertsMailer`, sidekiq-cron) builds on the model API in §11.2 and documents itself in §11.4.
+Built in two slices. **Slice A** (data model and UI, §11.1–§11.3) and **slice B** (ingest triggers, jobs, `AlertsMailer`, sidekiq-cron, §11.4) are both done.
 
 ### 11.1 Rules, scope and recipients
 
@@ -1225,9 +1228,10 @@ Built in two slices. **Slice A** (data model and UI, this section's §11.1–§1
 - `AlertDelivery` (throttle and audit log; ids, kind and key only):
   - `AlertDelivery.record(user:, project:, kind:, dedupe_key:, issue: nil, status: "sent")` → new id, or nil when the user already has that key (INSERT … ON CONFLICT DO NOTHING on unique `[user_id, dedupe_key]`, so concurrent jobs can't double-send). It skips validations.
   - Keys: `AlertDelivery.issue_key(kind, issue, at:)` — `new_issue:<id>` and `reached_production:<id>` (once per issue), `regression:<id>:<regressed_at epoch>` (once per regression), `still_happening:<id>:<6h window index>`; `AlertDelivery.digest_key(project, local_date)` (once per user, app and local day); `AlertDelivery.summary_key(at)` (one overflow summary per user per clock hour).
-  - Cap: `AlertDelivery::HOURLY_CAP` (20) sent emails per user per hour, `AlertDelivery.sent_in_last_hour(user)` / `.cap_reached?(user)`. Over the cap, record the delivery with `status: "folded"`; the summary email ("and N more alerts") reads `where(user:).awaiting_summary` and sets `summarized_at`.
+  - Cap: `AlertDelivery::HOURLY_CAP` (20) sent instant-alert emails per user per hour (digests and summaries are exempt), `AlertDelivery.sent_in_last_hour(user)` / `.cap_reached?(user)`. `AlertDelivery.claim(user:, project:, kind:, dedupe_key:, issue:)` records one instant alert as `"sent"` under the cap or `"folded"` at it, and returns that status or nil for a used key; the count and the insert run in one transaction under a per-user advisory lock (`pg_advisory_xact_lock(CAP_LOCK, hashint8(user_id))`), so concurrent jobs can't overshoot. The summary email ("and N more alerts", `AlertSummary`) reads `where(user:).awaiting_summary` and sets `summarized_at`.
+  - `created_at` is set from `Time.current` (the app clock the cap and throttle windows are measured with), not the database's `CURRENT_TIMESTAMP`.
   - `AlertDelivery.alerted_recently?(issue, kind, within: AlertDelivery::STILL_HAPPENING_WINDOW)` checks across recipients before any per-user work.
-  - Deliveries can be pruned after a few weeks: every key's window is shorter, and new_issue/reached_production can't fire twice.
+  - Deliveries are pruned after `AlertDelivery::KEPT_FOR` (30 days, `Ingest::Retention#prune_alert_deliveries`): every key's window is shorter, and new_issue/reached_production can't fire twice.
 - Mute links: `user.alert_mute_token(project, stream: "alerts" | "digest")` → `alert_mute_url(token:)` for both `List-Unsubscribe: <…>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`. `AlertMute.find_by_token(token)` returns nil for tampered, expired (`AlertMute::EXPIRES_IN`, 60 days), wrong-purpose or unknown-stream tokens, deleted apps and ex-members; `#apply` turns that stream off for that app only. The token is signed, not encrypted, and carries only the user id, project id and stream.
 
 ### 11.3 Screens
@@ -1238,5 +1242,44 @@ Built in two slices. **Slice A** (data model and UI, this section's §11.1–§1
 
 ### 11.4 Delivery (slice B)
 
-Ingest triggers, the alert jobs and queue, `AlertsMailer` and the sidekiq-cron schedule (`config/schedule.yml`) are documented here by slice B.
+Every alert email is decided in a job, never on the request or in the ingest transaction. Job arguments are integer ids, kind strings and (for the summary) counts; mail jobs get GlobalIDs. Nothing captured goes into Redis, logs or exceptions.
+
+**Flow**
+
+```
+ingest (after commit) ──► IssueAlertJob(issue_id, kind, occurrence_id)  ─┐
+CheckStillHappeningJob (*/5) ──► IssueAlertJob(issue_id, "still_happening") ─┤
+                                                                         ├► IssueAlert#deliver ─► AlertDelivery.claim per recipient ─► AlertsMailer.issue_alert.deliver_later ("sent" only)
+SendDailyDigestsJob (hourly) ──► DailyDigest#deliver ─► AlertDelivery.record(digest_key) ─► AlertsMailer.digest.deliver_later
+SendAlertSummariesJob (hourly, :02) ──► AlertSummary#deliver ─► summary row + folded rows marked ─► AlertsMailer.summary.deliver_later
+```
+
+**Ingest triggers** (`Ingest::Processor#flag_alerts`, after the transaction commits, §2.5). `IssueAlert.transitions(issue, created:)` reads what the counter UPDATE already returned: `new_issue` when `tally.created?`, `regression` when `previous_status == "resolved"`, `reached_production` when `just_reached_production`. Each enqueues one `IssueAlertJob` with the issue id, the kind and the new occurrence's id (the `returning: id` of the occurrence insert). An ordinary event of an existing issue enqueues nothing and runs no extra statement. A resolved staging-only issue that regresses in production flags both rules. Duplicates (rolled back) and ignored issues flag nothing. The issue row lock makes `reached_production` flag exactly once under concurrent events (`concurrent_processing_test.rb`).
+
+**`IssueAlert`** (`app/models/issue_alert.rb`) decides at send time (`#due?`):
+- the app's rule for the kind is on (`project.alert_rule_enabled?`);
+- the issue is still `unresolved` (resolved and ignored issues never alert);
+- the scope covers the triggering occurrence's environment (`project.alerts_cover?([occurrence.environment])`); without an occurrence (still_happening) any of `issue.environments`. So with the default scope (production), a new staging issue doesn't alert, and its first production event alerts as `reached_production`;
+- still_happening only: `AlertDelivery.alerted_recently?(issue, kind)` is false (6 hours, across recipients).
+`#deliver` then claims a delivery per `project.alert_recipients` user (`AlertDelivery.claim` with `issue_key`): `"sent"` → `AlertsMailer.issue_alert(user, issue, kind).deliver_later`; `"folded"` → nothing now (summary); nil (key used) → nothing. Returns the users mailed.
+
+**still_happening sweep** (`StillHappeningCheck`, `CheckStillHappeningJob` every 5 minutes). One query across all apps: unresolved issues joined to their project's enabled `still_happening` rule and their `issue_hourly_counts` of the last two clock hours, `last_seen_at` in that window, grouped by issue and threshold, `HAVING` the trailing-hour estimate `>= alert_rules.threshold`. The estimate (`IssueHourlyCount::TRAILING_HOUR_SUM`, as `ProjectHealth`) is the current hour's count plus the not-yet-elapsed share of the previous hour's; its bind values are cast (`CAST(:previous_share AS double precision)`) because Postgres otherwise infers an integer. Issues alerted in the last 6 hours (one batched `alert_deliveries` query) and issues outside their app's scope are dropped, and the rest are enqueued with one `ActiveJob.perform_all_later`. The 6-hour throttle is the sweep's pre-filter, `IssueAlert#due?` again, and the per-user key (`still_happening:<id>:<6h window>`).
+
+**Daily digest** (`DailyDigest`, `SendDailyDigestsJob` hourly at :00). For each app with the `daily_digest` rule on (`AlertRule.enabled.daily_digest.includes(:project)`), `#due_recipients` is `project.digest_recipients` whose local time (`users.time_zone`) is in the 09:00 hour. Nothing happens unless someone is due and `#issue_count` (unresolved, `last_seen_at` in the last 24 hours, `environments && ARRAY[scope]` unless the scope is all) is positive. Each due user gets `AlertDelivery.record(kind: daily_digest, dedupe_key: digest_key(project, local_date))` and, if it inserted, `AlertsMailer.digest(user, project).deliver_later`. Dedupe per local date makes repeated or late runs within the hour harmless; DST changes move 09:00 between UTC hours but never onto another local date, so each local day gets one digest (tests cover Europe/London across 2026-10-25 and Asia/Kolkata's half-hour offset, where the :00 run lands at 09:30). `#issues` lists up to `LISTED` (10) issues with `recent_events` (sum of `issue_hourly_counts` since the hour containing 24 hours ago), busiest first, in one grouped query; `#more_count` is the rest. Digests don't count towards the cap.
+
+**Hourly cap and summary** (`AlertSummary`, `SendAlertSummariesJob` at :02). Instant alerts over `AlertDelivery::HOURLY_CAP` are recorded `folded` by `AlertDelivery.claim`. After each clock hour, every user with folded rows created before that hour gets one summary: in one transaction, the summary row (`kind: summary`, `summary_key(now)`, `project_id` = the app of the earliest folded row, since the column is required) is recorded first (a nil insert means this hour's summary already went), the folded rows are counted per app and kind, and they're marked `summarized_at`. The mailer gets `{ "project_id" => { "kind" => count } }`. Folded rows from the current hour wait for the next run.
+
+**`AlertsMailer`** (`app/mailers/alerts_mailer.rb`, views in `app/views/alerts_mailer/`, `helper :alert_emails, :number`):
+- `issue_alert(user, issue, kind)`: subject `"<Rule> in <app>: <redacted title>"` (squished, ≤ 100 chars). Body: heading, one-line intro per kind, exception class, redacted title, then details (short id, environments as pills in their `EnvironmentTone`, transaction · culprit, last-hour events vs threshold for still_happening, events and users, first and last seen), an "Open GS-1042" button to `project_issue_url` and the link fallback.
+- `digest(user, project)`: subject `"Daily digest for <app>: N open issues in the last 24 hours"`; one block per listed issue (short id · class, linked title, environment pills, 24h events and last seen), "And N more issues", and a button to the app's issue list.
+- `summary(user, counts)`: subject `"And N more alerts from Good Sorcery"`; one row per app ("New issue: 3 · Regression: 1"), apps limited to the user's accounts.
+- Send-time checks in the mailer itself (it returns without `mail`, so nothing is sent): the issue is unresolved; `project.account.memberships.find_by(user:)` exists and `receives_alerts?` / `receives_digest?` (verified address, stream not switched off); the summary needs a verified user and at least one app of theirs.
+- Times render in the recipient's zone (`Time.use_zone(user.time_zone)` around `mail`), as `"Oct 11, 2026 09:14 BST"`.
+- Headers: `List-Unsubscribe: <alert_mute_url(token: user.alert_mute_token(project, stream:))>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, stream `alerts` for alerts, `digest` for digests; the summary carries them only when it covers one app. The footer repeats the mute link and links to `notifications_url`.
+- Content rule: only the issue's redacted summary columns (`message`, `exception_class`, `transaction_name`, `culprit`), environment names, numbers, times and links. Never occurrence payloads, tag values or user identities (`test/mailers/alerts_mailer_test.rb` asserts the fixture payload's locals, params, headers, user and context are absent from subject, parts and headers). HTML is ERB-escaped; text parts output values with `raw`, per the email template rule.
+- `MailerHelper` gained `email_code`, `email_title`, `email_title_link`, `email_environment(s)` (`EMAIL_TONES`), `email_details` and `email_footer_link`. Previews: `test/mailers/previews/alerts_mailer_preview.rb`.
+
+**Jobs and schedule.** `IssueAlertJob`, `CheckStillHappeningJob`, `SendDailyDigestsJob` and `SendAlertSummariesJob` run on the `alerts` queue (`config/sidekiq.yml` weight 2); the emails go through `mailers`. `config/schedule.yml` (sidekiq-cron, UTC): `check_still_happening` `*/5 * * * *`, `send_daily_digests` `0 * * * *`, `send_alert_summaries` `2 * * * *`.
+
+**Cost.** Per instant alert: the rule, scope and issue checks (2–3 queries), one recipients query, then per recipient a short transaction (advisory lock, cap count on `[user_id, status, created_at]`, insert). The sweep is one grouped query plus one throttle query every 5 minutes. The digest run is one recipients query per app with the rule on, per hour, and two issue queries only when someone is at 09:00.
 
