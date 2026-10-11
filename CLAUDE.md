@@ -33,6 +33,7 @@ v1 scope:
 - **Issue detail:** chart, app-first backtrace, breadcrumbs, the six data tabs (Request, Params, Headers, Session, Job, Environment), tag bars, affected user, occurrence navigator and notes.
 - **Setup/onboarding page.**
 - **Live updates:** pointer broadcasts over Action Cable. They carry ids and paths only; the browser re-fetches with its own session.
+- **Email alerts** (approved 2026-10-11, `docs/ARCHITECTURE.md` §11): per-app rules (new issue, regression, reached production, still happening, daily digest) and environment scope in Settings › Alerts; each member's per-app switches on the Notifications page (user menu); signed one-click mute links; the `alert_deliveries` throttle table.
 
 ## Ruby client gem
 
@@ -42,9 +43,9 @@ The `goodsorcery` gem (module `GoodSorcery`) lives in a sibling checkout, `../go
 
 - Postgres backups (see `docs/DEPLOYMENT.md`).
 - Merge/unmerge, Assign and mute rules.
-- Alerts and Uptime (they show as "soon" in the sidebar), team invites, project deletion and GitHub links.
+- Uptime (shows as "soon" in the sidebar), team invites, project deletion and GitHub links.
 - Geo-IP, code syntax highlighting, dark mode and mobile navigation.
-- Settings pages other than Setup & API keys and General.
+- Settings pages other than Setup & API keys, General and Alerts. A user profile page (name, time zone).
 - Live updates for the tab counts and the sidebar issue badge. A regressed issue isn't inserted into an already open Unresolved list.
 - Closing open cable subscriptions when a membership is revoked. Re-fetches are still authorised.
 - Buffering hot-issue counters in Redis. One extremely noisy issue serialises on its counter rows.
@@ -60,7 +61,8 @@ Read `docs/ARCHITECTURE.md` (the binding blueprint: schema, encryption, ingest p
   - `Api::V1::VerificationsController` (`GET /api/v1/verify`) answers the gem's install check: key valid → `{"ok":true,"environment":…}`, nothing stored, own rate limits.
 - **`app/models/ingest/`:** plain Ruby objects such as `Scrubber`, `MessageRedactor`, `Fingerprint`, `IssueTally`, `Rollups`, `TagRows`, `Retention` and `StaleEvents`. Their method names are descriptive, never `call`.
 - **Dashboard models:** query and presentation objects such as `IssueQuery` (chip parsing), `IssueList`, `IssueSummary`, `IssueChart`, `OccurrenceNavigator`, `ProjectOverview`, `ProjectHealth`, `SetupProgress` and `LiveFrames`.
-- **Model concerns:** `Issue::Searchable`, `Issue::Triage` and `Issue::Broadcasting`, plus `Project::Broadcasting`.
+- **Model concerns:** `Issue::Searchable`, `Issue::Triage` and `Issue::Broadcasting`, plus `Project::Broadcasting` and `Project::Alerting`.
+- **Alerts:** `AlertRule` (one row per app and kind), `NotificationPreference` (sparse, per membership and app), `AlertDelivery` (throttle/audit log keyed by `[user_id, dedupe_key]`) and `AlertMute` (the signed mute-link token). The delivery API is in `docs/ARCHITECTURE.md` §11.2.
 - **Live updates:** `AuthorizedStreamsChannel` checks the signed stream name and account membership. Custom Turbo Stream actions (`reload_frame`, `reload_rows`) are in `app/javascript`. Debouncing is in `LiveUpdateGate`.
 - **Theme:** Tailwind v4 `@theme` tokens and component classes are in `app/assets/tailwind/application.css`. Charts and sparklines are server-rendered SVG from helpers, with no chart JS. The CSP uses nonces, so there are no inline scripts or styles.
 
@@ -109,6 +111,10 @@ bin/bundler-audit && bin/importmap audit
 - **Deploy:** CI deploys `main` with Kamal (`docs/DEPLOYMENT.md`). The repo is public: never commit hosts, IPs or secrets; `config/deploy.yml` reads them from ENV via ERB.
 - **Email verification:** sign-up sends a link (`User::EmailVerification`, `EmailVerificationsController`); unverified users can browse but `VerifiedEmailRequired` blocks creating apps and API keys. The first account's owner starts verified (self-hosted mail may not be set up). A password reset also verifies.
 - **Email templates:** every HTML email uses `layouts/mailer.html.erb` and the inline-styled `MailerHelper` blocks (`email_heading`, `email_text`, `email_button`, `email_note`, `email_link_fallback`); set `content_for :preheader` / `:footer`. Text parts output user values with `raw`.
+- **Alert recipients:** never mail an unverified address. Use `project.alert_recipients` / `digest_recipients` and re-check `membership.receives_alerts?` / `receives_digest?` at send time. Muting an app's alerts and turning off its digest are independent switches.
+- **Unsaved defaults and `has_many_inversing`:** `Membership#notification_preference_for` and `AlertRule.build_default` build their unsaved defaults by id (`project_id:`), not by association. Built through `belongs_to` they would join the parent's `has_many` target and get autosaved the next time the parent is saved.
+- **Alert throttling:** `AlertDelivery.record` is an `INSERT … ON CONFLICT DO NOTHING` on the unique `[user_id, dedupe_key]` index and skips validations; a nil return means "already sent". Keep keys built by `AlertDelivery.issue_key` / `digest_key` / `summary_key`.
+- **Mute endpoint:** `AlertMutesController` is unauthenticated and skips CSRF for `create` only, because RFC 8058 one-click POSTs carry no CSRF token. The signed `AlertMute` token is the credential; never make it read the session cookie. `show` must stay side-effect free (mail scanners prefetch links), and its form is `data-turbo=false` because `create` answers 200.
 - **Scheduled jobs:** sidekiq-cron loads `config/schedule.yml` in the Sidekiq process (production only).
 - **Debug logs:** SQL logs in dev and test include redacted issue titles. Keep production at `info`.
 - **Dev data:** test events overwrite a project's runtime label and use up issue numbers; deleting issues doesn't rewind the sequence. Seeds don't run again once the demo user exists (`bin/rails db:reset` to start over).

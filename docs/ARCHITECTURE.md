@@ -19,7 +19,7 @@ Stack: Ruby 4.0.7, Rails 8.1.4, Postgres (pg_trgm), Propshaft, importmap, Turbo,
 5. **Performance.** No N+1 queries (use `includes`, `inverse_of` and batch queries for histograms). Counters are atomic SQL. The ingest path is bounded and tuned for minimal queries (§2.6).
 6. **Tests.** Use Minitest with fixtures. Always run with a private DB:
    `TEST_DB_SUFFIX=_<slice> bin/rails db:test:prepare && TEST_DB_SUFFIX=_<slice> bin/rails test`. Never drop the development database. Run `bin/rubocop` on your files before you finish.
-7. **Out of scope (do not build):** deploy tracking/releases UI, keyboard shortcuts, the "needs attention" callout, Merge, "Mute rules", GitHub links ("Link GitHub issue", "Open in GitHub"), alerting (the Alerts nav item shows as "soon"), Uptime ("soon"), team invites, project deletion, the Ruby client gem, geo-IP ("London, GB"), and syntax highlighting of code context (render plain mono text).
+7. **Out of scope (do not build):** deploy tracking/releases UI, keyboard shortcuts, the "needs attention" callout, Merge, "Mute rules", GitHub links ("Link GitHub issue", "Open in GitHub"), Uptime ("soon"), team invites, project deletion, the Ruby client gem, geo-IP ("London, GB"), and syntax highlighting of code context (render plain mono text). Email alerts were out of scope for v1; they were approved later and are built (§11).
 8. **Wording.** Every "create project" affordance reads **"Add a new app"**: the projects page header button, the dashed tile and the `projects#new` page title.
 
 ---
@@ -30,7 +30,10 @@ Stack: Ruby 4.0.7, Rails 8.1.4, Postgres (pg_trgm), Propshaft, importmap, Turbo,
 
 ```
 Account ─┬─< Membership >── User ──< Session (session.account = current org)
+         │      └─< NotificationPreference >── Project (per member per app, §11)
          └─< Project ─┬─< ApiKey (one per environment, ingest-only)
+                      ├─< AlertRule (one per kind, §11)
+                      ├─< AlertDelivery >── User (throttle/audit log, §11)
                       ├─< InboundEvent (encrypted raw body, transient queue record)
                       ├─< ProjectHourlyCount (project, environment, hour)
                       └─< Issue ─┬─< Occurrence (encrypted payload)
@@ -100,6 +103,8 @@ Indexes: unique `[account_id, user_id]`, `[user_id]`.
 | scrub_fields | string, array | false | `[]` | extra server-side scrub keys |
 | retention_days | integer | false | 90 | 1..365 |
 | first_event_at | datetime | true | | nil means "Listening…" |
+| alert_scope | string | false | `"default"` | which environments alert rules watch (§11): `default` follows `default_environment` (nil there = all), `all`, or `selected` |
+| alert_selected_environments | string, array | false | `[]` | the environments for `selected`; normalised to lowercase, must be non-empty and among `environments` while `selected`. Migration `20261011000002` |
 | default_environment | string | true | | the environment the issue list opens on; nil means all environments. Must be one of `environments` (validated, normalised to lowercase, blank → nil). Set to `"production"` once at creation when the new app has a production key (always, given the default keys); later nil is a deliberate "All environments" and is kept. Migration `20261010000003` backfilled `"production"` for apps with a production key |
 | timestamps | | | | |
 Indexes: unique `[account_id, slug]`.
@@ -209,6 +214,39 @@ Indexes: `[project_id, last_seen_at]`, GIN `identity_digests`.
 | created_at | datetime | false |
 Indexes: `[issue_id, created_at]`.
 
+**alert_rules** (§11; migration `20261011000001` backfilled the default set for existing apps)
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| project_id | references → projects, cascade | false | | |
+| kind | string | false | | enum `new_issue regression reached_production still_happening daily_digest` |
+| enabled | boolean | false | true | defaults per kind: all on except `daily_digest` |
+| threshold | integer | true | | `still_happening` only (default 100), else nil. Check constraint `threshold IS NULL OR threshold BETWEEN 1 AND 100000` |
+| timestamps | | | | |
+Indexes: unique `[project_id, kind]`, `[kind, enabled]`.
+
+**notification_preferences** (§11; sparse: no row = alerts on, digest on)
+| column | type | null | default |
+|---|---|---|---|
+| membership_id | references → memberships, cascade | false | |
+| project_id | references → projects, cascade | false | |
+| alerts_muted | boolean | false | false |
+| digest_enabled | boolean | false | true |
+| timestamps | | | |
+Indexes: unique `[membership_id, project_id]`, `[project_id]`.
+
+**alert_deliveries** (§11; ids, kind and key only, never captured data)
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| user_id | references → users, cascade | false | | recipient |
+| project_id | references → projects, cascade | false | | |
+| issue_id | references → issues, cascade | true | | nil for digests and summaries |
+| kind | string | false | | `AlertRule::KINDS` plus `summary` |
+| dedupe_key | string | false | | `AlertDelivery.issue_key` / `.digest_key` / `.summary_key` |
+| status | string | false | `"sent"` | `sent` or `folded` (over the hourly cap, awaiting the summary) |
+| summarized_at | datetime | true | | set on folded rows once the summary email covered them |
+| created_at | datetime | false | | no `updated_at` |
+Indexes: unique `[user_id, dedupe_key]` (the race-safe throttle), `[user_id, status, created_at]` (hourly cap, folded lookup), `[issue_id, kind, created_at]` ("alerted recently?", FK cascade), `[project_id]`, `[created_at]` (pruning).
+
 ### 1.4 Active Record Encryption
 
 - Encrypted attributes are all non-deterministic with default compression: `InboundEvent#body`, `Occurrence#payload`, `ApiKey#token`, `IssueTagCount#value`, `IssueActivity#body`.
@@ -251,8 +289,8 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
 
 - **Current** (`ActiveSupport::CurrentAttributes`): `session`, `delegate :user, to: :session, allow_nil: true`, `def account = session&.account`.
 - **Account**: `has_many :memberships, :users (through), :projects`. `#accessible_by?(user)` checks `memberships.exists?(user_id: user.id)`. `#events_this_month` returns the cached (5 min) sum of `project_hourly_counts` for this month. `#event_quota_fraction` returns 0..1 or nil.
-- **User**: `has_secure_password`, `normalizes :email_address`, `has_many :sessions, :memberships, :accounts`. `#default_account`, `#initials`, `#first_name`.
-- **Membership**: `enum :role, { owner: "owner", member: "member" }`.
+- **User**: `has_secure_password`, `normalizes :email_address`, `has_many :sessions, :memberships, :accounts, :alert_deliveries`. `#default_account`, `#initials`, `#first_name`, `scope :email_verified`, `#alert_mute_token(project, stream: "alerts")` (§11).
+- **Membership**: `enum :role, { owner: "owner", member: "member" }`. Alert preferences (§11): `has_many :notification_preferences`; scopes `with_verified_email`, `receiving_alerts_for(project)`, `receiving_digest_for(project)`; `#receives_alerts?(project)`, `#receives_digest?(project)`, `#notification_preference_for(project)` (saved row or an unsaved default, built by id), `#update_notification_preference(project, **attributes)`.
 - **Session**: `belongs_to :user, :account`.
 - **Signup** (ActiveModel PORO): attributes `account_name, name, email_address, password, time_zone`. `#save` creates the account, user and owner membership in one transaction and returns the user, or false with errors.
 - **Project**:
@@ -261,7 +299,7 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
   - `#accessible_by?(user)` delegates to account. `#listening?` is `first_event_at.nil?`. `#environments` returns the api_keys environments in id order.
   - `#allocate_issue_number` runs `UPDATE projects SET issues_sequence = issues_sequence + 1 WHERE id = $1 RETURNING issues_sequence`. `#record_first_event(runtime_label:, at:)` runs `UPDATE … SET first_event_at = COALESCE(first_event_at, :at), runtime_label = :label`.
   - `#unresolved_count(environment = nil)` and `#cached_unresolved_count(environment = nil)` (10 s, a number only; `#expire_unresolved_counts` on triage).
-  - `include Project::Broadcasting` (stub, §4.6).
+  - `include Project::Broadcasting` (stub, §4.6) and `Project::Alerting` (§11: `has_many :alert_rules, :alert_deliveries, :notification_preferences`, the `alert_scope` enum, default rules `after_create`, `#alert_rule(kind)`, `#alert_environments`, `#alerts_cover?`, `#alert_recipients`, `#digest_recipients`).
 - **ApiKey**:
   - `belongs_to :project, :created_by (User, optional)`; `encrypts :token`.
   - `.authenticate(token)` returns an `ApiKey::Credential` (`Data.define(:id, :project_id, :environment)`) or nil. It is cached in `Rails.cache` under `["api_key", digest]` for 5 minutes and stores only ids and the environment.
@@ -613,6 +651,10 @@ Rails.application.routes.draw do
   resources :passwords, param: :token, only: %i[new create edit update]
   resource :registration, only: %i[new create]
 
+  resource :email_verification, only: %i[show create]
+  resource :alert_mute, only: %i[show create]       # §11, token in ?token=, no sign-in
+  resource :notifications, only: :show              # §11
+
   resource :search, only: :show
   resource :recent_issues, only: :show
 
@@ -623,6 +665,9 @@ Rails.application.routes.draw do
       resource :listening, only: :show
       resource :summary, only: :show
       resource :bulk_triage, only: :create
+      resource :alerts, only: %i[show update]                  # Settings › Alerts (§11)
+      resources :alert_rules, only: :update, param: :kind      # /alert_rules/still_happening
+      resource :notification_preference, only: :update        # the member's own switches
       resources :api_keys, only: %i[show create] do
         scope module: :api_keys do
           resource :reveal, only: :show
@@ -693,6 +738,11 @@ Shared (slice A):
 | `Issues::IgnoresController` | F | create, destroy (reopen) | redirect |
 | `Issues::AssignmentsController` | F | update (`assignee_id`, members only), destroy | redirect |
 | `Issues::NotesController` | F | create | turbo_stream prepends the activity item and resets the form |
+| `Projects::AlertsController` | Alerts A | show, update | Settings › Alerts (§11.3). `update` saves `alert_scope` and `alert_selected_environments` only; 422 re-renders with the error |
+| `Projects::AlertRulesController` | Alerts A | update | one rule by kind (`@project.alert_rules`, unknown kind 404): `enabled` and/or `threshold`; redirects to Settings › Alerts, 422 re-renders it with the threshold error |
+| `NotificationsController` | Alerts A | show | the signed-in member's switches per app of `Current.account` (§11.3), fixed query count |
+| `Projects::NotificationPreferencesController` | Alerts A | update | `alerts_muted` / `digest_enabled` for `Current.user`'s membership; doesn't touch `session[:last_project_id]` |
+| `AlertMutesController` | Alerts A | show, create | unauthenticated, `layout "auth"`, rate-limited 30/min per IP. Token → `AlertMute`, else 404 "This link has expired". `show` confirms (never mutes, so link scanners are harmless); `create` mutes and renders 200 (RFC 8058). `skip_forgery_protection only: :create`: mail providers POST without a CSRF token, and no cookie is involved; the token is the credential |
 
 All dashboard controllers inherit `ApplicationController`. Feature controllers `include ProjectScoped` or `IssueScoped`. Frame endpoints render `layout false` partials wrapped in the matching `turbo_frame_tag`. Turbo-rails already uses its frame layout for `Turbo-Frame` requests.
 
@@ -824,7 +874,9 @@ Only ids, numbers and SVG series data are cached.
   - `find_by!` misses give 404. Never call `Project.find`, `Issue.find` or `Occurrence.find` unscoped in controllers.
   - Bulk ids are filtered through `@project.issues.where(id:)`. Assignees are validated as members of `Current.account`.
   - Search is limited to `Current.account`'s projects.
-  - The account's own data is not role-gated in v1 (`member` and `owner` have equal rights).
+  - The account's own data is not role-gated in v1 (`member` and `owner` have equal rights). That includes Settings › General and Settings › Alerts.
+  - Notification switches belong to the signed-in member: they are looked up through `Current.account.memberships.find_by!(user: Current.user)`, never by a membership id from params.
+  - The one-click mute endpoint (`/alert_mute?token=`) is the only dashboard-side endpoint without sign-in: an `AlertMute` token (signed by `Rails.application.message_verifier(:alert_mute)`, purpose `:alert_mute`, 60 days) names the user, app and stream, and is honoured only while the user is a member of the app's account.
 - **Action Cable:** an authenticated connection is required, plus a signed stream name **and** `accessible_by?(current_user)` (§4.4).
 - **Ingest:** the API key identifies `project_id` and `environment` and nothing else. Keys cannot read data. CORS is not enabled (server-to-server only).
 - **Tests (every feature slice):** for each controller, add a test showing that a user from another account (`users(:outsider)`) gets 404 for the slice's project, issue and key URLs.
@@ -886,11 +938,11 @@ Other rules:
 - `layouts/_sidebar.html.erb`:
   - logo (`shared/_sigil`) and the "Good Sorcery / Error Tracker" wordmark
   - `layouts/_project_switcher` (dropdown of `Current.account.projects`; the button shows name and `sidebar_project_subtitle`: the environment the project's issue list shows (`issues_environment_for`) in its tone, or a muted "all environments", then `runtime_label || platform`)
-  - nav section "Grimoire": Projects; Issues with an unresolved badge for `sidebar_project` (`sidebar_issues_badge`), counted for the environment its issue list shows (`issues_environment_for`, §4.2), tinted in that environment's tone (`environment_bar_classes`; coral for all environments) with a title such as "23 unresolved in staging"; Alerts as "soon" (not a link)
+  - nav section "Grimoire": Projects; Issues with an unresolved badge for `sidebar_project` (`sidebar_issues_badge`), counted for the environment its issue list shows (`issues_environment_for`, §4.2), tinted in that environment's tone (`environment_bar_classes`; coral for all environments) with a title such as "23 unresolved in staging"; Alerts → Settings › Alerts of `sidebar_project` (`key: "alerts"`; a plain non-link row when there is no project)
   - "Coming from the suite": Uptime ("soon")
   - "Project": "Settings & setup" → `project_setup_path(sidebar_project)`; Docs → `docs_url` (external)
   - `layouts/_usage_meter` (events this month / quota, hidden when quota is nil)
-  - `layouts/_user_menu` (initials, name, "Account name · Hosted" or "Self-hosted" by `ENV["GOODSORCERY_HOSTED"]`, dropdown with Sign out)
+  - `layouts/_user_menu` (initials, name, "Account name · Hosted" or "Self-hosted" by `ENV["GOODSORCERY_HOSTED"]`, dropdown with Notifications (`notifications_path`) and Sign out)
 - `layouts/_topbar.html.erb` is a sticky `h-14` bar with the breadcrumb trail on the left and the global search form (GET `search_path`, `name="q"`, placeholder "Search projects and issues…") on the right.
 - `layouts/auth.html.erb` is a centred single panel with the sigil, used by sessions, passwords and registrations.
 - `layouts/_flash.html.erb` shows notices as `chip-mint` and alerts as `chip-coral`, inside a `.panel`.
@@ -1007,7 +1059,7 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
     - **Tags:** `IssueTagCount.distribution` with `stacked_bar_svg`. The top value turns coral and is labelled "← suspicious" when its share is ≥ 0.8 and there are ≥ 2 distinct values. Otherwise it shows the top 2 shares. The `environment` key (set from the API key, never captured) colours each segment with `environment_color` unless it is suspicious.
     - **Activity:** `issue.activities.recent.includes(:user, :subject_user).limit(20)` (system entries: lilac "↺ Regressed: seen again after being resolved" and coral "▲ Reached production: first seen there after other environments"), plus a final "First seen" line, plus the note form ("Leave a note for the coven…").
 - **Setup & settings (D)**:
-  - The settings sub-nav lists only "Setup & API keys" and "General".
+  - The settings sub-nav lists "Setup & API keys", "General" and "Alerts" (§11.3).
   - The hero runs the stepper from `SetupProgress` (D). Step 1 is always done. Step 2 is current while listening. Step 3 is done once `first_event_at` is set, and the hero then becomes "✦ <name> is connected", with a link to issues.
   - The install steps and right rail depend on `project.platform`: `show` renders `projects/setups/<platform>/_steps` and `projects/setups/<platform>/_rail`. Shared pieces: `_snippet` (copyable code pane), `_install_env` (the "ENV only" tab), `_test_error` (a layout around the platform's test command, with the listening frame) and `_self_hosting`. Step numbers come from `SetupHelper#setup_step_heading` and stay sequential per platform.
   - **Ruby on Rails** (`rails/`): i. "Add the gem" tabs Generator / Manual / ENV only; ii. "Cast a test error" with `bin/rails goodsorcery:test`. The rail mentions `filter_parameters`, ActiveSupport breadcrumbs and `current_user`.
@@ -1141,3 +1193,50 @@ Never edit a file you don't own. If you need a change in another slice's file, r
 - [ ] No per-row queries in partials, including the sidebar badge, which is one count.
 - [ ] Ingest: within the §2.6 budget; hot-row updates last; multi-row upserts sorted.
 - [ ] Indexes exist for every `where`/`order` used (§1.3).
+
+---
+
+## 11. Email alerts (approved 2026-10-11)
+
+Built in two slices. **Slice A** (data model and UI, this section's §11.1–§11.3) is done. **Slice B** (ingest triggers, jobs, `AlertsMailer`, sidekiq-cron) builds on the model API in §11.2 and documents itself in §11.4.
+
+### 11.1 Rules, scope and recipients
+
+| rule (`AlertRule#kind`) | default | fires |
+|---|---|---|
+| `new_issue` | on | first occurrence of a brand-new issue |
+| `regression` | on | a resolved issue happens again (`regressed_at`, §2.5) |
+| `reached_production` | on | `reached_production_at` is stamped (§2.5) |
+| `still_happening` | on, `threshold` 100 | an issue's events in the last hour reach the app's threshold (1..100,000); at most once per issue per 6 hours |
+| `daily_digest` | off | 09:00 in each recipient's `users.time_zone`: open issues of the app with events in the last 24h |
+
+- **Rules** are rows (`alert_rules`, one per app and kind), created by `Project::Alerting` `after_create` (`insert_all` of `AlertRule.default_rows_for`) and backfilled for older apps by migration `20261011000001`. `Project#alert_rule(kind)` returns the row (one query loads all five) or an unsaved default if a row is missing.
+- **Environment scope** is per app (`projects.alert_scope`): `default` follows `default_environment` (nil there means all environments), `all`, or `selected` (`alert_selected_environments`, at least one of the app's environments). `Project#alert_environments` is the effective list, or nil for all; `#alerts_cover?(environments)` tests an event's environment or an issue's `environments`.
+- **Recipients** are the members of the app's account (memberships) with a confirmed address (`User#email_verified?`; unverified addresses are never mailed), minus those who switched the stream off for that app:
+  - `NotificationPreference#alerts_muted` stops the instant rules (`AlertRule::INSTANT_KINDS`: everything but the digest);
+  - `NotificationPreference#digest_enabled = false` stops the digest.
+  - The two switches are independent: muting an app's alerts keeps its digest. Rows are sparse; no row means both on.
+
+### 11.2 Model API for delivery (slice B)
+
+- `AlertRule.enabled.still_happening.includes(:project)` / `.daily_digest` — apps to check on a schedule. `project.alert_rule(kind).enabled?`, `project.alert_rule_enabled?(kind)`, `project.still_happening_threshold`, `rule.instant?`.
+- `project.alert_environments`, `project.alerts_cover?(environments)`.
+- `project.alert_recipients` / `project.digest_recipients` → `User` relations (one subquery each: verified members not opted out). `membership.receives_alerts?(project)` / `#receives_digest?(project)` re-check one person at send time.
+- `AlertDelivery` (throttle and audit log; ids, kind and key only):
+  - `AlertDelivery.record(user:, project:, kind:, dedupe_key:, issue: nil, status: "sent")` → new id, or nil when the user already has that key (INSERT … ON CONFLICT DO NOTHING on unique `[user_id, dedupe_key]`, so concurrent jobs can't double-send). It skips validations.
+  - Keys: `AlertDelivery.issue_key(kind, issue, at:)` — `new_issue:<id>` and `reached_production:<id>` (once per issue), `regression:<id>:<regressed_at epoch>` (once per regression), `still_happening:<id>:<6h window index>`; `AlertDelivery.digest_key(project, local_date)` (once per user, app and local day); `AlertDelivery.summary_key(at)` (one overflow summary per user per clock hour).
+  - Cap: `AlertDelivery::HOURLY_CAP` (20) sent emails per user per hour, `AlertDelivery.sent_in_last_hour(user)` / `.cap_reached?(user)`. Over the cap, record the delivery with `status: "folded"`; the summary email ("and N more alerts") reads `where(user:).awaiting_summary` and sets `summarized_at`.
+  - `AlertDelivery.alerted_recently?(issue, kind, within: AlertDelivery::STILL_HAPPENING_WINDOW)` checks across recipients before any per-user work.
+  - Deliveries can be pruned after a few weeks: every key's window is shorter, and new_issue/reached_production can't fire twice.
+- Mute links: `user.alert_mute_token(project, stream: "alerts" | "digest")` → `alert_mute_url(token:)` for both `List-Unsubscribe: <…>` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`. `AlertMute.find_by_token(token)` returns nil for tampered, expired (`AlertMute::EXPIRES_IN`, 60 days), wrong-purpose or unknown-stream tokens, deleted apps and ex-members; `#apply` turns that stream off for that app only. The token is signed, not encrypted, and carries only the user id, project id and stream.
+
+### 11.3 Screens
+
+- **Settings › Alerts** (`projects/alerts/show`, `Projects::AlertsController`, sidebar "Alerts" and the settings sub-nav): an intro naming who gets the emails and pointing at Notifications; a **Rules** panel with one row per kind (title, one-line description, a muted "off" chip when off, and an `aria-pressed` `.toggle` that is a one-button PATCH form, `AlertsHelper#switch_button_to`); the `still_happening` row has a threshold number field with Save and an inline error; an **Environments** panel with three radios (follow the default environment, naming it in its tone; all environments; only these) and a checkbox per `project.environments` with `environment_dot` and `environment_text`, plus "The rules above watch …" in tone. Any account member can change it, like Settings › General.
+- **Notifications** (`notifications/show`, user menu → Notifications): the address alerts go to, the time zone digests use (`users.time_zone`), and a row per app of `Current.account` with two switches, "Email alerts" (pressed = not muted) and "Daily digest", plus "Watching <environments>" and "digest is off for this app" when the app's digest rule is off. An unverified member sees that alerts start once they confirm. Fixed query count however many apps.
+- **Mute link pages** (`alert_mutes/*`, auth layout): `show` asks "Mute email alerts?" / "Mute the daily digest?" naming the app and address, or says "Already off"; the button is a plain (`data-turbo=false`) POST because `create` answers 200 as RFC 8058 expects; `create` confirms "Muted"; `invalid` (404) explains the link expired and links to Notifications. All three link to Notifications for turning things back on.
+
+### 11.4 Delivery (slice B)
+
+Ingest triggers, the alert jobs and queue, `AlertsMailer` and the sidekiq-cron schedule (`config/schedule.yml`) are documented here by slice B.
+
