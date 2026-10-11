@@ -2,6 +2,7 @@
   <div class="min-w-0 flex-1">
     <div class="flex flex-wrap items-center gap-2.5">
       <%= issue_status_chip(issue) %>
+      <%= issue_reached_production_chip(issue, small: false) %>
       <% issue.environments.each do |environment| %>
         <%= environment_chip environment %>
       <% end %>

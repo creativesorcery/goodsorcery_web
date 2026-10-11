@@ -24,6 +24,22 @@ class IssueDetailTest < ActionDispatch::IntegrationTest
     assert_select "meta[name=turbo-cache-control][content=no-cache]"
   end
 
+  test "an issue that reached production carries the coral marker and a timeline entry" do
+    @issue.update_columns(environments: %w[staging production], reached_production_at: 2.hours.ago)
+    @issue.activities.create!(kind: "reached_production")
+
+    get project_issue_path(@project, @issue)
+
+    assert_select "span[title^=?] span.chip.chip-coral:not(.chip-sm)", "First seen in production", text: /Reached production/
+    assert_select "##{dom_id(@issue, :activities)} li", text: /Reached production: first seen there after other environments/
+  end
+
+  test "an issue without the milestone has no marker" do
+    get project_issue_path(@project, @issue)
+
+    assert_select "span.chip", text: /Reached production/, count: 0
+  end
+
   test "never lets browsers or proxies store the page" do
     get project_issue_path(@project, @issue)
 

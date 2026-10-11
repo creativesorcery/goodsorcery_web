@@ -146,6 +146,7 @@ Indexes: `[received_at]` (stale requeue). No `updated_at`.
 | first_seen_at | datetime | false | | |
 | last_seen_at | datetime | false | | |
 | regressed_at | datetime | true | | set on regression, cleared on resolve |
+| reached_production_at | datetime | true | | set once, by the ingest counter UPDATE (§2.5), when an issue first seen only in other environments gets its first production-tone event (`EnvironmentTone`). Never cleared. Issues first seen in production never get it. Migration `20261010000004` added it without a backfill |
 | resolved_at | datetime | true | | |
 | events_count | bigint | false | 0 | atomic SQL increments |
 | users_count | integer | false | 0 | atomic SQL increments |
@@ -202,7 +203,7 @@ Indexes: `[project_id, last_seen_at]`, GIN `identity_digests`.
 **issue_activities**
 | issue_id | references → issues, cascade | false |
 | user_id | references → users, `on_delete: :nullify` | true | nil = system |
-| kind | string | false | enum `regressed resolved reopened ignored assigned unassigned note` |
+| kind | string | false | enum `regressed reached_production resolved reopened ignored assigned unassigned note`; `regressed` and `reached_production` are system entries written by ingest |
 | subject_user_id | references → users, nullify | true | assignee for assigned/unassigned |
 | body | text | true | **encrypted**, notes only (≤ 2,000 chars) |
 | created_at | datetime | false |
@@ -273,7 +274,7 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
   - `belongs_to :project` (inverse), `belongs_to :assignee, class_name: "User", optional: true`; `has_many :occurrences, :hourly_counts, :tag_counts, :issue_users, :activities`.
   - `enum :status` and `enum :level` (string-backed, `validate: true`).
   - `to_param`/`short_id` return `"#{project.issue_prefix}-#{number}"`. `.find_by_short_id!(param)` does `find_by!(number: param.to_s[/\d+\z/])`.
-  - `#new?` is `unresolved? && first_seen_at >= 24.hours.ago`. `#regressed?` is `unresolved? && regressed_at.present?`.
+  - `#new?` is `unresolved? && first_seen_at >= 24.hours.ago`. `#regressed?` is `unresolved? && regressed_at.present?`. `#reached_production?` is `reached_production_at.present?`.
   - `#accessible_by?(user)` delegates to project. `#fingerprint_label` returns `fingerprint.first(12)`.
   - Includes `Issue::Searchable`, `Issue::Triage` and `Issue::Broadcasting` (stub).
 - **Issue::Searchable** (scopes):
@@ -426,6 +427,7 @@ ApplicationRecord.transaction do
   new_user = rollups.increment_issue           # issue hourly, tags (multi-row, sorted, bounded), issue_users
   issue    = tally.count(new_user:)            # the ONLY lock on the issue row (FOR NO KEY UPDATE), held until commit
   IssueActivity regressed row if issue.previous_status == "resolved"
+  IssueActivity reached_production row if issue.just_reached_production   # system rows, issue row still locked
   project.record_first_event(...) if tally.created?   # writes only when something changes
   inbound_event.destroy!
   rollups.increment_project                    # project hourly: the hottest row, locked last
@@ -437,10 +439,10 @@ after commit (only if issue): issue.broadcast_changes_later(created: tally.creat
 **Issue creation** (only when the plain `SELECT id FROM issues WHERE project_id = ? AND fingerprint = ?` finds nothing):
 `project.allocate_issue_number` (in `IssueTally#prepare`, before the transaction, so the projects row is not locked for the whole transaction), then `Issue.insert({ …, events_count: 0, users_count: 0, status: "unresolved", environments: [env], first_seen_at:, last_seen_at: }, unique_by: %i[project_id fingerprint], returning: %i[id])`. If that loses a race (empty result), reselect the id. The burnt number leaves a harmless gap.
 
-**Counting** (`IssueTally#count`): a single statement via `Issue.find_by_sql`, so it needs no extra query and returns an `Issue` with the extra attribute `previous_status`:
+**Counting** (`IssueTally#count`): a single statement via `Issue.find_by_sql`, so it needs no extra query and returns an `Issue` with the extra attributes `previous_status` and `just_reached_production`:
 ```sql
 WITH previous AS (
-  SELECT id, status FROM issues WHERE id = :issue_id FOR NO KEY UPDATE
+  SELECT id, status, reached_production_at FROM issues WHERE id = :issue_id FOR NO KEY UPDATE
 )
 UPDATE issues SET
   events_count  = issues.events_count + 1,
@@ -452,11 +454,18 @@ UPDATE issues SET
   status        = CASE WHEN issues.status = 'resolved' THEN 'unresolved' ELSE issues.status END,
   regressed_at  = CASE WHEN issues.status = 'resolved' THEN :now ELSE issues.regressed_at END,
   resolved_at   = CASE WHEN issues.status = 'resolved' THEN NULL ELSE issues.resolved_at END,
+  reached_production_at = CASE
+    WHEN :production AND issues.reached_production_at IS NULL
+         AND NOT (issues.environments && ARRAY[:production_names]::varchar[]) THEN :now
+    ELSE issues.reached_production_at END,
   updated_at    = :now
 FROM previous WHERE issues.id = previous.id
-RETURNING issues.*, previous.status AS previous_status
+RETURNING issues.*, previous.status AS previous_status,
+  (previous.reached_production_at IS NULL AND issues.reached_production_at IS NOT NULL) AS just_reached_production
 ```
-Ignored issues stay ignored. Only `resolved` regresses. The lock is `FOR NO KEY UPDATE`, not `FOR UPDATE`: the occurrence, rollup and activity inserts take `FOR KEY SHARE` on the issue through their foreign keys, and `FOR UPDATE` conflicts with that, which deadlocked concurrent events of one issue (`test/models/ingest/concurrent_processing_test.rb`).
+Ignored issues stay ignored. Only `resolved` regresses.
+
+**Reached production:** `:production` is `EnvironmentTone.production?(event.environment)` and `:production_names` is its coral group (`production prod live`). Environment names are lowercase (ApiKey validates them), so the array overlap is exact. The `environments` tested are the pre-update ones, so an issue created by a production event (environments `[production]`) never qualifies, and the stamp happens once: later events see a production environment and a non-null column. The issue row lock makes concurrent production events of a staging-only issue stamp it exactly once (`concurrent_processing_test.rb`). The processor then inserts one system `reached_production` activity, before the project hourly row as for `regressed`. The issue's existing pointer broadcast refreshes open pages; no new broadcast. The lock is `FOR NO KEY UPDATE`, not `FOR UPDATE`: the occurrence, rollup and activity inserts take `FOR KEY SHARE` on the issue through their foreign keys, and `FOR UPDATE` conflicts with that, which deadlocked concurrent events of one issue (`test/models/ingest/concurrent_processing_test.rb`).
 
 **Rollups** (`Ingest::Rollups#increment_issue`, then `#increment_project` last), all `upsert`/`upsert_all` with `on_duplicate: Arel.sql(...)` and `record_timestamps: false`:
 - `issue_hourly_counts (issue_id, hour)`: `count = issue_hourly_counts.count + 1`
@@ -473,7 +482,7 @@ Ignored issues stay ignored. Only `resolved` regresses. The lock is `FOR NO KEY 
 ### 2.6 Query budget
 
 - **Request:** 1 INSERT (multi-row for a batch), plus at most 1 throttled UPDATE (`last_used_at`), plus cache reads and counter increments, plus one (bulk) enqueue.
-- **Job, existing issue:** inbound + project + select issue + occurrence + 4 upserts + issue UPDATE + delete, about 10 statements. A new issue adds 3 more.
+- **Job, existing issue:** inbound + project + select issue + occurrence + 4 upserts + issue UPDATE + delete, about 10 statements. A new issue adds 3 more. A regression, and the one event that takes an issue to production, each add one activity INSERT.
 
 ### 2.7 Maintenance (slice C, `lib/tasks/goodsorcery.rake`)
 
@@ -962,13 +971,14 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
     - 25 rows per page via OFFSET, plus a `issues_page_<n+1>` "load more" frame.
     - Columns `[28px_1fr_150px_90px_90px_110px_44px]`. A row is a `div` grid, **not** an `<a>`: the title link uses `after:absolute after:inset-0`, and the checkbox (`form="bulk_triage"`, `name="issue_ids[]"`) is `relative z-10`.
     - The left stripe and class colour are coral with a "New" chip (dot) when `new?`, lilac with "↺ Regressed" when `regressed?`, and neutral otherwise.
+    - **Reached production:** a small coral "▲ Reached production" chip after that badge when `issue.reached_production?` (`IssuesHelper#issue_reached_production_chip`; a column, so no extra query), titled "First seen in production X ago".
     - The 24h histogram (`IssueHourlyCount.histograms`, one query per page) is coral, LILAC or IRIS_SOFT, with the last bar highlighted for new and regressed issues.
     - Events, users, "seen" (`time_ago_compact` plus "first …"), and the assignee avatar or `empty_avatar`. Rows not seen for over an hour get `opacity-80`.
     - **Environments:** small `environment_chip`s from `issue.environments` (a column, so no extra query) open the transaction/culprit line: the first three, then a muted "+N" (`IssuesHelper#issue_environment_chips`). Issues seen only outside production (`Issue#only_outside_production?`: environments present, none production-tone) get `opacity-60` on the title block (`issue_summary_classes`) so production issues stand out. This depends on the issue alone, never on the list's scope, so live row reloads render the same.
   - **Bulk bar** (shown by `bulk_selection` when count > 0): "N selected", ✓ Resolve (`btn-mint`), Ignore, Assign ▾ (members). There is no Merge.
 - **Issue detail (F)**:
   - **Hero:**
-    - status chip ("New · unresolved" coral, "Regressed" lilac, "Resolved" mint, "Ignored" muted, "Unresolved" neutral), environment chips, then the class in mono (coral when new, otherwise ink)
+    - status chip ("New · unresolved" coral, "Regressed" lilac, "Resolved" mint, "Ignored" muted, "Unresolved" neutral), the coral "▲ Reached production" chip when `reached_production?` (full size, same helper as the row), environment chips, then the class in mono (coral when new, otherwise ink)
     - `issue.message` in `font-display`
     - `transaction_name · culprit` in mono
   - **Hero actions:**
@@ -989,7 +999,7 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
     - **Navigator** (`OccurrenceNavigator`, F): ‹ / › links to the previous and next occurrence by id; "N of M" (M = stored occurrences count, plus a "stored" suffix when M < events_count); Latest / Oldest / Random.
     - **Affected user:** from `occurrence.user`. Shows the name, `id … · local@…` (the email domain is masked), "Hit this N×" (`IssueUser.count_for`), and "all their errors" → issues index with `q=user:<digest>`.
     - **Tags:** `IssueTagCount.distribution` with `stacked_bar_svg`. The top value turns coral and is labelled "← suspicious" when its share is ≥ 0.8 and there are ≥ 2 distinct values. Otherwise it shows the top 2 shares.
-    - **Activity:** `issue.activities.recent.includes(:user, :subject_user).limit(20)`, plus a final "First seen" line, plus the note form ("Leave a note for the coven…").
+    - **Activity:** `issue.activities.recent.includes(:user, :subject_user).limit(20)` (system entries: lilac "↺ Regressed: seen again after being resolved" and coral "▲ Reached production: first seen there after other environments"), plus a final "First seen" line, plus the note form ("Leave a note for the coven…").
 - **Setup & settings (D)**:
   - The settings sub-nav lists only "Setup & API keys" and "General".
   - The hero runs the stepper from `SetupProgress` (D). Step 1 is always done. Step 2 is current while listening. Step 3 is done once `first_event_at` is set, and the hero then becomes "✦ <name> is connected", with a link to issues.

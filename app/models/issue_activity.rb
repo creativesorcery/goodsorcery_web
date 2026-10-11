@@ -1,5 +1,5 @@
 class IssueActivity < ApplicationRecord
-  KINDS = %w[regressed resolved reopened ignored assigned unassigned note].freeze
+  KINDS = %w[regressed reached_production resolved reopened ignored assigned unassigned note].freeze
 
   belongs_to :issue, inverse_of: :activities
   belongs_to :user, optional: true

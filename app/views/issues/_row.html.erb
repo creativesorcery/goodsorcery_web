@@ -11,6 +11,7 @@
       <div class="relative flex items-center gap-2 min-w-0">
         <%= issue_class_name(issue) %>
         <%= issue_badge(issue) %>
+        <%= issue_reached_production_chip(issue) %>
         <span class="font-mono text-[11px] text-ink-400 shrink-0"><%= issue.short_id %></span>
         <div class="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
           <% if issue.unresolved? %>

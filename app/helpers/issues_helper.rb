@@ -34,6 +34,15 @@ module IssuesHelper
     tag.span safe_join(shown), class: "flex items-center gap-1 shrink-0 font-sans" if shown.any?
   end
 
+  # Small coral marker for an issue that escaped to production after being
+  # seen only elsewhere; the title says when.
+  def issue_reached_production_chip(issue, small: true)
+    return unless issue.reached_production?
+
+    tag.span chip("▲ Reached production", tone: :coral, small:), class: "shrink-0",
+      title: "First seen in production #{time_ago_compact(issue.reached_production_at)}"
+  end
+
   def issue_edge_stripe(issue)
     stripe = EDGE_STRIPES[issue_tone(issue)]
     tag.span(class: stripe, "aria-hidden": true) if stripe

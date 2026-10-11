@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_10_000004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -110,6 +110,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_000003) do
     t.virtual "search_text", type: :text, as: "lower((((((((exception_class)::text || ' '::text) || message) || ' '::text) || COALESCE((culprit)::text, ''::text)) || ' '::text) || COALESCE((transaction_name)::text, ''::text)))", stored: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "reached_production_at"
     t.index ["assignee_id"], name: "index_issues_on_assignee_id"
     t.index ["environments"], name: "index_issues_on_environments", using: :gin
     t.index ["project_id", "fingerprint"], name: "index_issues_on_project_id_and_fingerprint", unique: true

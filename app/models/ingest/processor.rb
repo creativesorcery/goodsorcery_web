@@ -49,7 +49,7 @@ class Ingest::Processor
 
       rollups = Ingest::Rollups.new(issue_id, project, event)
       issue = tally.count(new_user: rollups.increment_issue)
-      record_regression(issue)
+      record_milestones(issue)
       project.record_first_event(runtime_label: event.runtime_label, at: event.occurred_at) if tally.created?
       inbound_event.delete
       rollups.increment_project
@@ -66,8 +66,11 @@ class Ingest::Processor
         level: event.level, user_digest: event.user_identity.primary_digest, payload: event.to_payload_json }
     end
 
-    def record_regression(issue)
+    # System entries for the issue's timeline, written while the issue row is
+    # still locked and before the project's hourly row.
+    def record_milestones(issue)
       IssueActivity.create!(issue:, kind: "regressed") if issue.previous_status == "resolved"
+      IssueActivity.create!(issue:, kind: "reached_production") if issue.just_reached_production
     end
 
     def announce(issue, created:)

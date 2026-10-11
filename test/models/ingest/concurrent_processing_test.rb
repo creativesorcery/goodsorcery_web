@@ -32,6 +32,20 @@ class Ingest::ConcurrentProcessingTest < ActiveSupport::TestCase
     assert_not InboundEvent.exists?(project_id: @project.id)
   end
 
+  test "a staging issue reaches production exactly once under concurrent production events" do
+    staging_key = @project.api_keys.find_by!(environment: "staging")
+    Ingest::Processor.new(inbound_event_for(minimal_json, key: staging_key, event_uuid: SecureRandom.uuid)).process
+    inbound = Array.new(EVENTS) { inbound_event_for(minimal_json, key: @key, event_uuid: SecureRandom.uuid) }
+
+    errors = process_concurrently(inbound)
+
+    assert_empty errors.map { |error| error.class.name }
+    issue = @project.issues.sole
+    assert_equal EVENTS + 1, issue.events_count
+    assert_predicate issue, :reached_production?
+    assert_equal 1, issue.activities.where(kind: "reached_production").count
+  end
+
   private
     def process_concurrently(inbound)
       errors = Queue.new

@@ -88,6 +88,68 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
     assert_equal "resolved", regressed.previous_status
   end
 
+  test "an issue first seen in staging reaches production once, with a system activity" do
+    staging = process_event(event_json, key: api_keys(:storefront_staging))
+    assert_nil staging.reached_production_at
+    assert_not staging.just_reached_production
+
+    reached = nil
+    assert_difference -> { IssueActivity.where(issue_id: staging.id, kind: "reached_production", user_id: nil).count }, 1 do
+      reached = process_event(event_json)
+    end
+    assert reached.just_reached_production
+    assert_predicate reached, :reached_production?
+    assert_in_delta Time.current, reached.reached_production_at, 5.seconds
+  end
+
+  test "reaching production is not recorded again by later events" do
+    process_event(event_json, key: api_keys(:storefront_staging))
+    stamped = process_event(event_json).reached_production_at
+
+    assert_no_difference -> { IssueActivity.where(kind: "reached_production").count } do
+      travel 1.hour do
+        later = process_event(event_json)
+        assert_not later.just_reached_production
+        assert_equal stamped, later.reached_production_at
+        process_event(event_json, key: api_keys(:storefront_staging))
+      end
+    end
+  end
+
+  test "an issue first seen in production never reaches production" do
+    assert_no_difference -> { IssueActivity.where(kind: "reached_production").count } do
+      process_event(event_json)
+      process_event(event_json, key: api_keys(:storefront_staging))
+      issue = process_event(event_json)
+      assert_nil issue.reached_production_at
+      assert_not issue.just_reached_production
+    end
+  end
+
+  test "a resolved staging issue that regresses in production records both milestones" do
+    issue = process_event(event_json, key: api_keys(:storefront_staging))
+    Issue.find(issue.id).resolve(by: users(:philip))
+
+    reached = process_event(event_json)
+    assert reached.regressed?
+    assert_predicate reached, :reached_production?
+    assert_equal %w[reached_production regressed], IssueActivity.where(issue_id: issue.id, user_id: nil).pluck(:kind).sort
+  end
+
+  test "reaching production still locks the project hour last" do
+    process_event(event_json, key: api_keys(:storefront_staging))
+    inbound = inbound_event_for(event_json)
+    statements = []
+    callback = ->(*, payload) { statements << payload[:sql] unless payload[:name] == "SCHEMA" }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { Ingest::Processor.new(inbound).process }
+
+    release = statements.rindex { it.start_with?("RELEASE SAVEPOINT") }
+    activity = statements.index { it.start_with?('INSERT INTO "issue_activities"') }
+    assert_match(/\AINSERT INTO "project_hourly_counts"/, statements[release - 1])
+    assert_operator activity, :>, statements.index { it.include?("WITH previous AS") }
+    assert_operator activity, :<, release - 1
+  end
+
   test "ignored issues stay ignored" do
     issue = process_event(event_json)
     Issue.find(issue.id).ignore(by: users(:philip))

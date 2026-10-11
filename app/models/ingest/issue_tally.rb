@@ -5,10 +5,18 @@
 # updates, but unlike FOR UPDATE it does not conflict with the FOR KEY SHARE
 # locks that concurrent occurrence and rollup inserts take through their
 # foreign keys, which deadlocked concurrent events of one issue.
+#
+# The same UPDATE stamps reached_production_at the first time an issue that
+# was only seen elsewhere (staging, preview…) arrives from a production-like
+# environment (EnvironmentTone), and says so in `just_reached_production`.
+# Environment names are lowercase (ApiKey validates them), so an array overlap
+# with the production names is an exact test.
 class Ingest::IssueTally
+  PRODUCTION_NAMES = EnvironmentTone::GROUPS.fetch(:coral)
+
   COUNT_SQL = <<~SQL.squish.freeze
     WITH previous AS (
-      SELECT id, status FROM issues WHERE id = :issue_id FOR NO KEY UPDATE
+      SELECT id, status, reached_production_at FROM issues WHERE id = :issue_id FOR NO KEY UPDATE
     )
     UPDATE issues SET
       events_count  = issues.events_count + 1,
@@ -20,9 +28,14 @@ class Ingest::IssueTally
       status        = CASE WHEN issues.status = 'resolved' THEN 'unresolved' ELSE issues.status END,
       regressed_at  = CASE WHEN issues.status = 'resolved' THEN :now ELSE issues.regressed_at END,
       resolved_at   = CASE WHEN issues.status = 'resolved' THEN NULL ELSE issues.resolved_at END,
+      reached_production_at = CASE
+        WHEN :production AND issues.reached_production_at IS NULL
+             AND NOT (issues.environments && ARRAY[:production_names]::varchar[]) THEN :now
+        ELSE issues.reached_production_at END,
       updated_at    = :now
     FROM previous WHERE issues.id = previous.id
-    RETURNING issues.*, previous.status AS previous_status
+    RETURNING issues.*, previous.status AS previous_status,
+      (previous.reached_production_at IS NULL AND issues.reached_production_at IS NOT NULL) AS just_reached_production
   SQL
 
   attr_reader :issue_id
@@ -50,14 +63,19 @@ class Ingest::IssueTally
   end
 
   # Applies the event to the issue row and returns the updated Issue, with the
-  # extra attribute `previous_status`. This is the only lock on the issue row.
+  # extra attributes `previous_status` and `just_reached_production`. This is
+  # the only lock on the issue row.
   def count(new_user:)
-    sql = Issue.sanitize_sql([ COUNT_SQL, { issue_id:, new_user: new_user ? 1 : 0,
-                                            occurred_at: @event.occurred_at, env: @event.environment, now: Time.current } ])
+    sql = Issue.sanitize_sql([ COUNT_SQL, count_values(new_user) ])
     Issue.uncached { Issue.find_by_sql(sql).first }.tap { |issue| issue.association(:project).target = @project }
   end
 
   private
+    def count_values(new_user)
+      { issue_id:, new_user: new_user ? 1 : 0, occurred_at: @event.occurred_at, env: @event.environment,
+        production: EnvironmentTone.production?(@event.environment), production_names: PRODUCTION_NAMES, now: Time.current }
+    end
+
     def existing_issue_id
       Issue.uncached { Issue.where(project_id: @project.id, fingerprint: @event.fingerprint).pick(:id) }
     end

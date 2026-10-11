@@ -84,6 +84,16 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#{card_error} .min-w-0.opacity-60 a[href=?]", project_issue_path(@project, issues(:card_error))
   end
 
+  test "rows of issues that reached production carry a small coral marker" do
+    issues(:regressed).update_columns(reached_production_at: 1.hour.ago)
+
+    get project_issues_path(@project)
+
+    regressed = "##{dom_id(issues(:regressed), :row)}"
+    assert_select "#{regressed} span[title=?] .chip.chip-sm.chip-coral", "First seen in production 1h ago", text: /Reached production/
+    assert_select "##{dom_id(issues(:card_error), :row)} .chip", text: /Reached production/, count: 0
+  end
+
   test "captured text is escaped" do
     issues(:card_error).update_columns(message: "<script>alert(1)</script>")
 

@@ -4,15 +4,21 @@ module IssueActivityHelper
     case activity.kind
     when "resolved" then tag.span("✓", class: "text-mint-300")
     when "regressed" then tag.span("↺", class: "text-lilac-300")
+    when "reached_production" then tag.span("▲", class: "text-coral-300")
     when "note" then tag.span("✎", class: "text-ink-300")
     when "assigned", "unassigned", "reopened" then tag.span("✦", class: "text-iris-400")
     else tag.span("○", class: "text-ink-400")
     end
   end
 
+  SYSTEM_SENTENCES = {
+    "regressed" => "Regressed: seen again after being resolved",
+    "reached_production" => "Reached production: first seen there after other environments"
+  }.freeze
+
   # "Philip assigned themselves", "Jo resolved this", "Regressed after being resolved"
   def activity_sentence(activity)
-    return "Regressed: seen again after being resolved" if activity.regressed?
+    return SYSTEM_SENTENCES.fetch(activity.kind) if SYSTEM_SENTENCES.key?(activity.kind)
 
     safe_join([ tag.span(activity_actor(activity), class: "text-ink-100"), " ", activity_action(activity) ])
   end

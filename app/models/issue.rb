@@ -39,6 +39,9 @@ class Issue < ApplicationRecord
 
   def regressed? = unresolved? && regressed_at.present?
 
+  # First seen in another environment, later in production (Ingest::IssueTally).
+  def reached_production? = reached_production_at.present?
+
   # Seen in at least one production-like environment (EnvironmentTone).
   def seen_in_production?
     environments.any? { |environment| EnvironmentTone.production?(environment) }
