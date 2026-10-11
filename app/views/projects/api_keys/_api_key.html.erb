@@ -6,7 +6,8 @@
       <div class="flex items-center gap-2 text-[14px] text-ink-50">
         <%= environment_dot(api_key.environment) %>
         <%= api_key_label(api_key) %>
-        <% if default %><%= chip "default", small: true %><% end %>
+        <%# The first key is the one the setup page's install steps use; not the app's default environment (Settings › General). -%>
+        <% if default %><span title="The install steps on this page use this key"><%= chip "used in setup", small: true %></span><% end %>
       </div>
       <%= turbo_frame_tag dom_id(api_key, :token), class: "mt-2" do %>
         <%= render "projects/api_keys/token", project:, api_key:, revealed: %>

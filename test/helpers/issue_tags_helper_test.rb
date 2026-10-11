@@ -1,6 +1,8 @@
 require "test_helper"
 
 class IssueTagsHelperTest < ActionView::TestCase
+  include EnvironmentsHelper
+
   Key = IssueTagCount::TagDistribution::Key
   Value = IssueTagCount::TagDistribution::Value
 
@@ -21,6 +23,13 @@ class IssueTagsHelperTest < ActionView::TestCase
     assert_equal [ ChartHelper::IRIS, ChartHelper::IRIS_DEEP, ChartHelper::PAPER ], segments.map { it[:color] }
     assert_in_delta 0.2, segments.last[:share]
     assert_equal "50% v0", segments.first[:title]
+  end
+
+  test "the environment key draws each environment in its tone" do
+    values = [ Value.new("staging", 60, 0.6), Value.new("production", 40, 0.4) ]
+    key = Key.new("environment", 2, 100, values, false)
+
+    assert_equal [ ChartHelper::LILAC, ChartHelper::CORAL ], tag_segments(key).map { it[:color] }
   end
 
   test "a suspicious key highlights only the dominant value" do

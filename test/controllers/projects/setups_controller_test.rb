@@ -153,7 +153,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     production = api_keys(:storefront_production)
     staging = api_keys(:storefront_staging)
     assert_select "turbo-frame##{dom_id(production)}" do
-      assert_select ".chip", "default"
+      assert_select "span[title=?] .chip", "The install steps on this page use this key", text: "used in setup"
       assert_select "span.bg-coral-500[aria-hidden=true]"
       assert_select "turbo-frame##{dom_id(production, :token)} code", text: /\Ags_live_Stor.*0001\z/
       assert_select "a[href=?]", project_api_key_reveal_path(projects(:storefront), production), text: "Reveal"
