@@ -22,9 +22,10 @@ module AlertsHelper
     end
   end
 
-  # "production", "production, staging" in their tones, or "all environments".
+  # "production", "production, staging" in their tones, or "all environments",
+  # from the saved settings (not a rejected form's values).
   def alert_environments_label(project)
-    environments = project.alert_environments
+    environments = project.saved_alert_environments
     return tag.span("all environments", class: "text-ink-300") if environments.nil?
     return tag.span("no environments", class: "text-ink-300") if environments.empty?
 

@@ -36,8 +36,8 @@ class Projects::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     patch project_alert_rule_path(@project, "still_happening"), params: { alert_rule: { threshold: "0" } }
 
     assert_response :unprocessable_entity
-    assert_select "#alert_rule_still_happening [role=alert]", /Threshold must be in 1\.\.100000/
-    assert_select "#alert_rule_still_happening input[name='alert_rule[threshold]'][value='0']"
+    assert_select "#alert_rule_still_happening [role=alert]", "Threshold must be a whole number from 1 to 100,000"
+    assert_select "#alert_rule_still_happening input[name='alert_rule[threshold]'][value='0'][aria-invalid=true].w-32"
     assert_equal 100, alert_rules(:storefront_still_happening).reload.threshold
   end
 

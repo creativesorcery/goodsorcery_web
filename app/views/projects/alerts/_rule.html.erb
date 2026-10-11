@@ -13,17 +13,20 @@
   </div>
 
   <% if rule.still_happening? %>
+    <% invalid = rule.errors[:threshold].any? %>
+    <%# A fixed width (w-32): Rails wraps an invalid field in div.field_with_errors, which would otherwise shrink it. -%>
     <%= form_with model: rule, url: project_alert_rule_path(project, rule), method: :patch, class: "mt-3" do |form| %>
       <%= form.label :threshold, "Threshold", class: "sr-only" %>
       <div class="flex flex-wrap items-center gap-2">
-        <%= form.number_field :threshold, class: "field max-w-[8rem] py-1.5", required: true, step: 1,
+        <%= form.number_field :threshold, class: [ "field w-32 py-1.5", ("border-coral-500" if invalid) ], required: true, step: 1,
               min: AlertRule::THRESHOLD_RANGE.min, max: AlertRule::THRESHOLD_RANGE.max,
-              aria: { describedby: "still_happening_threshold_hint" } %>
+              aria: { invalid: (invalid ? "true" : nil),
+                      describedby: [ ("still_happening_threshold_error" if invalid), "still_happening_threshold_hint" ].compact.join(" ") } %>
         <span class="text-[13px] text-ink-400">events in the last hour</span>
         <%= form.submit "Save", class: "btn btn-sm" %>
       </div>
-      <% if rule.errors[:threshold].any? %>
-        <p class="hint text-coral-300" role="alert">Threshold <%= rule.errors[:threshold].to_sentence %></p>
+      <% if invalid %>
+        <p id="still_happening_threshold_error" class="hint text-coral-300" role="alert">Threshold <%= rule.errors[:threshold].to_sentence %></p>
       <% end %>
       <p id="still_happening_threshold_hint" class="hint">A whole number from 1 to <%= delimited(AlertRule::THRESHOLD_RANGE.max) %>.</p>
     <% end %>

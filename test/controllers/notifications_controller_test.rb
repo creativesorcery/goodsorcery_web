@@ -13,6 +13,7 @@ class NotificationsControllerTest < ActionDispatch::IntegrationTest
 
   test "lists the account's apps with the member's own switches and time zone" do
     users(:jo).update!(time_zone: "Europe/Berlin")
+    alert_rules(:storefront_daily_digest).update!(enabled: true)
 
     get notifications_path
 
@@ -23,8 +24,9 @@ class NotificationsControllerTest < ActionDispatch::IntegrationTest
     assert_select "##{dom_id(projects(:billing), :notifications)}" do
       assert_select "button.toggle[aria-label='Email alerts from billing-api'][aria-pressed=false]"
       assert_select "input[name='notification_preference[alerts_muted]'][value=false]"
-      assert_select "button.toggle[aria-label='Daily digest from billing-api'][aria-pressed=true]"
-      assert_select "*", text: /digest is off for this app/
+      # billing-api's digest rule is off: no switch that suggests a digest is coming.
+      assert_select "button.toggle[aria-label='Daily digest from billing-api']", 0
+      assert_select "a[href=?]", project_alerts_path(projects(:billing)), text: "Off for this app"
     end
     assert_select "##{dom_id(projects(:storefront), :notifications)} button.toggle[aria-pressed=true]", 2
     assert_no_match "umbrella-app", response.body

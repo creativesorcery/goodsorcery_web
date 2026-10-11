@@ -62,7 +62,8 @@ class Projects::AlertsControllerTest < ActionDispatch::IntegrationTest
     patch project_alerts_path(@project), params: { project: { alert_scope: "selected", alert_selected_environments: [ "" ] } }
 
     assert_response :unprocessable_entity
-    assert_select "[role=alert]", /must include at least one environment/
+    assert_select "[role=alert]", "Pick at least one environment."
+    assert_select "#alert_environments_heading + p", /watch all environments/ # the saved scope, not the rejected one
     assert @project.reload.alert_scope_follow_default?
 
     patch project_alerts_path(@project), params: { project: { alert_scope: "selected", alert_selected_environments: [ "qa" ] } }

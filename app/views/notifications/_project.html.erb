@@ -7,7 +7,7 @@
     <div class="min-w-0">
       <%= link_to project.name, project_alerts_path(project), class: "block truncate text-[14px] text-ink-50 hover:underline" %>
       <div class="text-[12px] text-ink-400 truncate">
-        Watching <%= alert_environments_label(project) %><% unless project.alert_rule_enabled?(:daily_digest) %> · digest is off for this app<% end %>
+        Watching <%= alert_environments_label(project) %>
       </div>
     </div>
   </div>
@@ -16,7 +16,14 @@
           params: { "notification_preference[alerts_muted]" => receives_alerts }, label: "Email alerts from #{project.name}" %>
   </div>
   <div class="text-center">
-    <%= switch_button_to project_notification_preference_path(project), pressed: receives_digest,
-          params: { "notification_preference[digest_enabled]" => !receives_digest }, label: "Daily digest from #{project.name}" %>
+    <% if project.alert_rule_enabled?(:daily_digest) %>
+      <%= switch_button_to project_notification_preference_path(project), pressed: receives_digest,
+            params: { "notification_preference[digest_enabled]" => !receives_digest }, label: "Daily digest from #{project.name}" %>
+    <% else %>
+      <%# The app sends no digest; the person's own choice is kept for when it's turned on. -%>
+      <%= link_to "Off for this app", project_alerts_path(project),
+            class: "inline-block text-[11.5px] leading-tight text-ink-400 hover:text-iris-300 hover:underline",
+            title: "#{project.name} sends no daily digest. Turn it on in Settings › Alerts." %>
+    <% end %>
   </div>
 </li>

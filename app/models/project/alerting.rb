@@ -19,6 +19,8 @@ module Project::Alerting
     normalizes :alert_selected_environments,
       with: ->(names) { Array(names).map { |name| name.to_s.strip.downcase }.compact_blank.uniq }
 
+    # The picked environments only mean something with the "selected" scope.
+    before_validation -> { self.alert_selected_environments = [] }, unless: :alert_scope_selected?
     validate :alert_selected_environments_known, if: :alert_scope_selected?
 
     after_create :create_default_alert_rules
@@ -40,10 +42,12 @@ module Project::Alerting
 
   # The environments alerts watch, or nil for all of them.
   def alert_environments
-    return alert_selected_environments if alert_scope_selected?
-    return if alert_scope_all? || default_environment.nil?
+    watched_environments(alert_scope, alert_selected_environments, default_environment)
+  end
 
-    [ default_environment ]
+  # The same from the saved settings, so a rejected form still shows what applies.
+  def saved_alert_environments
+    watched_environments(alert_scope_in_database, alert_selected_environments_in_database, default_environment_in_database)
   end
 
   # Does the alert scope include any of these environments (an event's, or an issue's)?
@@ -67,11 +71,19 @@ module Project::Alerting
       AlertRule.insert_all(AlertRule.default_rows_for(self), unique_by: %i[project_id kind])
     end
 
+    def watched_environments(scope, selected, default)
+      return selected if scope == "selected"
+      return if scope == "all" || default.nil?
+
+      [ default ]
+    end
+
+    # Messages are whole sentences, shown without the attribute name.
     def alert_selected_environments_known
       if alert_selected_environments.empty?
-        errors.add(:alert_selected_environments, "must include at least one environment")
+        errors.add(:alert_selected_environments, :blank, message: "Pick at least one environment.")
       elsif (alert_selected_environments - environments).any?
-        errors.add(:alert_selected_environments, "must be this app's environments")
+        errors.add(:alert_selected_environments, :inclusion, message: "Pick from this app's environments.")
       end
     end
 end

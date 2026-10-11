@@ -22,6 +22,7 @@ class AlertRule < ApplicationRecord
   # "Email alerts" switch (NotificationPreference#alerts_muted) covers these.
   INSTANT_KINDS = (KINDS - %w[daily_digest]).freeze
   THRESHOLD_RANGE = 1..100_000
+  THRESHOLD_MESSAGE = "must be a whole number from #{THRESHOLD_RANGE.min} to #{THRESHOLD_RANGE.max.to_fs(:delimited)}".freeze
 
   belongs_to :project, inverse_of: :alert_rules
 
@@ -30,7 +31,7 @@ class AlertRule < ApplicationRecord
   scope :enabled, -> { where(enabled: true) }
 
   validates :kind, uniqueness: { scope: :project_id }
-  validates :threshold, numericality: { only_integer: true, in: THRESHOLD_RANGE }, if: :still_happening?
+  validates :threshold, numericality: { only_integer: true, in: THRESHOLD_RANGE, message: THRESHOLD_MESSAGE }, if: :still_happening?
   validates :threshold, absence: true, unless: :still_happening?
 
   # The default rule set as insert_all rows for one app.

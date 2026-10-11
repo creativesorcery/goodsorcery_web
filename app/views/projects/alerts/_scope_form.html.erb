@@ -2,7 +2,7 @@
 <%= form_with model: project, url: project_alerts_path(project), method: :patch, class: "px-5 py-4 space-y-3" do |form| %>
   <% if project.errors[:alert_selected_environments].any? || project.errors[:alert_scope].any? %>
     <div class="rounded-xl border border-coral-500/40 bg-coral-500/10 px-4 py-3 text-[13px] text-coral-300" role="alert">
-      <%= (project.errors.full_messages_for(:alert_scope) + project.errors.full_messages_for(:alert_selected_environments)).to_sentence %>
+      <%= safe_join(project.errors.full_messages_for(:alert_scope) + project.errors.messages_for(:alert_selected_environments), " ") %>
     </div>
   <% end %>
 

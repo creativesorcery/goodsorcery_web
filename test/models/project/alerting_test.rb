@@ -67,13 +67,32 @@ class Project::AlertingTest < ActiveSupport::TestCase
 
     project.alert_selected_environments = []
     assert_not project.valid?
-    assert_includes project.errors[:alert_selected_environments], "must include at least one environment"
+    assert_equal [ "Pick at least one environment." ], project.errors.messages_for(:alert_selected_environments)
 
     project.alert_selected_environments = [ "qa" ]
     assert_not project.valid?
+    assert_equal [ "Pick from this app's environments." ], project.errors.messages_for(:alert_selected_environments)
 
     project.alert_selected_environments = [ "production", "staging" ]
     assert project.valid?
+  end
+
+  test "picked environments are cleared when the scope is no longer selected" do
+    project = projects(:storefront)
+    project.update!(alert_scope: "selected", alert_selected_environments: [ "staging" ])
+
+    project.update!(alert_scope: "follow_default")
+
+    assert_empty project.reload.alert_selected_environments
+  end
+
+  test "saved_alert_environments ignores unsaved changes" do
+    project = projects(:storefront)
+    project.update!(default_environment: "production")
+    project.assign_attributes(alert_scope: "selected", alert_selected_environments: [], default_environment: "staging")
+
+    assert_empty project.alert_environments
+    assert_equal [ "production" ], project.saved_alert_environments
   end
 
   test "an unknown scope is invalid" do
