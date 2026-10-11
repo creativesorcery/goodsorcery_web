@@ -71,6 +71,17 @@ class StillHappeningCheckTest < ActiveSupport::TestCase
     assert_no_enqueued_jobs(only: IssueAlertJob) { StillHappeningCheck.new.alert_hot_issues }
   end
 
+  test "skips apps with nobody to mail, so muted apps don't get a job every sweep" do
+    seen(@issue, current: 80)
+    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+    memberships(:jo_acme).update_notification_preference(@project, alerts_muted: true)
+
+    assert_no_enqueued_jobs(only: IssueAlertJob) { assert_empty StillHappeningCheck.new.alert_hot_issues }
+
+    memberships(:jo_acme).update_notification_preference(@project, alerts_muted: false)
+    assert_enqueued_jobs(1, only: IssueAlertJob) { StillHappeningCheck.new.alert_hot_issues }
+  end
+
   test "end to end: the job mails each recipient once per window" do
     seen(@issue, current: 80)
 

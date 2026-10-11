@@ -4,6 +4,10 @@
 # the rule on, and enqueues an IssueAlertJob for each one that is in the
 # app's environment scope and wasn't alerted in the last 6 hours.
 #
+# An app with nobody to mail (every member muted it, or no verified address)
+# records no delivery, so the 6-hour throttle never starts: such apps are
+# skipped here instead of getting a no-op job every sweep.
+#
 #   StillHappeningCheck.new.alert_hot_issues   # => the issues enqueued
 class StillHappeningCheck
   KIND = "still_happening".freeze
@@ -35,7 +39,17 @@ class StillHappeningCheck
       ids = hot - recently_alerted(hot)
       return [] if ids.empty?
 
-      Issue.includes(:project).where(id: ids).select { |issue| issue.project.alerts_cover?(issue.environments) }
+      Issue.includes(:project).where(id: ids).select { |issue| alertable?(issue) }
+    end
+
+    def alertable?(issue)
+      issue.project.alerts_cover?(issue.environments) && recipients?(issue.project)
+    end
+
+    # One EXISTS per app per sweep.
+    def recipients?(project)
+      @recipients ||= {}
+      @recipients.fetch(project.id) { @recipients[project.id] = project.alert_recipients.exists? }
     end
 
     def recently_alerted(ids)

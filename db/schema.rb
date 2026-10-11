@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_000005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -34,6 +34,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_000004) do
     t.index ["created_at"], name: "index_alert_deliveries_on_created_at"
     t.index ["issue_id", "kind", "created_at"], name: "index_alert_deliveries_on_issue_id_and_kind_and_created_at"
     t.index ["project_id"], name: "index_alert_deliveries_on_project_id"
+    t.index ["user_id", "created_at"], name: "index_alert_deliveries_awaiting_summary", where: "(((status)::text = 'folded'::text) AND (summarized_at IS NULL))"
     t.index ["user_id", "dedupe_key"], name: "index_alert_deliveries_on_user_id_and_dedupe_key", unique: true
     t.index ["user_id", "status", "created_at"], name: "index_alert_deliveries_on_user_id_and_status_and_created_at"
   end
