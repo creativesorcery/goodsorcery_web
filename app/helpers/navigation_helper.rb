@@ -2,10 +2,8 @@ module NavigationHelper
   Crumb = Data.define(:label, :path)
 
   SWITCHER_LIMIT = 50
-  FIRST_ENVIRONMENT_SQL = <<~SQL.squish.freeze
-    (SELECT api_keys.environment FROM api_keys
-     WHERE api_keys.project_id = projects.id ORDER BY api_keys.id LIMIT 1) AS first_environment
-  SQL
+  NAV_BADGE_CLASSES = "text-[11px] font-mono border rounded px-1.5".freeze
+  ALL_ENVIRONMENTS_BADGE = "text-coral-300 bg-coral-500/10 border-coral-500/20".freeze
 
   # In a view: <% breadcrumb Current.account.name, projects_path %> … <% breadcrumb "Issues" %>
   def breadcrumb(label, path = nil)
@@ -32,10 +30,14 @@ module NavigationHelper
     end
   end
 
-  def nav_badge(count)
+  # Unresolved count, tinted in the tone of the environment it counts (coral
+  # across all environments); the title says which.
+  def nav_badge(count, environment: nil)
     return if count.to_i.zero?
 
-    tag.span compact_count(count), class: "text-[11px] font-mono text-coral-300 bg-coral-500/10 border border-coral-500/20 rounded px-1.5"
+    tone = environment ? environment_bar_classes(environment) : ALL_ENVIRONMENTS_BADGE
+    scope = environment ? "in #{environment}" : "across all environments"
+    tag.span compact_count(count), class: "#{NAV_BADGE_CLASSES} #{tone}", title: "#{delimited(count)} unresolved #{scope}"
   end
 
   def current_nav?(key)
@@ -50,13 +52,12 @@ module NavigationHelper
     @sidebar_project = @project.try(:persisted?) ? @project : remembered_project || most_recently_active_project
   end
 
-  # Switcher list: one query, including each project's first environment and
-  # latest issue activity.
+  # Switcher list: one query, including each project's latest issue activity.
   def sidebar_projects
     return [] unless Current.account
 
     @sidebar_projects ||= Current.account.projects.order(:name).limit(SWITCHER_LIMIT)
-      .select("projects.*", FIRST_ENVIRONMENT_SQL, "#{ProjectOverview::LAST_SEEN_SQL} AS last_issue_seen_at").to_a
+      .select("projects.*", "#{ProjectOverview::LAST_SEEN_SQL} AS last_issue_seen_at").to_a
   end
 
   def remembered_project
@@ -71,10 +72,16 @@ module NavigationHelper
     sidebar_projects.min_by.with_index { |project, index| [ -project.last_issue_seen_at.to_i, index ] }
   end
 
-  # "production · Rails 8.0 · Ruby 3.4", the environment in its tone.
+  # "staging · Rails 8.0 · Ruby 3.4": the environment the project's issue list
+  # shows (and the badge counts), in its tone, or "all environments".
   def sidebar_project_subtitle(project)
-    environment = sidebar_projects.find { |item| item.id == project.id }&.first_environment
-    safe_join [ (environment_text(environment) if environment), project_runtime_label(project) ].compact, " · "
+    environment = issues_environment_for(project)
+    scope = environment ? environment_text(environment) : tag.span("all environments", class: "text-ink-400")
+    safe_join [ scope, project_runtime_label(project) ].compact, " · "
+  end
+
+  def sidebar_issues_badge
+    nav_badge sidebar_unresolved_count, environment: issues_environment_for(sidebar_project)
   end
 
   # Badge count for the environment the project's issue list shows

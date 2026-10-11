@@ -14,7 +14,7 @@
     <div class="section-label">Grimoire</div>
     <%= nav_link_to "Projects", projects_path, key: "projects", icon: :projects %>
     <% if project %>
-      <%= nav_link_to "Issues", project_issues_path(project), key: "issues", icon: :issues, badge: nav_badge(sidebar_unresolved_count) %>
+      <%= nav_link_to "Issues", project_issues_path(project), key: "issues", icon: :issues, badge: sidebar_issues_badge %>
     <% else %>
       <%= nav_placeholder "Issues", icon: :issues %>
     <% end %>

@@ -27,6 +27,16 @@ class NavigationHelperTest < ActionView::TestCase
     assert_includes nav_badge(1_240), "1.2k"
   end
 
+  test "nav_badge is tinted in the counted environment's tone and says what it counts" do
+    staging = Nokogiri::HTML5.fragment(nav_badge(23, environment: "staging")).at_css("span")
+    all = Nokogiri::HTML5.fragment(nav_badge(1_240)).at_css("span")
+
+    assert_equal "23 unresolved in staging", staging["title"]
+    assert_includes staging["class"], "text-lilac-300"
+    assert_equal "1,240 unresolved across all environments", all["title"]
+    assert_includes all["class"], "text-coral-300"
+  end
+
   test "nav_placeholder is not a link" do
     placeholder = nav_placeholder("Uptime", icon: :uptime, note: "soon")
 
@@ -40,13 +50,12 @@ class NavigationHelperTest < ActionView::TestCase
     assert_equal 0, sidebar_unresolved_count
   end
 
-  test "sidebar_projects loads the switcher in one query with each first environment" do
+  test "sidebar_projects loads the switcher in one query" do
     sign_in_to accounts(:acme)
 
     projects = assert_queries_count(1) { sidebar_projects }
 
     assert_equal accounts(:acme).projects.order(:name).pluck(:name), projects.map(&:name)
-    assert_equal "production", projects.find { |project| project.id == projects(:storefront).id }.first_environment
     assert_not_includes projects.map(&:id), projects(:umbrella_app).id
   end
 
@@ -94,13 +103,21 @@ class NavigationHelperTest < ActionView::TestCase
     assert_equal 1, sidebar_unresolved_count
   end
 
-  test "sidebar_project_subtitle joins environment and runtime" do
+  test "sidebar_project_subtitle joins the environment the issue list shows and the runtime" do
+    sign_in_to accounts(:acme)
+    project = projects(:storefront)
+    @badge_environment = "staging"
+
+    subtitle = sidebar_project_subtitle(project)
+    assert_equal [ "staging", project_runtime_label(project) ].join(" · "), strip_tags(subtitle)
+    assert_includes subtitle, %(<span class="text-lilac-300">staging</span>)
+  end
+
+  test "sidebar_project_subtitle says all environments when the issue list shows them all" do
     sign_in_to accounts(:acme)
     project = projects(:storefront)
 
-    subtitle = sidebar_project_subtitle(project)
-    assert_equal [ "production", project_runtime_label(project) ].join(" · "), strip_tags(subtitle)
-    assert_includes subtitle, %(<span class="text-coral-300">production</span>)
+    assert_equal [ "all environments", project_runtime_label(project) ].join(" · "), strip_tags(sidebar_project_subtitle(project))
   end
 
   test "live_stream_from subscribes through the authorised channel" do
