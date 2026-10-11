@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_10_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_11_000004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -20,6 +20,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_000004) do
     t.bigint "monthly_event_quota"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "alert_deliveries", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "project_id", null: false
+    t.bigint "issue_id"
+    t.string "kind", null: false
+    t.string "dedupe_key", null: false
+    t.string "status", default: "sent", null: false
+    t.datetime "summarized_at"
+    t.datetime "created_at", null: false
+    t.index ["created_at"], name: "index_alert_deliveries_on_created_at"
+    t.index ["issue_id", "kind", "created_at"], name: "index_alert_deliveries_on_issue_id_and_kind_and_created_at"
+    t.index ["project_id"], name: "index_alert_deliveries_on_project_id"
+    t.index ["user_id", "dedupe_key"], name: "index_alert_deliveries_on_user_id_and_dedupe_key", unique: true
+    t.index ["user_id", "status", "created_at"], name: "index_alert_deliveries_on_user_id_and_status_and_created_at"
+  end
+
+  create_table "alert_rules", force: :cascade do |t|
+    t.bigint "project_id", null: false
+    t.string "kind", null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "threshold"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["kind", "enabled"], name: "index_alert_rules_on_kind_and_enabled"
+    t.index ["project_id", "kind"], name: "index_alert_rules_on_project_id_and_kind", unique: true
+    t.check_constraint "threshold IS NULL OR threshold >= 1 AND threshold <= 100000", name: "alert_rules_threshold_range"
   end
 
   create_table "api_keys", force: :cascade do |t|
@@ -133,6 +161,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_000004) do
     t.index ["user_id"], name: "index_memberships_on_user_id"
   end
 
+  create_table "notification_preferences", force: :cascade do |t|
+    t.bigint "membership_id", null: false
+    t.bigint "project_id", null: false
+    t.boolean "alerts_muted", default: false, null: false
+    t.boolean "digest_enabled", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["membership_id", "project_id"], name: "index_notification_preferences_on_membership_id_and_project_id", unique: true
+    t.index ["project_id"], name: "index_notification_preferences_on_project_id"
+  end
+
   create_table "occurrences", force: :cascade do |t|
     t.bigint "issue_id", null: false
     t.bigint "project_id", null: false
@@ -174,6 +213,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_000004) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "default_environment"
+    t.string "alert_scope", default: "default", null: false
+    t.string "alert_selected_environments", default: [], null: false, array: true
     t.index ["account_id", "slug"], name: "index_projects_on_account_id_and_slug", unique: true
   end
 
@@ -199,6 +240,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_000004) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
+  add_foreign_key "alert_deliveries", "issues", on_delete: :cascade
+  add_foreign_key "alert_deliveries", "projects", on_delete: :cascade
+  add_foreign_key "alert_deliveries", "users", on_delete: :cascade
+  add_foreign_key "alert_rules", "projects", on_delete: :cascade
   add_foreign_key "api_keys", "projects", on_delete: :cascade
   add_foreign_key "api_keys", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "inbound_events", "api_keys", on_delete: :cascade
@@ -214,6 +259,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_10_000004) do
   add_foreign_key "issues", "users", column: "assignee_id", on_delete: :nullify
   add_foreign_key "memberships", "accounts", on_delete: :cascade
   add_foreign_key "memberships", "users", on_delete: :cascade
+  add_foreign_key "notification_preferences", "memberships", on_delete: :cascade
+  add_foreign_key "notification_preferences", "projects", on_delete: :cascade
   add_foreign_key "occurrences", "issues", on_delete: :cascade
   add_foreign_key "occurrences", "projects", on_delete: :cascade
   add_foreign_key "project_hourly_counts", "projects", on_delete: :cascade

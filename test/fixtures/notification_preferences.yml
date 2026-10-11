@@ -1,0 +1,6 @@
+# Jo muted billing-api's instant alerts but keeps its digest.
+jo_billing:
+  membership: jo_acme
+  project: billing
+  alerts_muted: true
+  digest_enabled: true

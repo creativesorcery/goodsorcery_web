@@ -10,6 +10,8 @@ module User::EmailVerification
   # The token embeds what the block returns (signed, not encrypted), so it
   # carries a short keyed digest of the address rather than the address.
   included do
+    scope :email_verified, -> { where.not(email_verified_at: nil) }
+
     generates_token_for(:email_verification, expires_in: EXPIRES_IN) do
       PrivateDigest.hexdigest("email_verification", email_address).first(16)
     end

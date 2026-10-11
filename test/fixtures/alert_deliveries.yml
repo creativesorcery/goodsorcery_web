@@ -1,0 +1,8 @@
+philip_nomethod_new_issue:
+  user: philip
+  project: storefront
+  issue: nomethod
+  kind: new_issue
+  dedupe_key: new_issue:<%= ActiveRecord::FixtureSet.identify(:nomethod) %>
+  status: sent
+  created_at: <%= 2.hours.ago.to_fs(:db) %>

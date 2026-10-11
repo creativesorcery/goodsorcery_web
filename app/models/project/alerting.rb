@@ -1,0 +1,77 @@
+# An app's alert settings: its rules (AlertRule, one per kind), the
+# environments they watch, and who receives the emails.
+#
+#   project.alert_rule(:new_issue).enabled?
+#   project.alert_environments            # => ["production"], or nil for all
+#   project.alerts_cover?(issue.environments)
+#   project.alert_recipients              # => users to email right now
+module Project::Alerting
+  extend ActiveSupport::Concern
+
+  included do
+    has_many :alert_rules, inverse_of: :project # rows cascade in the database
+    has_many :alert_deliveries, inverse_of: :project
+    has_many :notification_preferences, inverse_of: :project
+
+    # "default" follows default_environment (nil there means all).
+    enum :alert_scope, { follow_default: "default", all: "all", selected: "selected" }, prefix: true, validate: true
+
+    normalizes :alert_selected_environments,
+      with: ->(names) { Array(names).map { |name| name.to_s.strip.downcase }.compact_blank.uniq }
+
+    validate :alert_selected_environments_known, if: :alert_scope_selected?
+
+    after_create :create_default_alert_rules
+  end
+
+  # The rule of that kind (one query loads all of them, then memoised by the
+  # association); an unsaved default if the row is missing.
+  def alert_rule(kind)
+    alert_rules.find { |rule| rule.kind == kind.to_s } || AlertRule.build_default(self, kind)
+  end
+
+  def alert_rules_in_order
+    AlertRule::KINDS.map { |kind| alert_rule(kind) }
+  end
+
+  def alert_rule_enabled?(kind) = alert_rule(kind).enabled?
+
+  def still_happening_threshold = alert_rule(:still_happening).threshold
+
+  # The environments alerts watch, or nil for all of them.
+  def alert_environments
+    return alert_selected_environments if alert_scope_selected?
+    return if alert_scope_all? || default_environment.nil?
+
+    [ default_environment ]
+  end
+
+  # Does the alert scope include any of these environments (an event's, or an issue's)?
+  def alerts_cover?(environments)
+    scope = alert_environments
+    scope.nil? || scope.intersect?(Array(environments))
+  end
+
+  # Members with a confirmed address who haven't muted this app's alerts.
+  def alert_recipients
+    User.where(id: account.memberships.receiving_alerts_for(self).select(:user_id))
+  end
+
+  # Members with a confirmed address who haven't turned off this app's digest.
+  def digest_recipients
+    User.where(id: account.memberships.receiving_digest_for(self).select(:user_id))
+  end
+
+  private
+    def create_default_alert_rules
+      AlertRule.insert_all(AlertRule.default_rows_for(self), unique_by: %i[project_id kind])
+    end
+
+    def alert_selected_environments_known
+      if alert_selected_environments.empty?
+        errors.add(:alert_selected_environments, "must include at least one environment")
+      elsif (alert_selected_environments - environments).any?
+        errors.add(:alert_selected_environments, "must be this app's environments")
+      end
+    end
+end

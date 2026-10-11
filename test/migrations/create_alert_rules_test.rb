@@ -1,0 +1,18 @@
+require "test_helper"
+require Rails.root.join("db/migrate/20261011000001_create_alert_rules")
+
+# Postgres DDL is transactional, so the test's rollback restores the table.
+class CreateAlertRulesTest < ActiveSupport::TestCase
+  teardown { AlertRule.reset_column_information }
+
+  test "every existing app gets the default rule set" do
+    migration = CreateAlertRules.new.tap { |m| m.verbose = false }
+    migration.migrate(:down)
+    migration.migrate(:up)
+    AlertRule.reset_column_information
+
+    assert_equal Project.count * AlertRule::KINDS.size, AlertRule.count
+    rules = projects(:billing).alert_rules.order(:id).pluck(:kind, :enabled, :threshold)
+    assert_equal AlertRule::KINDS.map { |kind| [ kind, AlertRule::DEFAULTS[kind][:enabled], AlertRule::DEFAULTS[kind][:threshold] ] }, rules
+  end
+end

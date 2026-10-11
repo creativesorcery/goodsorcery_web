@@ -5,6 +5,7 @@ class User < ApplicationRecord
   has_many :sessions, dependent: :destroy
   has_many :memberships, dependent: :destroy, inverse_of: :user
   has_many :accounts, through: :memberships
+  has_many :alert_deliveries # rows cascade in the database
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
   normalizes :name, with: ->(n) { n.squish }
@@ -26,5 +27,10 @@ class User < ApplicationRecord
 
   def first_name
     name.to_s.split.first
+  end
+
+  # For the List-Unsubscribe link of an alert ("alerts") or digest ("digest") email.
+  def alert_mute_token(project, stream: "alerts")
+    AlertMute.token_for(self, project, stream:)
   end
 end

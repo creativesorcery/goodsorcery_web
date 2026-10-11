@@ -1,0 +1,10 @@
+# Every app's default rule set (Project::Alerting creates it for new apps).
+<% %w[storefront billing marketing umbrella_app].each do |project| %>
+<% AlertRule::DEFAULTS.each do |kind, settings| %>
+<%= project %>_<%= kind %>:
+  project: <%= project %>
+  kind: <%= kind %>
+  enabled: <%= settings[:enabled] %>
+  threshold: <%= settings[:threshold] %>
+<% end %>
+<% end %>

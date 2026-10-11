@@ -1,5 +1,5 @@
 class Project < ApplicationRecord
-  include Project::Broadcasting
+  include Project::Broadcasting, Project::Alerting
 
   COLORS = %w[iris coral lilac mint].freeze
   DEFAULT_ENVIRONMENTS = %w[production staging].freeze
