@@ -1,0 +1,31 @@
+<%# locals: (project:, rule:) -%>
+<li id="<%= "alert_rule_#{rule.kind}" %>" class="px-5 py-4">
+  <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+    <div class="min-w-0">
+      <div class="flex items-center gap-2 text-[14px] text-ink-50">
+        <%= alert_rule_title(rule) %>
+        <% unless rule.enabled? %><%= chip "off", tone: :muted, small: true %><% end %>
+      </div>
+      <p class="text-[12.5px] text-ink-400 mt-0.5"><%= alert_rule_description(rule) %></p>
+    </div>
+    <%= switch_button_to project_alert_rule_path(project, rule), pressed: rule.enabled?,
+          params: { "alert_rule[enabled]" => !rule.enabled? }, label: "#{alert_rule_title(rule)} alerts" %>
+  </div>
+
+  <% if rule.still_happening? %>
+    <%= form_with model: rule, url: project_alert_rule_path(project, rule), method: :patch, class: "mt-3" do |form| %>
+      <%= form.label :threshold, "Threshold", class: "sr-only" %>
+      <div class="flex flex-wrap items-center gap-2">
+        <%= form.number_field :threshold, class: "field max-w-[8rem] py-1.5", required: true, step: 1,
+              min: AlertRule::THRESHOLD_RANGE.min, max: AlertRule::THRESHOLD_RANGE.max,
+              aria: { describedby: "still_happening_threshold_hint" } %>
+        <span class="text-[13px] text-ink-400">events in the last hour</span>
+        <%= form.submit "Save", class: "btn btn-sm" %>
+      </div>
+      <% if rule.errors[:threshold].any? %>
+        <p class="hint text-coral-300" role="alert">Threshold <%= rule.errors[:threshold].to_sentence %></p>
+      <% end %>
+      <p id="still_happening_threshold_hint" class="hint">A whole number from 1 to <%= delimited(AlertRule::THRESHOLD_RANGE.max) %>.</p>
+    <% end %>
+  <% end %>
+</li>

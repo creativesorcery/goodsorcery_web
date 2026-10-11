@@ -19,6 +19,11 @@ Rails.application.routes.draw do
   resource :registration, only: %i[new create]
   # Like the reset token, the verification token travels as ?token=.
   resource :email_verification, only: %i[show create]
+  # One-click mute from alert emails (List-Unsubscribe), no sign-in; the
+  # signed token travels as ?token= too.
+  resource :alert_mute, only: %i[show create]
+
+  resource :notifications, only: :show
 
   resource :search, only: :show
   resource :recent_issues, only: :show
@@ -31,6 +36,9 @@ Rails.application.routes.draw do
       resource :summary, only: :show
       resource :rows, only: :show
       resource :bulk_triage, only: :create
+      resource :alerts, only: %i[show update]
+      resources :alert_rules, only: :update, param: :kind
+      resource :notification_preference, only: :update
       resources :api_keys, only: %i[show create] do
         scope module: :api_keys do
           resource :reveal, only: :show

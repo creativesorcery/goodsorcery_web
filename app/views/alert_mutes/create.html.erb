@@ -1,0 +1,13 @@
+<% provide :title, "Muted" %>
+
+<h1 class="font-display text-[28px] leading-tight text-ink-50">Muted</h1>
+<p class="mt-2 text-[14px] text-ink-300">
+  <%= @alert_mute.user.email_address %> won't get <%= alert_mute_subject(@alert_mute) %> from
+  <span class="font-semibold text-ink-100"><%= @alert_mute.project.name %></span> any more.
+</p>
+
+<% content_for :auth_footer do %>
+  <p class="mt-5 text-center text-[13px] text-ink-400">
+    Turn it back on any time under <%= link_to "Notifications", notifications_path, class: "text-iris-300 hover:underline" %>.
+  </p>
+<% end %>

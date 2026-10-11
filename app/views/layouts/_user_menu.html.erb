@@ -13,6 +13,9 @@
 
     <div class="menu left-3 right-3 bottom-full mb-1" data-dropdown-target="menu" hidden>
       <div class="px-3 py-2 text-[12px] text-ink-400 truncate"><%= user.email_address %></div>
+      <%= link_to notifications_path, class: "menu-item", aria: { current: ("page" if current_nav?("notifications")) } do %>
+        <%= icon :alerts, classes: "w-4 h-4 text-ink-400" %>Notifications
+      <% end %>
       <%= button_to session_path, method: :delete, class: "menu-item" do %>
         <%= icon :sign_out, classes: "w-4 h-4 text-ink-400" %>Sign out
       <% end %>

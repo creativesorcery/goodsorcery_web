@@ -1,0 +1,41 @@
+<%# locals: (project:) -%>
+<%= form_with model: project, url: project_alerts_path(project), method: :patch, class: "px-5 py-4 space-y-3" do |form| %>
+  <% if project.errors[:alert_selected_environments].any? || project.errors[:alert_scope].any? %>
+    <div class="rounded-xl border border-coral-500/40 bg-coral-500/10 px-4 py-3 text-[13px] text-coral-300" role="alert">
+      <%= (project.errors.full_messages_for(:alert_scope) + project.errors.full_messages_for(:alert_selected_environments)).to_sentence %>
+    </div>
+  <% end %>
+
+  <fieldset class="space-y-2.5">
+    <legend class="sr-only">Environments the rules watch</legend>
+    <label class="flex items-center gap-2.5 text-[13.5px] text-ink-100">
+      <%= form.radio_button :alert_scope, "follow_default", class: "accent-iris-300" %>
+      <span><%= alert_default_scope_label(project) %></span>
+    </label>
+    <label class="flex items-center gap-2.5 text-[13.5px] text-ink-100">
+      <%= form.radio_button :alert_scope, "all", class: "accent-iris-300" %>
+      <span>All environments</span>
+    </label>
+    <label class="flex items-center gap-2.5 text-[13.5px] text-ink-100">
+      <%= form.radio_button :alert_scope, "selected", class: "accent-iris-300" %>
+      <span>Only these environments:</span>
+    </label>
+    <div class="flex flex-wrap gap-x-5 gap-y-2 pl-7">
+      <%= hidden_field_tag "project[alert_selected_environments][]", "", id: nil %>
+      <% project.environments.each do |environment| %>
+        <label class="flex items-center gap-2 text-[13.5px]">
+          <%= check_box_tag "project[alert_selected_environments][]", environment,
+                project.alert_selected_environments.include?(environment),
+                id: "alert_environment_#{environment}", class: "accent-iris-300" %>
+          <%= environment_dot(environment) %><%= environment_text(environment) %>
+        </label>
+      <% end %>
+    </div>
+  </fieldset>
+
+  <p class="hint">The default environment is set in <%= link_to "General", edit_project_path(project), class: "text-iris-300 hover:underline" %>.</p>
+
+  <div class="pt-1">
+    <%= form.submit "Save environments", class: "btn btn-primary" %>
+  </div>
+<% end %>

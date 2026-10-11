@@ -1,0 +1,104 @@
+require "test_helper"
+
+class AlertMutesControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @user = users(:philip)
+    @project = projects(:storefront)
+    @token = @user.alert_mute_token(@project)
+  end
+
+  test "GET shows a confirmation page without signing in, and mutes nothing" do
+    get alert_mute_path(token: @token)
+
+    assert_response :success
+    assert_select "h1", "Mute email alerts?"
+    assert_select "form[action=?][method=post][data-turbo=false] input[name=token][value=?]", alert_mute_path, @token
+    assert_select "*", text: /storefront/
+    assert memberships(:philip_acme).receives_alerts?(@project)
+    assert_equal "no-store", response.headers["Cache-Control"]
+  end
+
+  test "POST mutes that app's alerts for that person" do
+    post alert_mute_path, params: { token: @token }
+
+    assert_response :success
+    assert_select "h1", "Muted"
+    assert_not memberships(:philip_acme).reload.receives_alerts?(@project)
+    assert memberships(:philip_acme).receives_alerts?(projects(:billing))
+    assert memberships(:jo_acme).receives_alerts?(@project)
+  end
+
+  test "RFC 8058 one-click POST works with the token in the URL and no CSRF token" do
+    ActionController::Base.allow_forgery_protection = true
+
+    post alert_mute_path(token: @token), params: "List-Unsubscribe=One-Click",
+         headers: { "Content-Type" => "application/x-www-form-urlencoded" }
+
+    assert_response :success
+    assert_not memberships(:philip_acme).reload.receives_alerts?(@project)
+  ensure
+    ActionController::Base.allow_forgery_protection = false
+  end
+
+  test "a digest link turns off the digest" do
+    token = @user.alert_mute_token(@project, stream: "digest")
+
+    get alert_mute_path(token:)
+    assert_select "h1", "Mute the daily digest?"
+
+    post alert_mute_path, params: { token: }
+    assert_not memberships(:philip_acme).reload.receives_digest?(@project)
+    assert memberships(:philip_acme).receives_alerts?(@project)
+  end
+
+  test "an already muted app says so" do
+    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+
+    get alert_mute_path(token: @token)
+
+    assert_select "h1", "Already off"
+    assert_select "form[action=?]", alert_mute_path, count: 0
+  end
+
+  test "an expired token is refused" do
+    travel AlertMute::EXPIRES_IN + 1.minute do
+      get alert_mute_path(token: @token)
+      assert_response :not_found
+      assert_select "h1", "This link has expired"
+
+      post alert_mute_path, params: { token: @token }
+      assert_response :not_found
+    end
+    assert memberships(:philip_acme).reload.receives_alerts?(@project)
+  end
+
+  test "a tampered or missing token is refused" do
+    post alert_mute_path, params: { token: "#{@token}x" }
+    assert_response :not_found
+
+    get alert_mute_path
+    assert_response :not_found
+
+    assert memberships(:philip_acme).reload.receives_alerts?(@project)
+  end
+
+  test "a token for another app mutes only that app" do
+    post alert_mute_path, params: { token: @user.alert_mute_token(projects(:billing)) }
+
+    assert memberships(:philip_acme).reload.receives_alerts?(@project)
+    assert_not memberships(:philip_acme).receives_alerts?(projects(:billing))
+  end
+
+  test "an outsider's token can't reach another account's app" do
+    post alert_mute_path, params: { token: AlertMute.token_for(users(:outsider), @project) }
+
+    assert_response :not_found
+    assert_equal 1, NotificationPreference.count
+  end
+
+  test "the token is filtered from the request log" do
+    filter = ActiveSupport::ParameterFilter.new(Rails.application.config.filter_parameters)
+
+    assert_equal "[FILTERED]", filter.filter("token" => @token)["token"]
+  end
+end

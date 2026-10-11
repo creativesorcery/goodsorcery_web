@@ -177,10 +177,11 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "no-store", response.headers["Cache-Control"]
   end
 
-  test "settings nav has setup and general only" do
+  test "settings nav has setup, general and alerts" do
     get project_setup_path(projects(:storefront))
 
-    assert_select "nav[aria-label='Project settings'] a", count: 2
+    assert_select "nav[aria-label='Project settings'] a", count: 3
+    assert_select "nav[aria-label='Project settings'] a[href=?]", project_alerts_path(projects(:storefront)), "Alerts"
     assert_select "nav[aria-label='Project settings'] a[aria-current=page]", "Setup & API keys"
   end
 

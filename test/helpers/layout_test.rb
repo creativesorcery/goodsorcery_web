@@ -20,6 +20,9 @@ class LayoutTest < ActionView::TestCase
     assert_select "aside [data-controller=dropdown] button", text: /storefront/
     assert_select "aside a[href=?]", new_project_path, text: /Add a new app/
     assert_select "aside", text: /Uptime\s*soon/
+    assert_select "aside a.nav-link[href=?]", project_alerts_path(@project), text: /Alerts/
+    assert_select "aside", text: /Alerts\s*soon/, count: 0
+    assert_select "aside a.menu-item[href=?]", notifications_path, text: /Notifications/
     assert_select "aside", text: /#{Regexp.escape(users(:philip).name)}/
     assert_select "form[action=?][method=get] input[name=q]", search_path
     assert_select "header nav[aria-label=Breadcrumb]", text: /Acme Labs/
@@ -35,6 +38,7 @@ class LayoutTest < ActionView::TestCase
 
     assert_select "aside a[href=?]", new_project_path, text: /Add a new app/
     assert_select "aside a.nav-link", text: /Issues/, count: 0
+    assert_select "aside a.nav-link", text: /Alerts/, count: 0
     assert_select "aside", text: /Settings & setup/, count: 0
   end
 

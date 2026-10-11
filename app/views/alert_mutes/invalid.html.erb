@@ -1,0 +1,7 @@
+<% provide :title, "Link expired" %>
+
+<h1 class="font-display text-[28px] leading-tight text-ink-50">This link has expired</h1>
+<p class="mt-2 text-[14px] text-ink-300">
+  Mute links in alert emails work for <%= AlertMute::EXPIRES_IN.in_days.to_i %> days. Sign in to choose which emails you get.
+</p>
+<%= link_to "Open Notifications", notifications_path, class: "btn btn-primary w-full justify-center py-2.5 mt-6" %>

@@ -15,10 +15,11 @@
     <%= nav_link_to "Projects", projects_path, key: "projects", icon: :projects %>
     <% if project %>
       <%= nav_link_to "Issues", project_issues_path(project), key: "issues", icon: :issues, badge: sidebar_issues_badge %>
+      <%= nav_link_to "Alerts", project_alerts_path(project), key: "alerts", icon: :alerts %>
     <% else %>
       <%= nav_placeholder "Issues", icon: :issues %>
+      <%= nav_placeholder "Alerts", icon: :alerts %>
     <% end %>
-    <%= nav_placeholder "Alerts", icon: :alerts, note: "soon" %>
 
     <div class="section-label pt-5">Coming from the suite</div>
     <%= nav_placeholder "Uptime", icon: :uptime, note: "soon" %>

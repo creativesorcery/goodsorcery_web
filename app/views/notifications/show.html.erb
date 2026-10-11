@@ -1,0 +1,36 @@
+<% provide :title, "Notifications" %>
+<% provide :nav, "notifications" %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb "Notifications" %>
+
+<div class="px-8 py-8 max-w-3xl">
+  <div class="rise">
+    <div class="eyebrow">Your account</div>
+    <h1 class="page-title">Notifications</h1>
+    <p class="mt-2 text-[13.5px] text-ink-300">
+      Alert emails from <%= Current.account.name %> go to <span class="font-semibold text-ink-100"><%= Current.user.email_address %></span>.
+      Daily digests arrive at 09:00 in your time zone,
+      <span id="digest_time_zone" class="font-mono text-[12.5px] text-ink-100"><%= Current.user.time_zone %></span>.
+    </p>
+    <% unless Current.user.email_verified? %>
+      <p class="hint">Alert emails start once you confirm your email address.</p>
+    <% end %>
+  </div>
+
+  <section class="panel mt-6 rise rise-1" aria-labelledby="notification_apps_heading">
+    <div class="<%= AlertsHelper::NOTIFICATION_ROW_GRID %> items-end px-5 py-3 border-b border-paper-700 text-[11px] uppercase tracking-[.14em] text-ink-400">
+      <h2 id="notification_apps_heading">Apps</h2>
+      <span class="text-center">Email alerts</span>
+      <span class="text-center">Daily digest</span>
+    </div>
+    <% if @projects.any? %>
+      <ul class="divide-y divide-paper-700/70">
+        <% @projects.each do |project| %>
+          <%= render "notifications/project", project:, preference: @membership.notification_preference_for(project) %>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="px-5 py-6 text-[13.5px] text-ink-400">No apps yet. Alerts start once you add one.</p>
+    <% end %>
+  </section>
+</div>

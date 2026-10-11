@@ -1,0 +1,41 @@
+<% provide :title, "Alerts · #{project_crumb_label(@project)}" %>
+<% provide :nav, "alerts" %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb project_crumb_label(@project), project_issues_path(@project) %>
+<% breadcrumb "Settings", project_setup_path(@project) %>
+<% breadcrumb "Alerts" %>
+
+<div class="px-8 py-8 max-w-[1300px] grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-10">
+  <%= render "projects/settings_nav", project: @project, current: :alerts %>
+
+  <div class="min-w-0 max-w-2xl">
+    <div class="rise">
+      <div class="eyebrow">Settings</div>
+      <h1 class="page-title">Alerts</h1>
+      <p class="mt-2 text-[13.5px] text-ink-300">
+        Alert emails go to every member of <%= Current.account.name %> with a confirmed email address.
+        Each person can mute this app or turn off its digest under <%= link_to "Notifications", notifications_path, class: "text-iris-300 hover:underline" %>.
+      </p>
+    </div>
+
+    <section id="alert_rules" class="panel mt-6 rise rise-1" aria-labelledby="alert_rules_heading">
+      <div class="px-5 py-4 border-b border-paper-700">
+        <h2 id="alert_rules_heading" class="font-display text-[20px] text-ink-50">Rules</h2>
+        <p class="text-[12.5px] text-ink-400 mt-0.5">Each email is sent once per issue and rule. Ignored issues never alert.</p>
+      </div>
+      <ul class="divide-y divide-paper-700/70">
+        <% @project.alert_rules_in_order.each do |rule| %>
+          <%= render "projects/alerts/rule", project: @project, rule: %>
+        <% end %>
+      </ul>
+    </section>
+
+    <section id="alert_environments" class="panel mt-6 rise rise-2" aria-labelledby="alert_environments_heading">
+      <div class="px-5 py-4 border-b border-paper-700">
+        <h2 id="alert_environments_heading" class="font-display text-[20px] text-ink-50">Environments</h2>
+        <p class="text-[12.5px] text-ink-400 mt-0.5">The rules above watch <%= alert_environments_label(@project) %>.</p>
+      </div>
+      <%= render "projects/alerts/scope_form", project: @project %>
+    </section>
+  </div>
+</div>

@@ -1,0 +1,25 @@
+<% provide :title, "Mute alerts" %>
+<% subject = alert_mute_subject(@alert_mute) %>
+
+<% if @alert_mute.applied? %>
+  <h1 class="font-display text-[28px] leading-tight text-ink-50">Already off</h1>
+  <p class="mt-2 text-[14px] text-ink-300">
+    <%= subject.upcase_first %> from <span class="font-semibold text-ink-100"><%= @alert_mute.project.name %></span>
+    are off for <%= @alert_mute.user.email_address %>.
+  </p>
+<% else %>
+  <h1 class="font-display text-[28px] leading-tight text-ink-50">Mute <%= subject %>?</h1>
+  <p class="mt-2 text-[14px] text-ink-300">
+    Stop <%= subject %> from <span class="font-semibold text-ink-100"><%= @alert_mute.project.name %></span>
+    going to <%= @alert_mute.user.email_address %>.
+  </p>
+  <%# A plain POST: create renders its page (200) as RFC 8058 one-click expects, which Turbo would refuse. -%>
+  <%= button_to "Mute #{subject}", alert_mute_path, params: { token: params[:token] },
+        class: "btn btn-primary w-full justify-center py-2.5 mt-6", form_class: "contents", form: { data: { turbo: false } } %>
+<% end %>
+
+<% content_for :auth_footer do %>
+  <p class="mt-5 text-center text-[13px] text-ink-400">
+    Change this any time under <%= link_to "Notifications", notifications_path, class: "text-iris-300 hover:underline" %>.
+  </p>
+<% end %>
