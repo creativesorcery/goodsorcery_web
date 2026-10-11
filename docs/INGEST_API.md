@@ -16,7 +16,7 @@ API keys are **ingest-only** and belong to one project environment (for example 
 
 ```http
 POST /api/v1/events HTTP/1.1
-Host: errors.goodsorcery.dev
+Host: app.goodsorcery.com
 Authorization: Bearer gs_live_9f2c...e81a
 Content-Type: application/json
 Content-Encoding: gzip              (optional)
@@ -237,7 +237,7 @@ Oversized values are truncated rather than rejected (deeper nesting becomes `"[t
 ## Example with curl
 
 ```sh
-curl -sS https://errors.goodsorcery.dev/api/v1/events \
+curl -sS https://app.goodsorcery.com/api/v1/events \
   -H "Authorization: Bearer $GOODSORCERY_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -255,7 +255,7 @@ curl -sS https://errors.goodsorcery.dev/api/v1/events \
 Gzip:
 
 ```sh
-gzip -c event.json | curl -sS https://errors.goodsorcery.dev/api/v1/events \
+gzip -c event.json | curl -sS https://app.goodsorcery.com/api/v1/events \
   -H "Authorization: Bearer $GOODSORCERY_API_KEY" \
   -H "Content-Type: application/json" \
   -H "Content-Encoding: gzip" \

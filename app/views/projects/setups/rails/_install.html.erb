@@ -14,15 +14,13 @@
 <%= render layout: "projects/setups/snippet", locals: { label: "terminal" } do %><span class="text-iris-400 select-none" data-clipboard-skip>$ </span>bundle add goodsorcery
 <span class="text-iris-400 select-none" data-clipboard-skip>$ </span>bin/rails generate goodsorcery:install --api-key=<span class="tok-s"><%= install_key_hint(api_key) %></span><% end %>
     <p class="text-[13px] text-ink-400">
-      The generator writes <span class="font-mono text-ink-200">config/initializers/goodsorcery.rb</span>, stores the key in Rails credentials
-      and adds <span class="font-mono text-ink-200">plugin "goodsorcery"</span> to your Gemfile, so every <span class="font-mono text-ink-200">bundle install</span>
-      in development checks the key and endpoint. <span class="font-mono text-ink-200">bin/rails goodsorcery:test</span> sends a test error.
+      The generator writes <span class="font-mono text-ink-200">config/initializers/goodsorcery.rb</span> and stores the key in Rails credentials.
+      <span class="font-mono text-ink-200">bin/rails goodsorcery:verify</span> then checks the key and endpoint without sending anything.
     </p>
   </div>
 
   <div id="install_manual" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3" hidden>
-<%= render layout: "projects/setups/snippet", locals: { label: "Gemfile" } do %>gem <span class="tok-s">"goodsorcery"</span>, <span class="tok-s">"~&gt; 0.1"</span>
-plugin <span class="tok-s">"goodsorcery"</span>  <span class="tok-c"># optional: checks your key after bundle install (development)</span><% end %>
+<%= render layout: "projects/setups/snippet", locals: { label: "Gemfile" } do %>gem <span class="tok-s">"goodsorcery"</span>, <span class="tok-s">"~&gt; 0.1"</span><% end %>
 <%= render layout: "projects/setups/snippet", locals: { label: "config/initializers/goodsorcery.rb" } do %><span class="tok-sym">GoodSorcery</span>.configure <span class="tok-k">do</span> |config|
   config.api_key      = Rails.application.credentials.dig(<span class="tok-sym">:goodsorcery</span>, <span class="tok-sym">:api_key</span>)
   config.environment  = Rails.env
