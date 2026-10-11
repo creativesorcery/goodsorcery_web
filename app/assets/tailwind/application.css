@@ -317,6 +317,10 @@
   .rise-3 { animation-delay: 0.12s; }
   .rise-4 { animation-delay: 0.16s; }
   .rise-5 { animation-delay: 0.2s; }
+  /* The fill-mode "both" animation leaves each .rise box as its own stacking
+     context, so an open .menu inside one would sit under the next .rise box.
+     Lift the box that holds an open menu above its siblings. */
+  .rise:has(.menu:not([hidden])) { position: relative; z-index: 30; }
 
   /* pulsing dot for "new / getting worse"; resize with w-1.5 h-1.5 */
   .coral-dot {
