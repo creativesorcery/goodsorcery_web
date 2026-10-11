@@ -4,7 +4,7 @@
     <div class="font-display text-[40px] leading-none <%= card.health.all_clear? ? "text-mint-300" : "text-ink-50" %>"><%= delimited card.unresolved_count %></div>
     <div class="text-[12px] text-ink-400 mt-1"><%= project_card_caption(card) %></div>
     <% if (breakdown = project_environment_breakdown(card)) %>
-      <div class="text-[12px] mt-1 flex flex-wrap items-center gap-x-1" title="Unresolved issues per environment"><%= breakdown %></div>
+      <div class="text-[12px] mt-1 flex flex-wrap items-center gap-x-2.5" title="Unresolved issues per environment"><%= breakdown %></div>
     <% end %>
   </div>
   <span class="shrink-0" title="Events per day by environment, last 14 days"><%= project_sparkline(card) %></span>

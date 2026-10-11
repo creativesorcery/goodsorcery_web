@@ -26,16 +26,18 @@ module ChartHelper
   end
 
   # Stacked sparkline: layers are [{ values:, color: }], bottom first, all the
-  # same length. Each layer is an area on top of the ones below with its own
-  # line, scaled to the largest total; the dot marks the latest total.
+  # same length. Each layer is an area on top of the ones below, scaled to the
+  # largest total. The lines along each layer's top are drawn top layer first,
+  # so where an upper layer is zero the lower layer's colour shows on the
+  # shared edge; the dot takes the colour of the topmost layer with a value on
+  # the last day.
   def stacked_sparkline_svg(layers, width: 120, height: 28)
     tops = stacked_totals(layers.map { |layer| Array(layer[:values]) })
     scale = { width:, height:, max: tops.last.max }
-    shapes = layers.each_with_index.flat_map do |layer, index|
-      stacked_layer(tops[index], (tops[index - 1] if index.positive?), layer[:color], scale)
-    end
-    shapes << sparkline_dot(sparkline_points(tops.last, width, height, max: scale[:max]).last, layers.last[:color])
-    chart_svg(safe_join(shapes), width, height, fluid: false, "aria-hidden": true)
+    areas = layers.each_with_index.map { |layer, index| stacked_area(tops[index], (tops[index - 1] if index.positive?), layer[:color], scale) }
+    lines = layers.each_with_index.map { |layer, index| stacked_line(tops[index], layer[:color], scale) }.reverse
+    dot = sparkline_dot(sparkline_points(tops.last, width, height, max: scale[:max]).last, stacked_dot_color(layers))
+    chart_svg(safe_join(areas + lines + [ dot ]), width, height, fluid: false, "aria-hidden": true)
   end
 
   # One bar per value (opacity 0.8; the last bar at 1.0 when highlighted), each with a <title>.
@@ -100,12 +102,22 @@ module ChartHelper
     end
 
     # The area between this layer's top and the one below (the chart's floor
-    # for the bottom layer), plus a line along its top.
-    def stacked_layer(top, below, color, scale)
+    # for the bottom layer).
+    def stacked_area(top, below, color, scale)
       width, height, max = scale.values_at(:width, :height, :max)
       line = svg_line(sparkline_points(top, width, height, max:))
       floor = below ? svg_line(sparkline_points(below, width, height, max:).reverse, start: "L") : "L#{width},#{height} L0,#{height}"
-      [ tag.path(d: "#{line} #{floor} Z", fill: color, "fill-opacity": 0.22), sparkline_stroke(line, color, 1.5) ]
+      tag.path(d: "#{line} #{floor} Z", fill: color, "fill-opacity": 0.22)
+    end
+
+    def stacked_line(top, color, scale)
+      width, height, max = scale.values_at(:width, :height, :max)
+      sparkline_stroke(svg_line(sparkline_points(top, width, height, max:)), color, 1.5)
+    end
+
+    def stacked_dot_color(layers)
+      latest = layers.reverse.find { |layer| Array(layer[:values]).last.to_f.positive? } || layers.first
+      latest[:color]
     end
 
     def histogram_bar(value, index, scale, fill:, opacity:, title:)

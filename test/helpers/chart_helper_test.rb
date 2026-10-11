@@ -25,14 +25,32 @@ class ChartHelperTest < ActionView::TestCase
     svg = parse(stacked_sparkline_svg([ { values: [ 0, 5, 10 ], color: ChartHelper::CORAL },
                                         { values: [ 0, 5, 0 ], color: ChartHelper::LILAC } ]))
 
-    bottom_area, bottom_line, top_area, top_line = svg.css("path")
+    bottom_area, top_area, top_line, bottom_line = svg.css("path")
     assert_equal "M0,26 L60,14 L120,2 L120,28 L0,28 Z", bottom_area["d"]
-    assert_equal [ ChartHelper::CORAL, "M0,26 L60,14 L120,2" ], [ bottom_line["stroke"], bottom_line["d"] ]
     assert_equal "M0,26 L60,2 L120,2 L120,2 L60,14 L0,26 Z", top_area["d"]
     assert_equal [ ChartHelper::LILAC, "M0,26 L60,2 L120,2" ], [ top_line["stroke"], top_line["d"] ]
-    dot = svg.at_css("circle")
-    assert_equal [ "120", "2", ChartHelper::LILAC ], [ dot["cx"], dot["cy"], dot["fill"] ]
+    assert_equal [ ChartHelper::CORAL, "M0,26 L60,14 L120,2" ], [ bottom_line["stroke"], bottom_line["d"] ]
     assert_equal "true", svg["aria-hidden"]
+  end
+
+  test "stacked sparkline draws lower layers' lines last, so a zero upper layer never hides them" do
+    svg = parse(stacked_sparkline_svg([ { values: [ 0, 5, 10 ], color: ChartHelper::CORAL },
+                                        { values: [ 0, 0, 0 ], color: ChartHelper::LILAC } ]))
+
+    assert_equal [ ChartHelper::LILAC, ChartHelper::CORAL ], svg.css("path[stroke]").map { |line| line["stroke"] }
+  end
+
+  test "the stacked sparkline's dot marks the latest total in the topmost layer with a value that day" do
+    quiet_top = parse(stacked_sparkline_svg([ { values: [ 0, 5, 10 ], color: ChartHelper::CORAL },
+                                              { values: [ 0, 5, 0 ], color: ChartHelper::LILAC } ])).at_css("circle")
+    busy_top = parse(stacked_sparkline_svg([ { values: [ 0, 5, 10 ], color: ChartHelper::CORAL },
+                                             { values: [ 0, 5, 2 ], color: ChartHelper::LILAC } ])).at_css("circle")
+    all_zero = parse(stacked_sparkline_svg([ { values: [ 3, 0 ], color: ChartHelper::CORAL },
+                                             { values: [ 1, 0 ], color: ChartHelper::LILAC } ])).at_css("circle")
+
+    assert_equal [ "120", "2", ChartHelper::CORAL ], [ quiet_top["cx"], quiet_top["cy"], quiet_top["fill"] ]
+    assert_equal ChartHelper::LILAC, busy_top["fill"]
+    assert_equal ChartHelper::CORAL, all_zero["fill"]
   end
 
   test "a one-layer stacked sparkline is a plain area in that colour" do

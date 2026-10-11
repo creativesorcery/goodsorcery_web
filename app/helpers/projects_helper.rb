@@ -31,13 +31,15 @@ module ProjectsHelper
     stacked_sparkline_svg layers, width: 140, height: 44
   end
 
-  # "9 production · 3 staging", each count and name in its environment's colour.
+  # "● 9 production  ● 3 staging", each count and name in its environment's
+  # colour. No separator: the dots part the items, and nothing dangles when
+  # the line wraps.
   def project_environment_breakdown(card)
     parts = card.unresolved_by_environment.map do |name, count|
       tag.span safe_join([ environment_dot(name), "#{delimited(count)} #{name}" ], " "),
         class: "inline-flex items-center gap-1 #{environment_text_classes(name)}"
     end
-    safe_join parts, tag.span("·", class: "text-paper-500") if parts.any?
+    safe_join parts if parts.any?
   end
 
   # Coral when spiking, mint when all clear, iris otherwise.
