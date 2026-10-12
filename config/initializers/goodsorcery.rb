@@ -40,7 +40,16 @@ GoodSorcery.configure do |config|
   # --- What gets reported ----------------------------------------------------
   # config.release = ENV["GIT_SHA"]                      # auto-detected from deploy env vars or REVISION
   # config.ignore_exceptions += ["MyApp::NotFound"]      # class names; subclasses too
-  # config.before_send = ->(event) { event }             # change the event, or return nil to drop it
+  # Errors from the ingest path itself (the events endpoints and the job that
+  # processes what they accept) are dropped: reporting them would send more
+  # events to the path that is failing, and could loop while it struggles.
+  ingest_url = %r{\Ahttps?://[^/]+/api/v1/events(?:[/?]|\z)}
+  config.before_send = lambda do |event|
+    next nil if event.dig("request", "url").to_s.match?(ingest_url)
+    next nil if event["transaction"] == "ProcessInboundEventJob"
+
+    event
+  end
   # config.tags = { region: "eu" }
   # config.user_method = :current_user                   # controller method that returns the user
   # config.report_handled_errors = true                  # Rails.error.handle / report
