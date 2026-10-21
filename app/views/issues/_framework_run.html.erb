@@ -8,7 +8,11 @@
 <%= tag.div hidden: !show, data: { toggle_target: "expanded" } do %>
   <% segment.frames.each do |frame| %>
     <div class="flex items-center gap-3 px-4 py-2 border-b border-paper-700/70 text-ink-400">
-      <span class="text-[10px] uppercase tracking-[.18em] font-sans border border-paper-600 rounded px-1.5 py-0.5"><%= frame.gem_name ? "gem" : "lib" %></span>
+      <% if frame.gem_name %>
+        <span class="shrink-0 text-[11px] font-mono border border-paper-600 rounded px-1.5 py-0.5"><%= frame.gem_name %></span>
+      <% else %>
+        <span class="shrink-0 text-[10px] uppercase tracking-[.18em] font-sans border border-paper-600 rounded px-1.5 py-0.5">lib</span>
+      <% end %>
       <span class="break-all"><%= frame.location %> <span class="text-ink-400/70">in</span> <%= frame.method_name %></span>
     </div>
   <% end %>

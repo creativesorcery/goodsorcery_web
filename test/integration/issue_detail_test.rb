@@ -54,6 +54,7 @@ class IssueDetailTest < ActionDispatch::IntegrationTest
     assert_select "button[data-toggle-target=collapsed]", text: /2 framework frames hidden\s+\(activerecord\)/
     assert_select "button[data-toggle-target=collapsed]", text: /2 framework frames hidden\s+\(actionpack\)/
     assert_select "div[data-toggle-target=expanded][hidden]", count: 2
+    assert_select "div[data-toggle-target=expanded] span.font-mono", text: "activerecord", count: 2
     assert_select "details summary", text: /app\/controllers\/checkouts_controller.rb/
     assert_select "pre[data-clipboard-target=source]", text: /\ANoMethodError: undefined method `price_cents' for nil \(cart 88123, mara@example.com\)/
   end
