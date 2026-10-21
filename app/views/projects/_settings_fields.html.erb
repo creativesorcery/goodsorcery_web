@@ -25,5 +25,5 @@
     <%= form.number_field :retention_days, class: "field max-w-[8rem]", required: true, min: 1, max: Project::MAX_RETENTION_DAYS, step: 1 %>
     <span class="text-[13px] text-ink-400">days</span>
   </div>
-  <p class="hint">Occurrences older than this are deleted. Up to <%= Project::MAX_RETENTION_DAYS %> days.</p>
+  <p class="hint">Occurrences older than this are deleted. Up to <%= Project::MAX_RETENTION_DAYS %> days. Each app also keeps at most <%= number_with_delimiter(Occurrence::RETAINED_PER_PROJECT) %> occurrences, dropping the oldest copies of its most repeated issues first. Events are still counted.</p>
 </div>

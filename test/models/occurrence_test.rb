@@ -51,7 +51,8 @@ class OccurrenceTest < ActiveSupport::TestCase
     assert_not_same first, @occurrence.data
   end
 
-  test "retention constant" do
-    assert_equal 1_000, Occurrence::RETAINED_PER_ISSUE
+  test "retention constants" do
+    assert_equal 100, Occurrence::RETAINED_PER_ISSUE
+    assert_equal 3_000, Occurrence::RETAINED_PER_PROJECT
   end
 end

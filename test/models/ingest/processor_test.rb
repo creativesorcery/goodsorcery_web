@@ -246,9 +246,9 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
     assert_includes calls, [ "Issue", @issue.id, { created: false } ]
   end
 
-  test "enqueues trimming every 250 events" do
+  test "enqueues trimming every TRIM_EVERY events" do
     issue = process_event(event_json)
-    Issue.where(id: issue.id).update_all(events_count: 249)
+    Issue.where(id: issue.id).update_all(events_count: Ingest::Processor::TRIM_EVERY - 1)
     assert_enqueued_with(job: TrimOccurrencesJob, args: [ issue ]) { process_event(event_json) }
     assert_no_enqueued_jobs(only: TrimOccurrencesJob) { process_event(event_json) }
   end

@@ -76,6 +76,7 @@ bin/rails runner 'puts Project.find_by!(slug: "storefront").api_keys.find_by!(en
 bin/send_test_event API_KEY http://localhost:3000   # EXCEPTION_CLASS=..., GZIP=1, EVENT_ID=..., BATCH=N, JOB=1
 bin/rails goodsorcery:prune                    # retention (daily in production)
 bin/rails goodsorcery:requeue_stale            # recover events never processed
+bin/rails goodsorcery:cap_occurrences          # trim each app to 3,000 stored occurrences (every 5 min in production)
 ```
 
 ## Test and lint workflow

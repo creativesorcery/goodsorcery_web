@@ -1,7 +1,10 @@
 # One captured event. Everything captured is kept in the encrypted, normalised
 # JSON payload (docs/ARCHITECTURE.md §3.3) and exposed through the readers below.
 class Occurrence < ApplicationRecord
-  RETAINED_PER_ISSUE = 1_000
+  # Stored copies; every event is still counted. See TrimOccurrencesJob and
+  # Ingest::OccurrenceCap.
+  RETAINED_PER_ISSUE = 100
+  RETAINED_PER_PROJECT = 3_000
 
   belongs_to :issue, inverse_of: :occurrences
   belongs_to :project, inverse_of: :occurrences

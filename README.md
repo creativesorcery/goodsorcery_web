@@ -162,6 +162,7 @@ there. Each has a rake task for running it by hand.
 |---|---|---|---|
 | `PruneExpiredDataJob` | daily, 03:17 | `bin/rails goodsorcery:prune` | Deletes occurrences older than each project's `retention_days` (default and maximum 30), hourly issue counts older than 31 days and project counts older than 90 days, stale personal data on issues past retention, and inbound events never processed within a day. |
 | `RequeueStaleEventsJob` | every 10 minutes | `bin/rails goodsorcery:requeue_stale` | Re-enqueues inbound events accepted more than 10 minutes ago but never processed (for example after a Redis outage). |
+| `CapStoredOccurrencesJob` | every 5 minutes | `bin/rails goodsorcery:cap_occurrences` | Holds each app to 3,000 stored occurrences: the issues with the most stored copies lose their oldest first, and every issue keeps at least its newest. Events are still counted. Each issue also keeps at most its newest 100 (`TrimOccurrencesJob`, every 50 events). |
 
 ### Environment variables
 

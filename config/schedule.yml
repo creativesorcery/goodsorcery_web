@@ -26,3 +26,8 @@ send_alert_summaries:
   cron: "2 * * * *"   # just after each hour
   class: SendAlertSummariesJob
   description: "One and-N-more email per user for alerts folded over the hourly cap"
+
+cap_stored_occurrences:
+  cron: "*/5 * * * *"
+  class: CapStoredOccurrencesJob
+  description: "Trim each app to its stored occurrence cap, most repeated issues first"

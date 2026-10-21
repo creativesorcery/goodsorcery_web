@@ -330,7 +330,7 @@ Associations use `inverse_of`, so `@project.issues` sets `issue.project` without
   - `scope :latest_first, -> { order(id: :desc) }`. `.latest` and `.oldest`.
   - `#data` returns the memoized `JSON.parse(payload)`.
   - Readers: `#exception_message`, `#frames` (array of hashes), `#request`, `#params`, `#headers`, `#session_data`, `#job`, `#user`, `#breadcrumbs`, `#context`, `#tags`, `#transaction_name`. All read from `data` with `{}`/`[]` defaults.
-  - `RETAINED_PER_ISSUE = 1_000`.
+  - `RETAINED_PER_ISSUE = 100`, `RETAINED_PER_PROJECT = 3_000` (stored copies only; every event is still counted).
 - **IssueHourlyCount**:
   - `.histograms(issue_ids, hours: 24)` returns `{ issue_id => [Integer] * hours }` in one grouped query, zero-filled via `TimeSeries`.
   - `.series(issue, period)` takes period `"24h"` (24 hourly buckets), `"7d"` (28 six-hour buckets) or `"30d"` (30 daily buckets, the viewer's local days via `DATE((hour AT TIME ZONE 'UTC') AT TIME ZONE zone)`) and returns `[[bucket_start, count], …]`. One query using `date_bin`/`date_trunc`.
@@ -428,7 +428,8 @@ The two ingest controllers include the `IngestEndpoint` concern, which holds eve
 | `Ingest::IssueTally` | issue upsert and atomic counters | `#find_or_create_issue_id`, `#count(new_user:)` → `Issue` (from `find_by_sql … RETURNING`) |
 | `Ingest::Rollups` | hourly, project, tag and user upserts | `#increment` → `new_user?` |
 | `ProcessInboundEventJob` | queue `ingest` | `perform(inbound_event)` → `Ingest::Processor.new(inbound_event).process` |
-| `TrimOccurrencesJob` | keep newest 1,000 per issue | `perform(issue)` |
+| `TrimOccurrencesJob` | keep newest 100 per issue | `perform(issue)` |
+| `CapStoredOccurrencesJob` | every 5 minutes (sidekiq-cron): hold each project to 3,000 stored occurrences | `perform` → `Ingest::OccurrenceCap.enforce_all` |
 | `IssueAlertJob` | queue `alerts`, enqueued after commit for an alert transition (§11.4) | `perform(issue_id, kind, occurrence_id = nil)` → `IssueAlert#deliver` |
 
 ### 2.4 Normalisation, scrubbing and fingerprinting
@@ -473,7 +474,7 @@ ApplicationRecord.transaction do
   rollups.increment_project                    # project hourly: the hottest row, locked last
 end
 after commit (only if issue): issue.broadcast_changes_later(created: tally.created?); project.broadcast_changes_later;
-                               TrimOccurrencesJob.perform_later(issue) if (issue.events_count % 250).zero?
+                               TrimOccurrencesJob.perform_later(issue) if (issue.events_count % TRIM_EVERY).zero?  # TRIM_EVERY = 50
                                IssueAlert.transitions(issue, created:).each { IssueAlertJob.perform_later(issue.id, kind, occurrence_id) }  # §11.4
 ```
 
@@ -529,7 +530,8 @@ Ignored issues stay ignored. Only `resolved` regresses.
 
 - `goodsorcery:prune` deletes occurrences older than `project.retention_days` (`in_batches(of: 1_000).delete_all`), `issue_users` rows and `issue_tag_counts` of issues not seen within it, `issue_hourly_counts` older than 31 days and `project_hourly_counts` older than 90 days (one `hour` slice per DELETE, using the `hour` indexes; project counts are kept longer for the 30d summary comparison and the monthly quota), inbound events still unprocessed after a day (deleted unread, logged by id) and `alert_deliveries` older than `AlertDelivery::KEPT_FOR` (30 days). Schedule it daily with cron or a Kamal accessory, as documented in `docs/INGEST_API.md` › Operating.
 - `goodsorcery:requeue_stale` re-enqueues `InboundEvent.stale`.
-- `TrimOccurrencesJob` keeps the newest `Occurrence::RETAINED_PER_ISSUE` per issue. The cutoff id is `issue.occurrences.latest_first.offset(1_000).pick(:id)`.
+- `TrimOccurrencesJob` keeps the newest `Occurrence::RETAINED_PER_ISSUE` per issue. The cutoff id is `issue.occurrences.latest_first.offset(100).pick(:id)`.
+- `CapStoredOccurrencesJob` (`Ingest::OccurrenceCap`) holds each project to `Occurrence::RETAINED_PER_PROJECT` (3,000) stored occurrences. One grouped `COUNT` finds the projects over the cap. For each, it computes the level: the most copies every issue can keep, at least 1, with the total within the cap. A `ROW_NUMBER() OVER (PARTITION BY issue_id ORDER BY id DESC)` query picks the ids past each issue's newest level, deleted 1,000 at a time. The issues with the most copies lose their oldest first, and every issue keeps its newest. A project with more issues than the cap stays a little over it. Counters and rollups are unaffected.
 - `config/sidekiq.yml` queues: `[ingest, 3]`, `[default, 2]`, `[alerts, 2]` (alert jobs and sweeps, §11.4), `[mailers, 1]`.
 
 ---

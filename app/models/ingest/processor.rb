@@ -3,7 +3,7 @@
 # (ARCHITECTURE.md §2.5). Live updates are announced, and alerts for the
 # transitions the event caused flagged (§11.4), after commit.
 class Ingest::Processor
-  TRIM_EVERY = 250
+  TRIM_EVERY = 50
 
   attr_reader :inbound_event, :project
 
