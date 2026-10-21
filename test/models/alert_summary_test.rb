@@ -5,6 +5,9 @@ class AlertSummaryTest < ActiveSupport::TestCase
 
   setup do
     travel_to Time.utc(2026, 10, 14, 10, 30)
+    # The fixture is stamped from the real clock; keep it in this test's past
+    # so it never counts towards the frozen hour's cap.
+    alert_deliveries(:philip_nomethod_new_issue).update_columns(created_at: 2.hours.ago)
     @user = users(:philip)
     @storefront = projects(:storefront)
     @billing = projects(:billing)
