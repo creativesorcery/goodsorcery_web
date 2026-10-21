@@ -160,13 +160,13 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
       assert_select "select[name=?] option[selected]", "project[platform]", "Ruby on Rails"
       assert_select "input[name=?][value=?]", "project[issue_prefix]", "GS"
       assert_select "input[name=?][value=?]", "project[scrub_fields]", "loyalty_number"
-      assert_select "input[name=?][value=?]", "project[retention_days]", "90"
+      assert_select "input[name=?][value=?]", "project[retention_days]", "30"
     end
   end
 
   test "update saves general settings and splits scrub fields" do
     patch project_path(projects(:storefront)), params: { project: {
-      name: "Storefront Web", platform: "ruby", issue_prefix: "sf", scrub_fields: "Passport, loyalty_number, ,iban", retention_days: "30"
+      name: "Storefront Web", platform: "ruby", issue_prefix: "sf", scrub_fields: "Passport, loyalty_number, ,iban", retention_days: "14"
     } }
 
     project = projects(:storefront).reload
@@ -176,7 +176,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_predicate project, :ruby?
     assert_equal "SF", project.issue_prefix
     assert_equal %w[passport loyalty_number iban], project.scrub_fields
-    assert_equal 30, project.retention_days
+    assert_equal 14, project.retention_days
   end
 
   test "the general settings pick a default environment from the app's environments, or all" do
@@ -207,12 +207,12 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "update with invalid values re-renders with the saved name in the breadcrumb" do
-    patch project_path(projects(:storefront)), params: { project: { name: "", retention_days: "999" } }
+    patch project_path(projects(:storefront)), params: { project: { name: "", retention_days: "31" } }
 
     assert_response :unprocessable_entity
     assert_select "header nav a", text: "storefront"
     assert_select "[role=alert]", text: /Retention days/
-    assert_equal 90, projects(:storefront).reload.retention_days
+    assert_equal 30, projects(:storefront).reload.retention_days
   end
 
   test "outsiders get 404 for another account's project settings" do

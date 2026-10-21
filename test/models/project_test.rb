@@ -72,6 +72,18 @@ class ProjectTest < ActiveSupport::TestCase
     assert_equal %i[issue_prefix name platform retention_days], project.errors.attribute_names.sort
   end
 
+  test "retention defaults to 30 days and can't go above it" do
+    project = accounts(:acme).projects.new(name: "Back office")
+    assert_equal 30, project.retention_days
+
+    project.retention_days = 31
+    assert_not project.valid?
+    assert_includes project.errors[:retention_days], "must be in 1..30"
+
+    project.retention_days = 30
+    assert project.valid?
+  end
+
   test "an account has at most MAX_PER_ACCOUNT projects" do
     with_constant(Project, :MAX_PER_ACCOUNT, accounts(:acme).projects.count) do
       project = accounts(:acme).projects.create(name: "One more")

@@ -160,7 +160,7 @@ there. Each has a rake task for running it by hand.
 
 | Job | Schedule | Rake task | What it does |
 |---|---|---|---|
-| `PruneExpiredDataJob` | daily, 03:17 | `bin/rails goodsorcery:prune` | Deletes occurrences older than each project's `retention_days` (default 90), hourly rollups older than 90 days, stale personal data on issues past retention, and inbound events never processed within a day. |
+| `PruneExpiredDataJob` | daily, 03:17 | `bin/rails goodsorcery:prune` | Deletes occurrences older than each project's `retention_days` (default and maximum 30), hourly issue counts older than 31 days and project counts older than 90 days, stale personal data on issues past retention, and inbound events never processed within a day. |
 | `RequeueStaleEventsJob` | every 10 minutes | `bin/rails goodsorcery:requeue_stale` | Re-enqueues inbound events accepted more than 10 minutes ago but never processed (for example after a Redis outage). |
 
 ### Environment variables

@@ -22,8 +22,8 @@
 <div>
   <%= form.label :retention_days, "Retention", class: "label" %>
   <div class="flex items-center gap-2">
-    <%= form.number_field :retention_days, class: "field max-w-[8rem]", required: true, min: 1, max: 365, step: 1 %>
+    <%= form.number_field :retention_days, class: "field max-w-[8rem]", required: true, min: 1, max: Project::MAX_RETENTION_DAYS, step: 1 %>
     <span class="text-[13px] text-ink-400">days</span>
   </div>
-  <p class="hint">Occurrences older than this are deleted. Up to 365 days.</p>
+  <p class="hint">Occurrences older than this are deleted. Up to <%= Project::MAX_RETENTION_DAYS %> days.</p>
 </div>

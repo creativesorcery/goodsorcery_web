@@ -101,7 +101,7 @@ Indexes: unique `[account_id, user_id]`, `[user_id]`.
 | issues_sequence | integer | false | 0 | per-project short-number counter |
 | color | string | false | `"iris"` | enum `iris coral lilac mint`. Rotated by `account.projects.count % 4` on create |
 | scrub_fields | string, array | false | `[]` | extra server-side scrub keys |
-| retention_days | integer | false | 90 | 1..365 |
+| retention_days | integer | false | 30 | 1..30 (`Project::MAX_RETENTION_DAYS`) |
 | first_event_at | datetime | true | | nil means "Listening…" |
 | alert_scope | string | false | `"default"` | which environments alert rules watch (§11): `default` follows `default_environment` (nil there = all), `all`, or `selected` |
 | alert_selected_environments | string, array | false | `[]` | the environments for `selected`; normalised to lowercase, must be non-empty and among `environments` while `selected`; cleared (`before_validation`) when the scope is anything else. Migration `20261011000002` |
@@ -527,7 +527,7 @@ Ignored issues stay ignored. Only `resolved` regresses.
 
 ### 2.7 Maintenance (slice C, `lib/tasks/goodsorcery.rake`)
 
-- `goodsorcery:prune` deletes occurrences older than `project.retention_days` (`in_batches(of: 1_000).delete_all`), `issue_users` rows and `issue_tag_counts` of issues not seen within it, `issue_hourly_counts` / `project_hourly_counts` older than 90 days (one `hour` slice per DELETE, using the `hour` indexes) inbound events still unprocessed after a day (deleted unread, logged by id) and `alert_deliveries` older than `AlertDelivery::KEPT_FOR` (30 days). Schedule it daily with cron or a Kamal accessory, as documented in `docs/INGEST_API.md` › Operating.
+- `goodsorcery:prune` deletes occurrences older than `project.retention_days` (`in_batches(of: 1_000).delete_all`), `issue_users` rows and `issue_tag_counts` of issues not seen within it, `issue_hourly_counts` older than 31 days and `project_hourly_counts` older than 90 days (one `hour` slice per DELETE, using the `hour` indexes; project counts are kept longer for the 30d summary comparison and the monthly quota), inbound events still unprocessed after a day (deleted unread, logged by id) and `alert_deliveries` older than `AlertDelivery::KEPT_FOR` (30 days). Schedule it daily with cron or a Kamal accessory, as documented in `docs/INGEST_API.md` › Operating.
 - `goodsorcery:requeue_stale` re-enqueues `InboundEvent.stale`.
 - `TrimOccurrencesJob` keeps the newest `Occurrence::RETAINED_PER_ISSUE` per issue. The cutoff id is `issue.occurrences.latest_first.offset(1_000).pick(:id)`.
 - `config/sidekiq.yml` queues: `[ingest, 3]`, `[default, 2]`, `[alerts, 2]` (alert jobs and sweeps, §11.4), `[mailers, 1]`.

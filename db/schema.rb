@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_11_000005) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_21_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -209,7 +209,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_11_000005) do
     t.integer "issues_sequence", default: 0, null: false
     t.string "color", default: "iris", null: false
     t.string "scrub_fields", default: [], null: false, array: true
-    t.integer "retention_days", default: 90, null: false
+    t.integer "retention_days", default: 30, null: false
     t.datetime "first_event_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

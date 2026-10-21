@@ -7,50 +7,69 @@ class Ingest::RetentionTest < ActiveSupport::TestCase
   end
 
   test "prunes occurrences past each project's retention period" do
-    storefront_old = add_occurrence(issues(:card_error), 91.days.ago)
-    storefront_recent = add_occurrence(issues(:card_error), 89.days.ago)
-    projects(:billing).update_column(:retention_days, 30)
-    billing_old = add_occurrence(issues(:billing_timeout), 31.days.ago)
+    storefront_old = add_occurrence(issues(:card_error), 31.days.ago)
+    storefront_recent = add_occurrence(issues(:card_error), 29.days.ago)
+    projects(:billing).update_column(:retention_days, 7)
+    billing_old = add_occurrence(issues(:billing_timeout), 8.days.ago)
+    billing_recent = add_occurrence(issues(:billing_timeout), 6.days.ago)
 
     Ingest::Retention.new.prune_occurrences
 
     assert_not Occurrence.exists?(storefront_old)
     assert_not Occurrence.exists?(billing_old)
     assert Occurrence.exists?(storefront_recent)
+    assert Occurrence.exists?(billing_recent)
     assert Occurrence.exists?(occurrences(:nomethod_latest).id)
   end
 
-  test "prunes hourly rollups older than 90 days" do
-    old_hour = TimeSeries.align(91.days.ago, 1.hour)
-    IssueHourlyCount.create!(issue: issues(:card_error), hour: old_hour, count: 3)
-    ProjectHourlyCount.create!(project: projects(:storefront), environment: "production", hour: old_hour, count: 3)
+  test "a retention stored above the cap is pruned at the cap" do
+    projects(:storefront).update_column(:retention_days, 90)
+    old = add_occurrence(issues(:card_error), (Project::MAX_RETENTION_DAYS + 1).days.ago)
+    issue = issues(:card_error)
+    issue.update_columns(last_seen_at: (Project::MAX_RETENTION_DAYS + 1).days.ago)
+    IssueUser.create!(issue:, project: issue.project, user_digest: "a" * 64, events_count: 1,
+                      first_seen_at: 40.days.ago, last_seen_at: 40.days.ago)
+
+    Ingest::Retention.new.tap(&:prune_occurrences).prune_issue_data
+
+    assert_not Occurrence.exists?(old)
+    assert_not IssueUser.exists?(issue_id: issue.id, user_digest: "a" * 64)
+  end
+
+  test "prunes issue counts after 31 days and project counts after 90" do
+    issue_old = TimeSeries.align(32.days.ago, 1.hour)
+    IssueHourlyCount.create!(issue: issues(:card_error), hour: issue_old, count: 3)
+    ProjectHourlyCount.create!(project: projects(:storefront), environment: "production", hour: issue_old, count: 3)
+    ProjectHourlyCount.create!(project: projects(:storefront), environment: "production",
+                               hour: TimeSeries.align(91.days.ago, 1.hour), count: 3)
     recent = IssueHourlyCount.count - 1
 
     Ingest::Retention.new.prune_rollups
 
-    assert_not IssueHourlyCount.exists?(hour: ...90.days.ago)
-    assert_not ProjectHourlyCount.exists?(hour: ...90.days.ago)
+    assert_not IssueHourlyCount.exists?(hour: ...31.days.ago)
     assert_equal recent, IssueHourlyCount.count
+    assert ProjectHourlyCount.exists?(hour: issue_old), "project counts outlive issue counts"
+    assert_not ProjectHourlyCount.exists?(hour: ...90.days.ago)
   end
 
   test "prunes rollups by hour slice, never by composite key" do
-    IssueHourlyCount.create!(issue: issues(:card_error), hour: TimeSeries.align(95.days.ago, 1.hour), count: 1)
-    IssueHourlyCount.create!(issue: issues(:card_error), hour: TimeSeries.align(93.days.ago, 1.hour), count: 1)
+    IssueHourlyCount.create!(issue: issues(:card_error), hour: TimeSeries.align(35.days.ago, 1.hour), count: 1)
+    IssueHourlyCount.create!(issue: issues(:card_error), hour: TimeSeries.align(33.days.ago, 1.hour), count: 1)
 
     queries = []
     callback = ->(*, payload) { queries << payload[:sql] if payload[:sql].start_with?("DELETE") }
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { Ingest::Retention.new.prune_rollups }
 
-    assert_not IssueHourlyCount.exists?(hour: ...90.days.ago)
+    assert_not IssueHourlyCount.exists?(hour: ...31.days.ago)
     assert queries.any?
     assert queries.none? { it.include?(" OR ") }, "no OR'ed primary key pairs"
   end
 
   test "prunes affected users and tag values not seen within the retention period" do
     issue = issues(:card_error)
-    issue.update_columns(last_seen_at: 100.days.ago)
+    issue.update_columns(last_seen_at: 40.days.ago)
     IssueUser.create!(issue:, project: issue.project, user_digest: "a" * 64, events_count: 1,
-                                   first_seen_at: 100.days.ago, last_seen_at: 100.days.ago)
+                                   first_seen_at: 40.days.ago, last_seen_at: 40.days.ago)
     IssueTagCount.create!(issue:, key: "user_email", value_digest: "b" * 64, value: "mara@example.com", count: 1)
     recent = issues(:nomethod)
     recent_tags = IssueTagCount.where(issue: recent).count

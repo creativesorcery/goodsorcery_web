@@ -8,7 +8,7 @@ storefront:
   issues_sequence: 1045
   color: coral
   scrub_fields: [loyalty_number]
-  retention_days: 90
+  retention_days: 30
   first_event_at: <%= 280.days.ago.to_fs(:db) %>
   created_at: <%= 300.days.ago.to_fs(:db) %>
 
@@ -21,7 +21,7 @@ billing:
   issue_prefix: BA
   issues_sequence: 7
   color: iris
-  retention_days: 90
+  retention_days: 30
   first_event_at: <%= 60.days.ago.to_fs(:db) %>
   created_at: <%= 61.days.ago.to_fs(:db) %>
 
@@ -46,5 +46,5 @@ umbrella_app:
   issue_prefix: UA
   issues_sequence: 1
   color: lilac
-  retention_days: 90
+  retention_days: 30
   first_event_at: <%= 5.days.ago.to_fs(:db) %>

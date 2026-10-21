@@ -5,6 +5,8 @@ class Project < ApplicationRecord
   DEFAULT_ENVIRONMENTS = %w[production staging].freeze
   PRODUCTION = "production".freeze
   MAX_PER_ACCOUNT = 100
+  # Occurrences are deleted after retention_days; no app keeps them longer.
+  MAX_RETENTION_DAYS = 30
   UNRESOLVED_COUNT_TTL = 10.seconds
 
   belongs_to :account, inverse_of: :projects
@@ -27,7 +29,7 @@ class Project < ApplicationRecord
   validates :name, presence: true, length: { maximum: 60 }
   validates :slug, presence: true, uniqueness: { scope: :account_id }
   validates :issue_prefix, format: { with: /\A[A-Z]{1,6}\z/ }, uniqueness: { scope: :account_id }
-  validates :retention_days, numericality: { only_integer: true, in: 1..365 }
+  validates :retention_days, numericality: { only_integer: true, in: 1..MAX_RETENTION_DAYS }
   validates :default_environment, inclusion: { in: :environments, message: "must be one of this app's environments" }, allow_nil: true
   validate :account_has_room, on: :create
 

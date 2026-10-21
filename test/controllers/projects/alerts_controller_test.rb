@@ -76,7 +76,7 @@ class Projects::AlertsControllerTest < ActionDispatch::IntegrationTest
   test "update ignores other project attributes" do
     patch project_alerts_path(@project), params: { project: { alert_scope: "all", name: "renamed", retention_days: 5 } }
 
-    assert_equal [ "storefront", 90 ], @project.reload.values_at(:name, :retention_days)
+    assert_equal [ "storefront", 30 ], @project.reload.values_at(:name, :retention_days)
   end
 
   test "outsiders get 404" do
