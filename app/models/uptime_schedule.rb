@@ -4,15 +4,21 @@
 # A batch is claimed with one UPDATE ... RETURNING that bumps next_check_at:
 # an overlapping run sees claimed rows as not due, and SKIP LOCKED keeps
 # concurrent runs from waiting on each other. NO KEY UPDATE doesn't conflict
-# with the key-share locks that check inserts take. Next checks align to the
-# minute so a cron run firing a little early doesn't drift a monitor by one
-# run. The subquery reads the partial index index_uptime_monitors_due.
+# with the key-share locks that check inserts take. The subquery reads the
+# partial index index_uptime_monitors_due.
+#
+# Each monitor keeps its own schedule: next_check_at steps forward from its
+# old minute in whole intervals until it is past now. A late claim (backlog,
+# restart, deploy) never moves monitors onto the current minute, so monitors
+# stay spread across their interval instead of bunching up. Minute alignment
+# keeps a cron run that fires a little early from drifting a monitor.
 class UptimeSchedule
   BATCH = 500
 
   CLAIM_SQL = <<~SQL.squish.freeze
     UPDATE uptime_monitors
-    SET next_check_at = date_trunc('minute', CAST(:now AS timestamp)) + make_interval(mins => interval_minutes)
+    SET next_check_at = date_trunc('minute', next_check_at) + make_interval(mins => interval_minutes * (1 + CAST(floor(
+      extract(epoch FROM CAST(:now AS timestamp) - date_trunc('minute', next_check_at)) / 60 / interval_minutes) AS integer)))
     WHERE id IN (
       SELECT id FROM uptime_monitors
       WHERE paused_at IS NULL AND next_check_at <= CAST(:now AS timestamp)

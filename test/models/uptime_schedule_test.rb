@@ -12,14 +12,34 @@ class UptimeScheduleTest < ActiveSupport::TestCase
     UptimeMonitor.where(id: monitors.map(&:id)).update_all(next_check_at: at)
   end
 
-  test "claims due monitors and bumps next_check_at to the minute plus the interval" do
+  test "claims due monitors and bumps next_check_at from their own minute by the interval" do
     make_due(uptime_monitors(:storefront_home), uptime_monitors(:storefront_api))
 
     ids = UptimeSchedule.new(now: @now).claim_batch
 
     assert_equal [ uptime_monitors(:storefront_home).id, uptime_monitors(:storefront_api).id ].sort, ids.sort
+    assert_equal Time.utc(2026, 11, 3, 12, 9), uptime_monitors(:storefront_home).reload.next_check_at
+    assert_equal Time.utc(2026, 11, 3, 12, 4), uptime_monitors(:storefront_api).reload.next_check_at
+  end
+
+  test "late claims keep each monitor on its own schedule instead of bunching them up" do
+    home, api = uptime_monitors(:storefront_home), uptime_monitors(:storefront_api)
+    api.update_columns(interval_minutes: 10)
+    make_due(home, at: Time.utc(2026, 11, 3, 12, 3, 30))
+    make_due(api, at: Time.utc(2026, 11, 3, 12, 7))
+
+    UptimeSchedule.new(now: Time.utc(2026, 11, 3, 12, 20, 5)).claim_batch
+
+    assert_equal Time.utc(2026, 11, 3, 12, 23), home.reload.next_check_at
+    assert_equal Time.utc(2026, 11, 3, 12, 27), api.reload.next_check_at
+  end
+
+  test "a claim exactly on the due minute moves one interval on" do
+    make_due(uptime_monitors(:storefront_home), at: Time.utc(2026, 11, 3, 12))
+
+    UptimeSchedule.new(now: Time.utc(2026, 11, 3, 12, 0, 0.4)).claim_batch
+
     assert_equal Time.utc(2026, 11, 3, 12, 10), uptime_monitors(:storefront_home).reload.next_check_at
-    assert_equal Time.utc(2026, 11, 3, 12, 5), uptime_monitors(:storefront_api).reload.next_check_at
   end
 
   test "a second claim gets nothing" do
