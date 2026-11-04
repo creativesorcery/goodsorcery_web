@@ -11,13 +11,17 @@ require "net/http"
 #   keep the host name. The nil proxy argument ignores http_proxy from ENV.
 # - TOTAL_TIMEOUT seconds per attempt, tracked by Deadline, with a hard
 #   Timeout backstop around the network part (no DB, no locks inside).
-# - At most MAX_BODY_BYTES of the body are read, then discarded.
+# - At most MAX_BODY_BYTES of the body are read, then discarded, and at most
+#   MAX_READ_BYTES per connection in all, headers included (Connection).
 # - Never raises for network outcomes. Errors become an error kind; their
 #   messages (which carry host names and URLs) are never logged or kept.
 class UptimeProbe
   TOTAL_TIMEOUT = 10
   MAX_REDIRECTS = 3
   MAX_BODY_BYTES = 64.kilobytes
+  # Status line, headers and 1xx responses plus MAX_BODY_BYTES of body and
+  # one buffer of read-ahead, with room to spare.
+  MAX_READ_BYTES = 128.kilobytes
   USER_AGENT = "GoodSorcery-Uptime/1.0".freeze
 
   class BlockedAddress < StandardError
@@ -26,6 +30,10 @@ class UptimeProbe
 
   class DnsFailure < StandardError
     def initialize(message = "DNS lookup failed") = super
+  end
+
+  class ResponseTooLarge < StandardError
+    def initialize(message = "Response exceeded the read cap") = super
   end
 
   Result = Data.define(:status, :response_time_ms, :http_status, :error_kind) do
@@ -50,7 +58,7 @@ class UptimeProbe
     "connection_refused" => [ Errno::ECONNREFUSED ],
     "tls_error" => [ OpenSSL::SSL::SSLError ],
     "blocked_address" => [ BlockedAddress ],
-    "connection_error" => [ SystemCallError, EOFError, IOError, Net::HTTPBadResponse, Net::ProtocolError ]
+    "connection_error" => [ ResponseTooLarge, SystemCallError, EOFError, IOError, Net::HTTPBadResponse, Net::ProtocolError ]
   }.freeze
 
   def initialize(url, guard: AddressGuard.new, timeout: TOTAL_TIMEOUT, monitor_id: nil)
@@ -103,7 +111,7 @@ class UptimeProbe
     # The TLS handshake runs under open_timeout. max_retries 0: Net::HTTP
     # would otherwise repeat a failed GET itself, outside the budget.
     def connection(uri, ip, seconds)
-      Net::HTTP.new(uri.hostname, uri.port, nil).tap do |http|
+      Connection.new(uri.hostname, uri.port, nil).tap do |http|
         http.ipaddr = ip.to_s
         http.use_ssl = uri.scheme == "https"
         http.verify_mode = OpenSSL::SSL::VERIFY_PEER

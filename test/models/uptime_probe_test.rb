@@ -159,6 +159,33 @@ class UptimeProbeTest < ActiveSupport::TestCase
     assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 1.5
   end
 
+  test "an endless header line stops at MAX_READ_BYTES" do
+    serve do |_, client|
+      client.write("HTTP/1.1 200 OK\r\nX-Big: ")
+      loop { client.write("a" * 16.kilobytes) }
+    end
+
+    assert_capped_quickly
+  end
+
+  test "endless short header lines and endless 1xx responses stop at MAX_READ_BYTES" do
+    serve do |_, client|
+      client.write("HTTP/1.1 200 OK\r\n")
+      loop { client.write("X-A: b\r\n" * 2_000) }
+    end
+    assert_capped_quickly
+
+    @server.close
+    serve { |_, client| loop { client.write("HTTP/1.1 100 Continue\r\n\r\n" * 1_000) } }
+    assert_capped_quickly
+  end
+
+  test "headers and a body within the cap are read normally" do
+    serve { |_, client| client.write(http_response(200, { "X-Padding" => "p" * 16.kilobytes }, "x" * 32.kilobytes)) }
+
+    assert_predicate probe.check, :up?
+  end
+
   test "maps connection outcomes to error kinds" do
     port = TCPServer.new("127.0.0.1", 0).then { |server| server.addr[1].tap { server.close } }
     assert_equal "connection_refused", probe("http://status.example.test:#{port}/").check.error_kind
@@ -199,6 +226,17 @@ class UptimeProbeTest < ActiveSupport::TestCase
   end
 
   private
+    # A server that never stops sending is cut off by the read cap, long
+    # before the time budget runs out.
+    def assert_capped_quickly
+      started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+      result = probe(timeout: 5).check
+
+      assert_equal [ "down", "connection_error" ], [ result.status, result.error_kind ]
+      assert_operator Process.clock_gettime(Process::CLOCK_MONOTONIC) - started, :<, 2
+    end
+
     def with_env(values)
       previous = values.keys.index_with { |key| ENV[key] }
       values.each { |key, value| ENV[key] = value }
