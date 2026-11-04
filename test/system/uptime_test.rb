@@ -14,7 +14,7 @@ class UptimeSystemTest < ApplicationSystemTestCase
     assert_selector "h1", text: "Add a monitor"
     type_into find_field("URL"), "https://marketing.example/up"
     type_into find_field("Name"), "Marketing home"
-    type_into find_field("Check"), "60"
+    type_into find_field("Check interval"), "60"
     press find_button("Add monitor")
 
     assert_text "Added Marketing home."

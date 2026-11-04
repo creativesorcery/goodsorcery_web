@@ -1,7 +1,9 @@
-<%# locals: (project:, limit_reached:) -%>
+<%# locals: (project:, limit_reached:, count: nil) -%>
 <% if limit_reached %>
   <div class="flex flex-wrap items-center justify-center gap-3 text-[13px]">
-    <%= chip "#{entitlements.max_monitors} of #{pluralize(entitlements.max_monitors, 'monitor')}", tone: :muted %>
+    <% if entitlements.max_monitors.positive? %>
+      <%= chip "#{count} of #{entitlements.max_monitors} #{'monitor'.pluralize(entitlements.max_monitors)} used", tone: :muted %>
+    <% end %>
     <%= upgrade_to_unlock %>
   </div>
 <% else %>

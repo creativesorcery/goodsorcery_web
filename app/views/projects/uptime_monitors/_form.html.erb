@@ -26,11 +26,13 @@
   </div>
 
   <div>
-    <%= form.label :interval_minutes, "Check", class: "label" %>
+    <% intervals_locked = entitlements.locked_uptime_intervals.any? %>
+    <%= form.label :interval_minutes, "Check interval", class: "label" %>
     <%= form.select :interval_minutes, uptime_interval_options, { disabled: entitlements.locked_uptime_intervals },
-          class: "field max-w-[22rem]", aria: { invalid: (monitor.errors[:interval_minutes].any? ? "true" : nil) } %>
-    <% if entitlements.locked_uptime_intervals.any? %>
-      <p class="hint">Some intervals aren't available on this account. <%= upgrade_to_unlock %></p>
+          class: "field max-w-[22rem]",
+          aria: { invalid: (monitor.errors[:interval_minutes].any? ? "true" : nil), describedby: ("uptime_monitor_interval_hint" if intervals_locked) } %>
+    <% if intervals_locked %>
+      <p id="uptime_monitor_interval_hint" class="hint">Some intervals aren't available on this account. <%= upgrade_to_unlock %></p>
     <% end %>
   </div>
 

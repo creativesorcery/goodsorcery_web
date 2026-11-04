@@ -70,7 +70,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_select "a[href=?]", new_project_uptime_monitor_path(@project), count: 0
-    assert_select ".chip", "1 of 1 monitor"
+    assert_select ".chip", "3 of 1 monitor used", "acme counts the monitors of all its apps"
     assert_select "a[href=?][target=_blank]", "https://billing.example/upgrade", text: "Upgrade to unlock"
   end
 
@@ -82,6 +82,10 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h2", "Watch your app from the outside"
     assert_select "a[href=?]", new_project_uptime_monitor_path(projects(:marketing)), count: 0
     assert_select "span", "Upgrade to unlock"
+    assert_select ".chip", count: 0
+
+    with_hosted_mode { get new_project_uptime_monitor_path(projects(:marketing)) }
+    assert_select "#uptime_monitor_limit h2", "Uptime monitors aren't included in this account."
   end
 
   test "hosted, a paused monitor says it is over the limit" do
@@ -105,6 +109,35 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
       assert_no_match "Upgrade to unlock", response.body
       assert_select "option[disabled]", count: 0
     end
+  end
+
+  test "self-hosted, a monitor paused while hosted says how to resume it" do
+    @monitor.update_columns(paused_at: Time.current)
+
+    get project_uptime_monitor_path(@project, @monitor)
+
+    assert_select "p", /Paused while this instance was hosted\. Run\s+bin\/rails goodsorcery:fit_uptime_monitors\s+to resume it\./
+    assert_select "dt", "Paused since"
+  end
+
+  test "a monitor never checked shows no up-since and no every-check claim" do
+    monitor = projects(:storefront).uptime_monitors.create!(name: "Fresh", url: "https://fresh.example/")
+
+    get project_uptime_monitor_path(@project, monitor)
+
+    assert_select "dd", "Not checked yet"
+    assert_select "dt", text: "Up since", count: 0
+    assert_select "p", "No incidents yet."
+  end
+
+  test "the interval select is labelled Check interval and tied to its hint when intervals are locked" do
+    accounts(:acme).update!(entitlement_values: { "max_monitors" => 10 })
+    with_hosted_mode { get new_project_uptime_monitor_path(projects(:marketing)) }
+    assert_response :success
+
+    assert_select "label[for=uptime_monitor_interval_minutes]", "Check interval"
+    assert_select "select#uptime_monitor_interval_minutes[aria-describedby=uptime_monitor_interval_hint]"
+    assert_select "p#uptime_monitor_interval_hint", /Upgrade to unlock/
   end
 
   # --- show ---

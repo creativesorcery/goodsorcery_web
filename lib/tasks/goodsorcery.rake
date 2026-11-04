@@ -14,7 +14,7 @@ namespace :goodsorcery do
     puts "Deleted #{Ingest::OccurrenceCap.enforce_all} occurrence(s) over the per-app cap."
   end
 
-  desc "Pause, resume and re-interval uptime monitors to fit each account's entitlements (run after switching hosted mode on or editing config/entitlements.yml)"
+  desc "Pause, resume and re-interval uptime monitors to fit each account's entitlements (run after switching GOODSORCERY_HOSTED on or off, or editing config/entitlements.yml)"
   task fit_uptime_monitors: :environment do
     count = 0
     Account.find_each do |account|

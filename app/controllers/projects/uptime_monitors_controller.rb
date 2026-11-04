@@ -55,10 +55,14 @@ class Projects::UptimeMonitorsController < ApplicationController
       @uptime_monitor = @project.uptime_monitors.find(params[:id])
     end
 
-    # Whether the account is at its monitor limit; counted only when hosted
-    # (self-hosted has no limit).
+    # The account's monitor count and whether it is at its limit; counted
+    # only when hosted (self-hosted has no limit).
     def set_monitor_limit
-      @monitor_limit_reached = !Current.account.entitlements.unlimited? && Current.account.monitor_limit_reached?
+      entitlements = Current.account.entitlements
+      return if entitlements.unlimited?
+
+      @account_monitor_count = Current.account.uptime_monitors.count
+      @monitor_limit_reached = entitlements.monitor_limit_reached?(@account_monitor_count)
     end
 
     def uptime_monitor_params

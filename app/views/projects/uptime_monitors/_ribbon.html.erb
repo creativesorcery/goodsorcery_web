@@ -17,7 +17,13 @@
     </dd>
   </div>
   <div class="px-4 py-3">
-    <% if monitor.down? %>
+    <% if monitor.paused? %>
+      <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Paused since</dt>
+      <dd class="text-[14px] text-ink-100 mt-2"><%= clock_label(monitor.paused_at) %></dd>
+    <% elsif monitor.pending? %>
+      <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Status</dt>
+      <dd class="text-[14px] text-ink-100 mt-2">Not checked yet</dd>
+    <% elsif monitor.down? %>
       <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Down since</dt>
       <dd class="text-[14px] text-coral-300 mt-2"><%= clock_label(monitor.down_since) %></dd>
     <% else %>

@@ -8,8 +8,8 @@
       <%= link_to monitor.name, project_uptime_monitor_path(monitor.project, monitor),
             class: "block text-[14.5px] text-ink-50 truncate after:absolute after:inset-0 focus:outline-none" %>
       <div class="text-[12px] text-ink-400 font-mono truncate mt-0.5"><%= monitor.host %></div>
-      <% if monitor.paused? && !entitlements.unlimited? %>
-        <p class="relative z-10 text-[12px] text-ink-400 mt-1">Over this account's monitor limit. <%= upgrade_to_unlock %></p>
+      <% if monitor.paused? %>
+        <p class="relative z-10 text-[12px] text-ink-400 mt-1"><%= uptime_paused_note %></p>
       <% end %>
     </div>
 

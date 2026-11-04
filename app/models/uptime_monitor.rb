@@ -46,6 +46,8 @@ class UptimeMonitor < ApplicationRecord
 
   # Also the "limit reached" panel's text on the new monitor page.
   def self.limit_message(max_monitors)
+    return "Uptime monitors aren't included in this account." if max_monitors.zero?
+
     "This account has reached its limit of #{max_monitors} #{'monitor'.pluralize(max_monitors)}."
   end
 

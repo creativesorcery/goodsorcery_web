@@ -5,7 +5,7 @@
     <p class="text-[12.5px] text-ink-400 mt-0.5">Each time the monitor went down, from the last <%= UptimeIncident::KEPT_FOR.inspect %>.</p>
   </div>
   <% if report.incidents.empty? %>
-    <p class="px-5 py-6 text-[13.5px] text-ink-400">No incidents. It has answered every check.</p>
+    <p class="px-5 py-6 text-[13.5px] text-ink-400"><%= report.recent_checks.any? ? "No incidents. It has answered every check." : "No incidents yet." %></p>
   <% else %>
     <ul class="divide-y divide-paper-700/70">
       <% report.incidents.each do |incident| %>

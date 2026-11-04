@@ -7,8 +7,8 @@
     </div>
     <h1 class="mt-4 font-display text-[34px] leading-[1.15] text-ink-50 break-words"><%= monitor.name %></h1>
     <p class="mt-2 text-[13px] text-ink-300 font-mono break-all"><%= monitor.url %></p>
-    <% if monitor.paused? && !entitlements.unlimited? %>
-      <p class="mt-2 text-[13px] text-ink-400">Paused: over this account's monitor limit. <%= upgrade_to_unlock %></p>
+    <% if monitor.paused? %>
+      <p class="mt-2 text-[13px] text-ink-400"><%= uptime_paused_note %></p>
     <% end %>
   </div>
 

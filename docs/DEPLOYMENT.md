@@ -181,8 +181,10 @@ and sign up; sign-up closes after the first account.
   job role that runs only that queue (`bundle exec sidekiq -q uptime`, with its
   own `SIDEKIQ_CONCURRENCY`) so slow checks never hold up ingest or alerts.
   Each due monitor is claimed once, so several processes can share the queue.
-  After switching `GOODSORCERY_HOSTED` on or editing `config/entitlements.yml`,
-  run `bin/kamal app exec "bin/rails goodsorcery:fit_uptime_monitors"`.
+  After switching `GOODSORCERY_HOSTED` on or off, or editing
+  `config/entitlements.yml`, run
+  `bin/kamal app exec "bin/rails goodsorcery:fit_uptime_monitors"`. Switching it
+  off without the task leaves monitors paused under hosted limits unchecked.
 - **Accessories:** `bin/kamal accessory logs tunnel`. Upgrading Postgres to a
   new major version needs a dump and restore.
 
