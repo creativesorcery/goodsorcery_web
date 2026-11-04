@@ -1,4 +1,4 @@
-# Saves the signed-in person's alert and digest switches for one app, from
+# Saves the signed-in person's alert, uptime alert and digest switches for one app, from
 # the Notifications page. Doesn't change the sidebar's remembered project.
 class Projects::NotificationPreferencesController < ApplicationController
   before_action :set_project
@@ -18,6 +18,6 @@ class Projects::NotificationPreferencesController < ApplicationController
     end
 
     def preference_params
-      params.expect(notification_preference: %i[alerts_muted digest_enabled]).to_h.symbolize_keys
+      params.expect(notification_preference: %i[alerts_muted uptime_alerts_muted digest_enabled]).to_h.symbolize_keys
     end
 end

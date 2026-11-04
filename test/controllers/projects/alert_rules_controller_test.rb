@@ -25,6 +25,26 @@ class Projects::AlertRulesControllerTest < ActionDispatch::IntegrationTest
     assert alert_rules(:storefront_daily_digest).reload.enabled?
   end
 
+  test "switches an uptime rule off, and an outsider can't" do
+    patch project_alert_rule_path(@project, "monitor_down"), params: { alert_rule: { enabled: false } }
+
+    assert_redirected_to project_alerts_path(@project)
+    assert_not alert_rules(:storefront_monitor_down).reload.enabled?
+    assert alert_rules(:storefront_monitor_recovered).reload.enabled?
+
+    sign_in_as users(:outsider)
+    patch project_alert_rule_path(@project, "monitor_recovered"), params: { alert_rule: { enabled: false } }
+    assert_response :not_found
+    assert alert_rules(:storefront_monitor_recovered).reload.enabled?
+  end
+
+  test "an uptime rule takes no threshold" do
+    patch project_alert_rule_path(@project, "monitor_down"), params: { alert_rule: { threshold: "5" } }
+
+    assert_response :unprocessable_entity
+    assert_nil alert_rules(:storefront_monitor_down).reload.threshold
+  end
+
   test "sets the still_happening threshold" do
     patch project_alert_rule_path(@project, "still_happening"), params: { alert_rule: { threshold: "250" } }
 

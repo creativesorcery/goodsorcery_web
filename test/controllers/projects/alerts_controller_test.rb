@@ -33,6 +33,16 @@ class Projects::AlertsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type=radio][name='project[alert_scope]'][value=follow_default][checked]"
     assert_select "label", text: /Follow the default environment \(production\)/
     assert_select "input[type=checkbox][name='project[alert_selected_environments][]'][value=staging]"
+    assert_select "#alert_rules li[id^=alert_rule_]", AlertRule::ERROR_KINDS.size
+    assert_select "#uptime_alert_rules" do
+      assert_select "h2", "Uptime"
+      assert_select "p", text: /once per incident/
+      assert_select "a[href=?]", project_uptime_monitors_path(@project)
+      assert_select "li[id^=alert_rule_]", 2
+      assert_select "#alert_rule_monitor_down button.toggle[aria-pressed=true][aria-label='Monitor down alerts']"
+      assert_select "#alert_rule_monitor_recovered", text: /passes its check again/
+      assert_select "input[name='alert_rule[threshold]']", 0
+    end
     assert_select "#alert_environments .text-coral-300", "production"
     assert_equal "no-store", response.headers["Cache-Control"]
     assert_no_match(/style="/, response.body)

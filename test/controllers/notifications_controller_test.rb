@@ -27,10 +27,30 @@ class NotificationsControllerTest < ActionDispatch::IntegrationTest
       # billing-api's digest rule is off: no switch that suggests a digest is coming.
       assert_select "button.toggle[aria-label='Daily digest from billing-api']", 0
       assert_select "a[href=?]", project_alerts_path(projects(:billing)), text: "Off for this app"
+      # Muting billing-api's issue alerts keeps its uptime alerts.
+      assert_select "button.toggle[aria-label='Uptime alerts from billing-api'][aria-pressed=true]"
+      assert_select "input[name='notification_preference[uptime_alerts_muted]'][value=true]"
     end
-    assert_select "##{dom_id(projects(:storefront), :notifications)} button.toggle[aria-pressed=true]", 2
+    assert_select "span", "Uptime alerts"
+    assert_select "##{dom_id(projects(:storefront), :notifications)} button.toggle[aria-pressed=true]", 3
     assert_no_match "umbrella-app", response.body
     assert_no_match(/style="/, response.body)
+  end
+
+  test "the uptime switch shows off when the app sends no uptime alerts" do
+    memberships(:jo_acme).update_notification_preference(projects(:storefront), uptime_alerts_muted: true)
+
+    get notifications_path
+    assert_select "##{dom_id(projects(:storefront), :notifications)} button.toggle[aria-label='Uptime alerts from storefront'][aria-pressed=false]"
+
+    alert_rules(:storefront_monitor_down).update!(enabled: false)
+    alert_rules(:storefront_monitor_recovered).update!(enabled: false)
+    get notifications_path
+
+    assert_select "##{dom_id(projects(:storefront), :notifications)}" do
+      assert_select "button.toggle[aria-label='Uptime alerts from storefront']", 0
+      assert_select "a[title*='sends no uptime alerts']", "Off for this app"
+    end
   end
 
   test "renders in a fixed number of queries however many apps there are" do

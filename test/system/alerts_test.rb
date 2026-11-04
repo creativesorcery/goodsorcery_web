@@ -36,7 +36,7 @@ class AlertsSystemTest < ApplicationSystemTestCase
     press find_button("Save environments")
 
     assert_text "Alert environments saved."
-    assert_selector "#alert_environments_heading + p", text: "The rules above watch staging."
+    assert_selector "#alert_environments_heading + p", text: "The issue rules above watch staging."
     assert_equal [ "staging" ], @project.reload.alert_environments
   end
 

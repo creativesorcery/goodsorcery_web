@@ -14,7 +14,7 @@
       <h1 class="page-title">Alerts</h1>
       <p class="mt-2 text-[13.5px] text-ink-300">
         Alert emails go to every member of <%= Current.account.name %> with a confirmed email address.
-        Each person can mute this app or turn off its digest under <%= link_to "Notifications", notifications_path, class: "text-iris-300 hover:underline" %>.
+        Each person can mute this app's issue or uptime alerts, or turn off its digest, under <%= link_to "Notifications", notifications_path, class: "text-iris-300 hover:underline" %>.
       </p>
     </div>
 
@@ -30,10 +30,25 @@
       </ul>
     </section>
 
-    <section id="alert_environments" class="panel mt-6 rise rise-2" aria-labelledby="alert_environments_heading">
+    <section id="uptime_alert_rules" class="panel mt-6 rise rise-2" aria-labelledby="uptime_alert_rules_heading">
+      <div class="px-5 py-4 border-b border-paper-700">
+        <h2 id="uptime_alert_rules_heading" class="font-display text-[20px] text-ink-50">Uptime</h2>
+        <p class="text-[12.5px] text-ink-400 mt-0.5">
+          Emails about this app's <%= link_to "uptime monitors", project_uptime_monitors_path(@project), class: "text-iris-300 hover:underline" %>,
+          sent once per incident: when a monitor goes down, and when it's back up. The environments below don't apply to them.
+        </p>
+      </div>
+      <ul class="divide-y divide-paper-700/70">
+        <% @project.alert_rules_in_order(AlertRule::UPTIME_KINDS).each do |rule| %>
+          <%= render "projects/alerts/rule", project: @project, rule: %>
+        <% end %>
+      </ul>
+    </section>
+
+    <section id="alert_environments" class="panel mt-6 rise rise-3" aria-labelledby="alert_environments_heading">
       <div class="px-5 py-4 border-b border-paper-700">
         <h2 id="alert_environments_heading" class="font-display text-[20px] text-ink-50">Environments</h2>
-        <p class="text-[12.5px] text-ink-400 mt-0.5">The rules above watch <%= alert_environments_label(@project) %>.</p>
+        <p class="text-[12.5px] text-ink-400 mt-0.5">The issue rules above watch <%= alert_environments_label(@project) %>.</p>
       </div>
       <%= render "projects/alerts/scope_form", project: @project %>
     </section>
