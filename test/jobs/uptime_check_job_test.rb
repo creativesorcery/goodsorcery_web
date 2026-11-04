@@ -31,16 +31,53 @@ class UptimeCheckJobTest < ActiveJob::TestCase
     assert_equal [ [ :alert_later, incident.id, "monitor_down" ], [ :broadcast_checked, @monitor.id ] ], calls
   end
 
-  test "skips deleted, paused and recently checked monitors" do
+  test "skips deleted, paused and monitors checked since the job was enqueued" do
     with_fake_probe do |probe|
       UptimeCheckJob.perform_now(0)
       uptime_monitors(:billing_checkout).update_columns(paused_at: Time.current)
       UptimeCheckJob.perform_now(uptime_monitors(:billing_checkout).id)
       @monitor.update_columns(last_checked_at: 10.seconds.ago)
-      UptimeCheckJob.perform_now(@monitor.id)
+      UptimeCheckJob.new(@monitor.id).tap { it.enqueued_at = 11.seconds.ago }.perform_now
 
       assert_equal 0, probe.calls
     end
+  end
+
+  test "records the check at the time it started, not when the probe returned" do
+    freeze_time
+
+    with_probe(SlowProbe.new(self)) { UptimeCheckJob.perform_now(@monitor.id) }
+
+    assert_equal 40.seconds.ago, @monitor.reload.last_checked_at
+    assert_equal 40.seconds.ago, @monitor.checks.recent.first.checked_at
+  end
+
+  test "a backed-up queue probes a monitor once, however many claims queued it" do
+    UptimeMonitor.update_all(next_check_at: 1.year.from_now)
+    @monitor.update_columns(interval_minutes: 1, next_check_at: Time.utc(2026, 11, 3, 12), last_checked_at: Time.utc(2026, 11, 3, 11, 59))
+    travel_to(Time.utc(2026, 11, 3, 12, 0, 1)) { UptimeSchedule.enqueue_due }
+    travel_to(Time.utc(2026, 11, 3, 12, 1, 2)) { UptimeSchedule.enqueue_due }
+    assert_enqueued_jobs 2, only: UptimeCheckJob
+
+    first, second = enqueued_jobs.map { |payload| UptimeCheckJob.deserialize(payload) }
+
+    with_fake_probe(up_result, up_result) do |probe|
+      assert_difference -> { @monitor.checks.count }, 1 do
+        travel_to(Time.utc(2026, 11, 3, 12, 3)) { first.perform_now }
+        travel_to(Time.utc(2026, 11, 3, 12, 4)) { second.perform_now }
+      end
+      assert_equal 1, probe.calls
+    end
+  end
+
+  test "of two jobs probing at once, only the first to record keeps its check" do
+    enqueued_at = 1.second.ago
+    @monitor.record_check(up_result, at: Time.current)
+
+    assert_no_difference -> { @monitor.checks.count } do
+      assert_nil @monitor.record_check(down_result, at: Time.current, unless_checked_since: enqueued_at)
+    end
+    assert_predicate @monitor.reload, :up?
   end
 
   test "a monitor deleted during its check is discarded" do
@@ -68,6 +105,16 @@ class UptimeCheckJobTest < ActiveJob::TestCase
   end
 
   private
+    # Fails after 20 seconds of (test) time, so a check and its retry take 40.
+    class SlowProbe
+      def initialize(test) = @test = test
+
+      def check
+        @test.travel 20.seconds
+        UptimeProbe::Result.down("timeout")
+      end
+    end
+
     # Records the calls to the hooks slices 3 and 4 implement.
     def hook_calls
       calls = []

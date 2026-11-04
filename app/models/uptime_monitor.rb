@@ -15,7 +15,7 @@ class UptimeMonitor < ApplicationRecord
   INTERVALS = Entitlements::UPTIME_INTERVALS
   INTERVAL_LABELS = { 1 => "Every minute", 5 => "Every 5 minutes", 10 => "Every 10 minutes", 60 => "Every hour" }.freeze
   STATUSES = %w[pending up down].freeze
-  # A monitor checked this recently is not checked again (stale claims, "Check now").
+  # The shortest gap between "Check now" requests (UptimeMonitor::Checking#check_now_gap).
   RECHECK_GAP = 30.seconds
   URL_MESSAGE = "must be a public http:// or https:// address".freeze
 
@@ -51,8 +51,14 @@ class UptimeMonitor < ApplicationRecord
 
   def paused? = paused_at.present?
 
-  def checked_recently?(now = Time.current)
-    last_checked_at.present? && last_checked_at > now - RECHECK_GAP
+  def checked_recently?(now = Time.current, gap: RECHECK_GAP)
+    last_checked_at.present? && last_checked_at > now - gap
+  end
+
+  # A check that started at or after this time (say, when a job was
+  # enqueued) makes a newer one pointless. Nil never counts as checked.
+  def checked_since?(time)
+    time.present? && last_checked_at.present? && last_checked_at >= time
   end
 
   # The only part of the URL shown outside the edit form and the detail page.

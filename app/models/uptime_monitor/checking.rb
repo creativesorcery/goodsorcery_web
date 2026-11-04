@@ -26,11 +26,15 @@ module UptimeMonitor::Checking
   end
 
   # Stores the check, its hourly rollup and the state transition in one
-  # transaction under the monitor's row lock. Returns [incident, alert kind]
-  # when the monitor went down or recovered, else nil.
-  def record_check(result, at: Time.current)
+  # transaction under the monitor's row lock. `at` is when the check
+  # started. Returns [incident, alert kind] when the monitor went down or
+  # recovered, else nil. Records nothing when another check started at or
+  # after unless_checked_since (the job's enqueued_at) got there first.
+  def record_check(result, at: Time.current, unless_checked_since: nil)
     transaction do
       lock!("FOR NO KEY UPDATE")
+      next if checked_since?(unless_checked_since)
+
       insert_check(result, at)
       count_check_hour(result, at)
       transition = transition_for(result, at)
