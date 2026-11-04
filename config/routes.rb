@@ -45,6 +45,13 @@ Rails.application.routes.draw do
           resource :rotation, only: :create
         end
       end
+      resources :uptime_monitors, path: "uptime" do
+        scope module: :uptime_monitors do
+          resource :check, only: :create
+          resource :row, only: :show
+          resource :report, only: :show
+        end
+      end
     end
 
     resources :issues, only: %i[index show] do

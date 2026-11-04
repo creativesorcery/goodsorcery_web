@@ -1,0 +1,23 @@
+<%# locals: (project:, monitor:, animate:) -%>
+<div class="flex flex-wrap items-start justify-between gap-8 <%= 'rise' if animate %>">
+  <div class="min-w-0 flex-1">
+    <div class="flex flex-wrap items-center gap-2.5">
+      <%= uptime_status_chip(monitor) %>
+      <%= chip monitor.interval_label, tone: :iris %>
+    </div>
+    <h1 class="mt-4 font-display text-[34px] leading-[1.15] text-ink-50 break-words"><%= monitor.name %></h1>
+    <p class="mt-2 text-[13px] text-ink-300 font-mono break-all"><%= monitor.url %></p>
+    <% if monitor.paused? && !entitlements.unlimited? %>
+      <p class="mt-2 text-[13px] text-ink-400">Paused: over this account's monitor limit. <%= upgrade_to_unlock %></p>
+    <% end %>
+  </div>
+
+  <div class="flex items-center gap-2 shrink-0">
+    <% unless monitor.paused? %>
+      <%= button_to "Check now", project_uptime_monitor_check_path(project, monitor), class: "btn btn-sm", form_class: "contents" %>
+    <% end %>
+    <%= link_to "Edit", edit_project_uptime_monitor_path(project, monitor), class: "btn btn-sm" %>
+    <%= button_to "Delete", project_uptime_monitor_path(project, monitor), method: :delete, class: "btn btn-sm btn-ghost text-coral-300",
+          form_class: "contents", data: { turbo_confirm: "Delete #{monitor.name}? Its check history goes too." } %>
+  </div>
+</div>

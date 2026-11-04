@@ -5,6 +5,7 @@
 #   LiveFrames.new(issue.project, issue).issue_frames.each(&:reload)
 #   LiveFrames.new(project).project_frames.each(&:reload)
 #   LiveFrames.recent_issues(account).reload
+#   LiveFrames.new(monitor.project).uptime_monitor_frames(monitor).each(&:reload)
 class LiveFrames
   include ActionView::RecordIdentifier
   include Rails.application.routes.url_helpers
@@ -32,6 +33,7 @@ class LiveFrames
     def issues_stream(project) = [ project, :issues ]
     def issue_stream(issue) = [ issue ]
     def setup_stream(project) = [ project, :setup ]
+    def uptime_stream(project) = [ project, :uptime ]
 
     # The account-wide feed on the overview; broadcast once per account per window.
     def recent_issues(account)
@@ -71,6 +73,18 @@ class LiveFrames
 
   def listening = Frame.new(setup_stream, dom_id(project, :listening), project_listening_path(project))
 
+  # A monitor's row on the Uptime page and its report on the detail page,
+  # reloaded after each check. Pointers only: never the monitor's URL.
+  def uptime_monitor_frames(monitor) = [ uptime_row(monitor), uptime_report(monitor) ]
+
+  def uptime_row(monitor)
+    Frame.new(uptime_stream, dom_id(monitor, :row), project_uptime_monitor_row_path(project, monitor))
+  end
+
+  def uptime_report(monitor)
+    Frame.new(uptime_stream, dom_id(monitor, :report), project_uptime_monitor_report_path(project, monitor))
+  end
+
   # Container above the issue list rows that new issues are prepended into:
   # one per environment scope ("new_issues_project_1_staging"), plus the
   # all-environments one (nil), so a list scoped to staging never shows a new
@@ -99,4 +113,6 @@ class LiveFrames
     def issue_stream = self.class.issue_stream(issue)
 
     def setup_stream = self.class.setup_stream(project)
+
+    def uptime_stream = self.class.uptime_stream(project)
 end

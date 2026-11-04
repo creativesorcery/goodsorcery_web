@@ -1,0 +1,29 @@
+<%# locals: (report:, animate:) -%>
+<section class="panel overflow-hidden <%= 'rise rise-4' if animate %>" aria-labelledby="uptime_incidents_heading">
+  <div class="px-5 py-4 border-b border-paper-700">
+    <h2 id="uptime_incidents_heading" class="font-display text-[20px] text-ink-50">Incidents</h2>
+    <p class="text-[12.5px] text-ink-400 mt-0.5">Each time the monitor went down, from the last <%= UptimeIncident::KEPT_FOR.inspect %>.</p>
+  </div>
+  <% if report.incidents.empty? %>
+    <p class="px-5 py-6 text-[13.5px] text-ink-400">No incidents. It has answered every check.</p>
+  <% else %>
+    <ul class="divide-y divide-paper-700/70">
+      <% report.incidents.each do |incident| %>
+        <li id="<%= dom_id(incident) %>" class="px-5 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+          <div class="min-w-0">
+            <div class="text-[13.5px] text-ink-100">
+              <%= clock_label(incident.started_at) %> <span class="text-ink-400">→</span>
+              <% if incident.open? %>
+                <span class="inline-flex items-center gap-1.5 text-coral-300"><span class="coral-dot"></span>ongoing</span>
+              <% else %>
+                <%= clock_label(incident.resolved_at) %>
+              <% end %>
+            </div>
+            <div class="text-[12.5px] text-ink-400 mt-0.5"><%= incident.cause_label || "Unknown cause" %></div>
+          </div>
+          <span class="font-mono text-[13px] text-ink-100"><%= uptime_duration(incident.duration) %></span>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+</section>

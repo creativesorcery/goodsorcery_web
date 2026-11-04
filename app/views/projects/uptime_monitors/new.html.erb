@@ -1,0 +1,22 @@
+<% provide :title, "Add a monitor · #{@project.name}" %>
+<% provide :nav, "uptime" %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb @project.name, project_issues_path(@project) %>
+<% breadcrumb "Uptime", project_uptime_monitors_path(@project) %>
+<% breadcrumb "Add a monitor" %>
+
+<div class="px-8 py-8 max-w-[720px]">
+  <div class="rise">
+    <div class="eyebrow"><%= @project.name %> · uptime</div>
+    <h1 class="page-title">Add a monitor</h1>
+    <p class="text-[15px] text-ink-300 mt-3">Good Sorcery requests the URL on a schedule and emails the team when it stops answering, and again when it's back.</p>
+  </div>
+
+  <section class="panel p-6 mt-6 rise rise-1">
+    <% if @monitor_limit_reached %>
+      <%= render "projects/uptime_monitors/limit_reached", project: @project %>
+    <% else %>
+      <%= render "projects/uptime_monitors/form", project: @project, monitor: @uptime_monitor %>
+    <% end %>
+  </section>
+</div>

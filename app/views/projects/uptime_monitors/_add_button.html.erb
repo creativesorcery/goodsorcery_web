@@ -1,0 +1,11 @@
+<%# locals: (project:, limit_reached:) -%>
+<% if limit_reached %>
+  <div class="flex flex-wrap items-center justify-center gap-3 text-[13px]">
+    <%= chip "#{entitlements.max_monitors} of #{pluralize(entitlements.max_monitors, 'monitor')}", tone: :muted %>
+    <%= upgrade_to_unlock %>
+  </div>
+<% else %>
+  <%= link_to new_project_uptime_monitor_path(project), class: "btn btn-primary" do %>
+    <%= icon :plus, classes: "w-4 h-4" %> Add a monitor
+  <% end %>
+<% end %>

@@ -1,0 +1,26 @@
+<%# locals: (row:) -%>
+<% monitor = row.monitor %>
+<%= turbo_frame_tag dom_id(monitor, :row), target: "_top" do %>
+  <div class="<%= UptimeHelper::ROW_GRID %> group relative px-5 py-4 border-b border-paper-700/70 last:border-b-0 hover:bg-iris-500/[.04] transition">
+    <span><%= uptime_status_chip(monitor) %></span>
+
+    <div class="min-w-0">
+      <%= link_to monitor.name, project_uptime_monitor_path(monitor.project, monitor),
+            class: "block text-[14.5px] text-ink-50 truncate after:absolute after:inset-0 focus:outline-none" %>
+      <div class="text-[12px] text-ink-400 font-mono truncate mt-0.5"><%= monitor.host %></div>
+      <% if monitor.paused? && !entitlements.unlimited? %>
+        <p class="relative z-10 text-[12px] text-ink-400 mt-1">Over this account's monitor limit. <%= upgrade_to_unlock %></p>
+      <% end %>
+    </div>
+
+    <span class="<%= UptimeHelper::WIDE_CELL %> text-[12.5px] text-ink-300"><%= monitor.interval_label %></span>
+    <span class="text-[12.5px] text-ink-100" title="<%= clock_label(monitor.last_checked_at) %>"><%= time_ago_compact(monitor.last_checked_at) %></span>
+    <span class="<%= UptimeHelper::WIDE_CELL %> text-right font-mono text-[13px] text-ink-100"><%= uptime_ms(monitor.last_response_time_ms) %></span>
+    <span class="grid grid-cols-3 gap-2 text-right font-mono text-[12.5px] text-ink-100">
+      <% UptimeHourlyCount::WINDOWS.each_key do |window| %>
+        <span title="Uptime, last <%= window %>"><%= uptime_percent(row.percentages[window]) %></span>
+      <% end %>
+    </span>
+    <div class="<%= UptimeHelper::WIDE_CELL %>"><%= uptime_bar_svg(row.bars) %></div>
+  </div>
+<% end %>

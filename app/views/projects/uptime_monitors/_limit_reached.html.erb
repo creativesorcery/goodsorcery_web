@@ -1,0 +1,9 @@
+<%# locals: (project:) -%>
+<div id="uptime_monitor_limit" class="text-center py-4">
+  <h2 class="font-display text-[20px] text-ink-50"><%= UptimeMonitor.limit_message(entitlements.max_monitors) %></h2>
+  <p class="mt-2 text-[13.5px] text-ink-400">The limit counts the monitors of every app in <%= Current.account.name %>.</p>
+  <div class="mt-4 flex items-center justify-center gap-3 text-[13.5px]">
+    <%= upgrade_to_unlock %>
+    <%= link_to "Back to Uptime", project_uptime_monitors_path(project), class: "btn btn-ghost" %>
+  </div>
+</div>

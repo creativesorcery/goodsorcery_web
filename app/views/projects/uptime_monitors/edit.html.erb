@@ -1,0 +1,20 @@
+<%# The form shows the monitor's full URL, which may carry a token: never cache this page. %>
+<% provide :title, "Edit #{@uptime_monitor.name_in_database} · Uptime" %>
+<% provide :nav, "uptime" %>
+<% content_for :head, tag.meta(name: "turbo-cache-control", content: "no-cache") %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb @project.name, project_issues_path(@project) %>
+<% breadcrumb "Uptime", project_uptime_monitors_path(@project) %>
+<% breadcrumb @uptime_monitor.name_in_database, project_uptime_monitor_path(@project, @uptime_monitor) %>
+<% breadcrumb "Edit" %>
+
+<div class="px-8 py-8 max-w-[720px]">
+  <div class="rise">
+    <div class="eyebrow"><%= @project.name %> · uptime</div>
+    <h1 class="page-title">Edit monitor</h1>
+  </div>
+
+  <section class="panel p-6 mt-6 rise rise-1">
+    <%= render "projects/uptime_monitors/form", project: @project, monitor: @uptime_monitor %>
+  </section>
+</div>

@@ -1,0 +1,28 @@
+<%# locals: (monitor:, report:, animate:) -%>
+<dl class="mt-7 grid grid-cols-2 md:grid-cols-6 divide-x divide-iris-500/10 border border-iris-500/10 rounded-xl bg-paper-900/60 <%= 'rise rise-1' if animate %>">
+  <% UptimeHourlyCount::WINDOWS.each_key do |window| %>
+    <div class="px-4 py-3">
+      <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Uptime <%= window %></dt>
+      <dd class="font-display text-[24px] text-ink-50 mt-0.5"><%= uptime_percent(report.percentages[window]) %></dd>
+    </div>
+  <% end %>
+  <div class="px-4 py-3">
+    <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Avg response 24h</dt>
+    <dd class="font-display text-[24px] text-ink-50 mt-0.5"><%= uptime_ms(report.average_response_ms) %></dd>
+  </div>
+  <div class="px-4 py-3">
+    <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Last check</dt>
+    <dd class="text-[14px] text-ink-100 mt-2">
+      <%= clock_label(monitor.last_checked_at) %> <span class="text-ink-400">· <%= time_ago_compact(monitor.last_checked_at) %></span>
+    </dd>
+  </div>
+  <div class="px-4 py-3">
+    <% if monitor.down? %>
+      <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Down since</dt>
+      <dd class="text-[14px] text-coral-300 mt-2"><%= clock_label(monitor.down_since) %></dd>
+    <% else %>
+      <dt class="text-[11px] uppercase tracking-[.16em] text-ink-400">Up since</dt>
+      <dd class="text-[14px] text-ink-100 mt-2"><%= clock_label(report.up_since) %></dd>
+    <% end %>
+  </div>
+</dl>

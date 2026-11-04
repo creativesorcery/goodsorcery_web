@@ -1,0 +1,13 @@
+<%# Shows the monitor's full URL, which may carry a token: never cache this page. %>
+<% provide :title, "#{@uptime_monitor.name} · Uptime" %>
+<% provide :nav, "uptime" %>
+<% content_for :head, tag.meta(name: "turbo-cache-control", content: "no-cache") %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb @project.name, project_issues_path(@project) %>
+<% breadcrumb "Uptime", project_uptime_monitors_path(@project) %>
+<% breadcrumb @uptime_monitor.name %>
+<%= live_stream_from(*LiveFrames.uptime_stream(@project)) %>
+
+<%= turbo_frame_tag dom_id(@uptime_monitor, :report), target: "_top" do %>
+  <%= render "projects/uptime_monitors/report", project: @project, monitor: @uptime_monitor, report: @report, animate: true %>
+<% end %>

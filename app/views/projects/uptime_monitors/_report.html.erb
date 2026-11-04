@@ -1,0 +1,39 @@
+<%# locals: (project:, monitor:, report:, animate:) -%>
+<%# Rendered inside the report frame that live updates reload after each check,
+    so the page-load rise runs only on the full page (animate: true). %>
+<section class="border-b border-iris-500/10">
+  <div class="px-8 pt-8 pb-6 max-w-[1400px]">
+    <%= render "projects/uptime_monitors/hero", project:, monitor:, animate: %>
+    <%= render "projects/uptime_monitors/ribbon", monitor:, report:, animate: %>
+  </div>
+</section>
+
+<div class="px-8 py-8 max-w-[1400px] space-y-8">
+  <section class="panel p-5 <%= 'rise rise-2' if animate %>" aria-labelledby="uptime_days_heading">
+    <div class="flex items-baseline justify-between gap-4">
+      <h2 id="uptime_days_heading" class="font-display text-[20px] text-ink-50">Last <%= UptimeReport::DAYS %> days</h2>
+      <span class="text-[12.5px] text-ink-400">One bar per day, in your time zone</span>
+    </div>
+    <div class="mt-4"><%= uptime_daily_bar_svg(report.daily_bars) %></div>
+    <div class="mt-2 flex justify-between text-[11.5px] text-ink-400">
+      <span><%= report.daily_bars.first.first.strftime("%b %-d") %></span><span>Today</span>
+    </div>
+  </section>
+
+  <section class="panel p-5 <%= 'rise rise-3' if animate %>" aria-labelledby="uptime_response_heading">
+    <div class="flex items-baseline justify-between gap-4">
+      <h2 id="uptime_response_heading" class="font-display text-[20px] text-ink-50">Response time</h2>
+      <span class="text-[12.5px] text-ink-400">Last 24 hours, average per 15 minutes</span>
+    </div>
+    <% if (sparkline = uptime_response_sparkline(report.response_series)) %>
+      <div class="mt-4 h-14"><%= sparkline %></div>
+    <% else %>
+      <p class="mt-3 text-[13.5px] text-ink-400">No successful checks in the last 24 hours.</p>
+    <% end %>
+  </section>
+
+  <div class="grid grid-cols-1 xl:grid-cols-2 items-start gap-8">
+    <%= render "projects/uptime_monitors/incidents", report:, animate: %>
+    <%= render "projects/uptime_monitors/recent_checks", report:, animate: %>
+  </div>
+</div>

@@ -1,0 +1,38 @@
+<% provide :title, "Uptime · #{@project.name}" %>
+<% provide :nav, "uptime" %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb @project.name, project_issues_path(@project) %>
+<% breadcrumb "Uptime" %>
+<%= live_stream_from(*LiveFrames.uptime_stream(@project)) %>
+
+<div class="px-8 pt-8 pb-16 max-w-[1400px]">
+  <div class="flex flex-wrap items-end justify-between gap-6 rise">
+    <div>
+      <div class="eyebrow"><%= @project.name %> · uptime</div>
+      <h1 class="page-title">Uptime <span class="text-ink-400 text-[30px]">— <%= pluralize(@overview.size, "monitor") %></span></h1>
+    </div>
+    <% unless @overview.empty? %>
+      <%= render "projects/uptime_monitors/add_button", project: @project, limit_reached: @monitor_limit_reached %>
+    <% end %>
+  </div>
+
+  <% if @overview.empty? %>
+    <div class="mt-8">
+      <%= render "shared/empty_state", title: "Watch your app from the outside",
+            body: "Uptime requests a URL of yours every few minutes, from outside your servers, and emails you when it stops answering and again when it's back.",
+            action: render("projects/uptime_monitors/add_button", project: @project, limit_reached: @monitor_limit_reached) %>
+    </div>
+  <% else %>
+    <section id="<%= dom_id(@project, :uptime_monitors) %>" class="panel mt-8 overflow-hidden rise rise-1" aria-label="Monitors">
+      <div class="<%= UptimeHelper::ROW_GRID %> px-5 py-2.5 text-[11px] uppercase tracking-[.16em] text-ink-400/80 border-b border-paper-700 bg-paper-850/60">
+        <span>Status</span><span>Monitor</span><span class="<%= UptimeHelper::WIDE_CELL %>">Interval</span>
+        <span>Checked</span><span class="<%= UptimeHelper::WIDE_CELL %> text-right">Response</span>
+        <span class="grid grid-cols-3 gap-2 text-right"><span>24h</span><span>7d</span><span>30d</span></span>
+        <span class="<%= UptimeHelper::WIDE_CELL %>">Last 24 hours</span>
+      </div>
+      <% @overview.rows.each do |row| %>
+        <%= render "projects/uptime_monitors/row", row: %>
+      <% end %>
+    </section>
+  <% end %>
+</div>

@@ -1,0 +1,42 @@
+<%# locals: (project:, monitor:) -%>
+<%= form_with model: [ project, monitor ], class: "space-y-5" do |form| %>
+  <% if monitor.errors.any? %>
+    <div id="uptime_monitor_errors" class="rounded-xl border border-coral-500/40 bg-coral-500/10 px-4 py-3 text-[13px] text-coral-300" role="alert">
+      <ul class="space-y-1">
+        <% uptime_monitor_error_sentences(monitor).each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :url, "URL", class: "label" %>
+    <%= form.url_field :url, class: "field font-mono", required: true, maxlength: UptimeUrl::MAX_LENGTH, autocomplete: "off",
+          autofocus: monitor.new_record?, placeholder: "https://example.com/up", spellcheck: false,
+          aria: { invalid: (monitor.errors[:url].any? ? "true" : nil), describedby: "uptime_monitor_url_hint" } %>
+    <p id="uptime_monitor_url_hint" class="hint">A public http:// or https:// address. A 2xx or 3xx answer within <%= UptimeProbe::TOTAL_TIMEOUT %> seconds counts as up. Kept encrypted. Lists and emails show only the host.</p>
+  </div>
+
+  <div>
+    <%= form.label :name, "Name", class: "label" %>
+    <%= form.text_field :name, class: "field", maxlength: 60, autocomplete: "off", placeholder: "Storefront home",
+          aria: { invalid: (monitor.errors[:name].any? ? "true" : nil), describedby: "uptime_monitor_name_hint" } %>
+    <p id="uptime_monitor_name_hint" class="hint">Optional. Left blank, it's filled in from the URL's host.</p>
+  </div>
+
+  <div>
+    <%= form.label :interval_minutes, "Check", class: "label" %>
+    <%= form.select :interval_minutes, uptime_interval_options, { disabled: entitlements.locked_uptime_intervals },
+          class: "field max-w-[22rem]", aria: { invalid: (monitor.errors[:interval_minutes].any? ? "true" : nil) } %>
+    <% if entitlements.locked_uptime_intervals.any? %>
+      <p class="hint">Some intervals aren't available on this account. <%= upgrade_to_unlock %></p>
+    <% end %>
+  </div>
+
+  <div class="flex items-center gap-3 pt-2">
+    <%= form.submit monitor.new_record? ? "Add monitor" : "Save changes", class: "btn btn-primary" %>
+    <%= link_to "Cancel", monitor.new_record? ? project_uptime_monitors_path(project) : project_uptime_monitor_path(project, monitor),
+          class: "btn btn-ghost" %>
+  </div>
+<% end %>
