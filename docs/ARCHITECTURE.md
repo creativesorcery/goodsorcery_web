@@ -19,7 +19,7 @@ Stack: Ruby 4.0.7, Rails 8.1.4, Postgres (pg_trgm), Propshaft, importmap, Turbo,
 5. **Performance.** No N+1 queries (use `includes`, `inverse_of` and batch queries for histograms). Counters are atomic SQL. The ingest path is bounded and tuned for minimal queries (§2.6).
 6. **Tests.** Use Minitest with fixtures. Always run with a private DB:
    `TEST_DB_SUFFIX=_<slice> bin/rails db:test:prepare && TEST_DB_SUFFIX=_<slice> bin/rails test`. Never drop the development database. Run `bin/rubocop` on your files before you finish.
-7. **Out of scope (do not build):** deploy tracking/releases UI, keyboard shortcuts, the "needs attention" callout, Merge, "Mute rules", GitHub links ("Link GitHub issue", "Open in GitHub"), Uptime ("soon"), team invites, project deletion, the Ruby client gem, geo-IP ("London, GB"), and syntax highlighting of code context (render plain mono text). Email alerts were out of scope for v1; they were approved later and are built (§11).
+7. **Out of scope (do not build):** deploy tracking/releases UI, keyboard shortcuts, the "needs attention" callout, Merge, "Mute rules", GitHub links ("Link GitHub issue", "Open in GitHub"), team invites, project deletion, the Ruby client gem, geo-IP ("London, GB"), and syntax highlighting of code context (render plain mono text). Email alerts were out of scope for v1; they were approved later and are built (§11). Uptime was also out of scope for v1 (a "soon" placeholder); uptime monitoring and account entitlements were approved on 2026-11-03 (§12).
 8. **Wording.** Every "create project" affordance reads **"Add a new app"**: the projects page header button, the dashed tile and the `projects#new` page title.
 
 ---
@@ -52,6 +52,8 @@ Account ─┬─< Membership >── User ──< Session (session.account = cu
 `enable_extension "pg_trgm"` (`plpgsql` is the default).
 
 ### 1.3 Tables (complete; later slices make NO schema changes)
+
+The uptime build (§12.1) adds `accounts.entitlement_values`, the `uptime_monitors`, `uptime_checks`, `uptime_hourly_counts` and `uptime_incidents` tables, and `notification_preferences.uptime_alerts_muted`.
 
 All `id`s are `bigint`. FKs are real `add_foreign_key` constraints. "cascade" means `on_delete: :cascade`.
 
@@ -944,7 +946,7 @@ Other rules:
   - logo (`shared/_sigil`) and the "Good Sorcery / Error Tracker" wordmark
   - `layouts/_project_switcher` (dropdown of `Current.account.projects`; the button shows name and `sidebar_project_subtitle`: the environment the project's issue list shows (`issues_environment_for`) in its tone, or a muted "all environments", then `runtime_label || platform`)
   - nav section "Grimoire": Projects; Issues with an unresolved badge for `sidebar_project` (`sidebar_issues_badge`), counted for the environment its issue list shows (`issues_environment_for`, §4.2), tinted in that environment's tone (`environment_bar_classes`; coral for all environments) with a title such as "23 unresolved in staging"; Alerts → Settings › Alerts of `sidebar_project` (`key: "alerts"`; a plain non-link row when there is no project)
-  - "Coming from the suite": Uptime ("soon")
+  - Uptime → the app's Uptime page (§12.8). This replaces the old "Coming from the suite: Uptime (soon)" placeholder.
   - "Project": "Settings & setup" → `project_setup_path(sidebar_project)`; Docs → `docs_url` (external)
   - `layouts/_usage_meter` (events this month / quota, hidden when quota is nil)
   - `layouts/_user_menu` (initials, name, "Account name · Hosted" or "Self-hosted" by `ENV["GOODSORCERY_HOSTED"]`, dropdown with Notifications (`notifications_path`) and Sign out)
@@ -1285,3 +1287,558 @@ SendAlertSummariesJob (hourly, :02) ──► AlertSummary#deliver ─► summar
 
 **Cost.** Per instant alert: the rule, scope and issue checks (2–3 queries), one recipients query, then per recipient a short transaction (advisory lock, cap count on `[user_id, status, created_at]`, insert). The sweep is one grouped query plus one throttle query every 5 minutes, and one EXISTS per app that has hot issues. The digest run is one recipients query per app with the rule on, per hour, and two issue queries only when someone is at 09:00.
 
+
+---
+
+## 12. Uptime monitoring and entitlements (approved 2026-11-03)
+
+This section is the binding blueprint for the uptime build. It comes in four slices (§12.12) that run in order: slice 1, then slice 2, then slices 3 and 4 in parallel, then an integration review. Everything in §0 (ground rules), §6 (authorization) and the §9/§10 checklists applies. **Monitor URLs are treated like captured data:** they may carry tokens in their query strings (§12.6).
+
+### 12.0 Decisions (binding)
+
+- goodsorcery_web never knows about plan tiers. The words "free", "premium" or any tier name never appear in code, config, copy or tests. It stores entitlement **values** per account and nothing else.
+- Entitlements are account-level. `max_monitors` counts the monitors of every app in the account.
+- **Hosted mode** is `GOODSORCERY_HOSTED`, read once at boot into `config.x.hosted`.
+  - **Self-hosted** (the default, switch off): every entitlement is unlimited, meaning all four intervals and no monitor cap. Stored values are ignored, and the UI never shows a locked option or "Upgrade to unlock".
+  - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]` and `max_monitors: 1`.
+- Entitlements are enforced in model validations, so a crafted POST can't get past them, and they are also reflected in the views.
+- Locked options say **"Upgrade to unlock"**. The text links to `GOODSORCERY_UPGRADE_URL` (`config.x.upgrade_url`) when that is set, and is plain text when it isn't.
+- **Monitors** belong to an app (project), and every lookup is scoped through `Current.account`.
+  - Intervals are 1, 5, 10 or 60 minutes, and the default is 10. Entitlements narrow the allowed set further.
+  - A check is an HTTP(S) GET with a 10-second total budget. "Up" means a 2xx or 3xx response arrived in time. A failed check is retried once at once before the monitor is marked down. Response bodies are never stored.
+- **Alerts:** two new kinds, `monitor_down` and `monitor_recovered`, are added to the §11 email system. They are exempt from the 20-per-hour cap and are never folded into the "and N more" summary.
+- The model is called **`UptimeMonitor`**, never `Monitor`. Ruby's stdlib `Monitor` class is used by Rails itself, so a top-level `Monitor` model would break the app.
+
+### 12.1 Schema
+
+```
+Account ──< Project ──< UptimeMonitor ─┬─< UptimeCheck        (raw results, short-lived)
+   │                                   ├─< UptimeHourlyCount  (rollups for uptime % and bars)
+   └ entitlement_values (jsonb)        └─< UptimeIncident     (down periods; alert dedupe unit)
+```
+
+All ids are `bigint`. FKs are real constraints with `on_delete: :cascade`, so deleting a monitor deletes its history. Models declare `has_many … inverse_of:` without `dependent:`, as `Project` does.
+
+**accounts** (slice 1, migration `add_entitlement_values_to_accounts`)
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| entitlement_values | jsonb | false | `{}` | Values pushed by the billing app (§12.3). Only known keys (`Entitlements::KEYS`) are stored. Ignored when self-hosted |
+
+The column is `entitlement_values`, not `entitlements`, so the column reader doesn't clash with `Account#entitlements`, which returns the PORO.
+
+**uptime_monitors** (slice 2)
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| project_id | references → projects, cascade | false | | |
+| name | string | false | | 1..60 chars, plaintext label. Blank means the URL's host is filled in `before_validation` |
+| url | text | false | | **encrypted** (non-deterministic). ≤ 2,048 chars, validated by `UptimeUrl` (§12.5) |
+| interval_minutes | integer | false | 10 | check constraint `interval_minutes IN (1, 5, 10, 60)` |
+| status | string | false | `"pending"` | enum `pending up down`; check constraint |
+| next_check_at | datetime | false | | Set to `Time.current` on create and whenever the URL or interval changes. Then bumped by the scheduler's claim (§12.4) |
+| last_checked_at | datetime | true | | |
+| last_response_time_ms | integer | true | | |
+| last_http_status | integer | true | | |
+| last_error_kind | string | true | | `UptimeCheck::ERROR_KINDS` |
+| down_since | datetime | true | | Set when the monitor goes down and cleared on recovery |
+| paused_at | datetime | true | | Set only by `fit_uptime_monitors_to_entitlements` (§12.3) when the account is over its monitor limit. The scheduler skips paused monitors |
+| timestamps | | | | |
+
+Indexes: `[project_id, name]`, and the partial `index_uptime_monitors_due` on `[next_check_at] WHERE paused_at IS NULL`, which is the scheduler's only access path.
+
+**uptime_checks** (slice 2; one row per scheduled or requested check, with the retry folded in)
+| column | type | null | notes |
+|---|---|---|---|
+| uptime_monitor_id | references → uptime_monitors, cascade | false | |
+| checked_at | datetime | false | |
+| status | string | false | `up` or `down` (check constraint) |
+| response_time_ms | integer | true | Time to the final response's headers, or nil when no response arrived |
+| http_status | integer | true | The final response's status code |
+| error_kind | string | true | `UptimeCheck::ERROR_KINDS`, nil when up |
+
+There is no `updated_at`, no body, no URL, no headers and no exception message. Index: `[uptime_monitor_id, checked_at]`, used for history and pruning.
+
+**uptime_hourly_counts**: `create_table …, primary_key: [:uptime_monitor_id, :hour]` (slice 2)
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| uptime_monitor_id | bigint FK → uptime_monitors, cascade | false | | |
+| hour | datetime | false | | UTC hour start |
+| checks_count | integer | false | 0 | |
+| up_count | integer | false | 0 | |
+| response_time_ms_sum | bigint | false | 0 | Up checks only, so the average is `sum / up_count` |
+
+Extra index: `[hour]`, used for pruning by hour slice like the other rollups.
+
+**uptime_incidents** (slice 2)
+| column | type | null | notes |
+|---|---|---|---|
+| uptime_monitor_id | references → uptime_monitors, cascade | false | |
+| started_at | datetime | false | `checked_at` of the check that went down |
+| resolved_at | datetime | true | nil while the incident is open |
+| error_kind | string | true | The cause at the start |
+| http_status | integer | true | |
+
+Indexes: `[uptime_monitor_id, started_at]`, `[resolved_at]` (pruning), and the unique partial `index_uptime_incidents_one_open` on `[uptime_monitor_id] WHERE resolved_at IS NULL`. That index guarantees at most one open incident per monitor.
+
+**notification_preferences** (slice 4): adds `uptime_alerts_muted boolean, null: false, default: false`.
+
+**alert_rules** (slice 4): no column change. A data migration inserts `monitor_down` and `monitor_recovered` rows, both enabled, for every existing project (`INSERT … SELECT … ON CONFLICT (project_id, kind) DO NOTHING`).
+
+**Encryption (§1.4):** `UptimeMonitor#url` joins the list of encrypted attributes. Slice 2 adds the raw-ciphertext model test.
+
+### 12.2 Entitlements (slice 1)
+
+**Configuration** (`config/application.rb`, read once at boot):
+
+```ruby
+config.x.hosted = ActiveModel::Type::Boolean.new.cast(ENV["GOODSORCERY_HOSTED"]) || false
+config.x.upgrade_url = ENV["GOODSORCERY_UPGRADE_URL"].presence
+config.x.entitlements = config_for(:entitlements)          # config/entitlements.yml
+# Local testing of uptime checks against private addresses; never honoured in production.
+config.x.uptime.allow_private_addresses = ENV["GOODSORCERY_UPTIME_ALLOW_PRIVATE_ADDRESSES"] == "1" && !Rails.env.production?
+```
+
+`config/entitlements.yml`:
+```yaml
+# Hosted mode only (GOODSORCERY_HOSTED=1). An account's stored values
+# (accounts.entitlement_values) win; these fill in any key it lacks.
+# Self-hosted instances ignore this file: every entitlement is unlimited.
+shared:
+  hosted_defaults:
+    uptime_intervals: [10, 60]
+    max_monitors: 1
+```
+
+`ApplicationHelper#hosted?` returns `Rails.configuration.x.hosted`. Existing tests that set `ENV["GOODSORCERY_HOSTED"]` switch to the `with_hosted_mode` test helper.
+
+**`Entitlements`** (`app/models/entitlements.rb`) is a plain value object, built per call, that never queries:
+
+```ruby
+Entitlements::UPTIME_INTERVALS        # => [1, 5, 10, 60]  every interval uptime supports
+Entitlements::DEFAULT_UPTIME_INTERVAL # => 10
+Entitlements::KEYS                    # => %w[uptime_intervals max_monitors]
+
+entitlements = account.entitlements   # Entitlements.new(account.entitlement_values)
+Entitlements.new(values, hosted: Rails.configuration.x.hosted,
+                 hosted_defaults: Rails.configuration.x.entitlements.hosted_defaults)
+
+entitlements.unlimited?                      # true when self-hosted
+entitlements.uptime_intervals                # sorted subset of UPTIME_INTERVALS
+entitlements.allows_uptime_interval?(5)      # true/false
+entitlements.locked_uptime_intervals         # UPTIME_INTERVALS - uptime_intervals ([] when self-hosted)
+entitlements.default_uptime_interval         # 10 if allowed, else the smallest allowed above 10, else the largest allowed
+entitlements.nearest_uptime_interval(1)      # smallest allowed >= minutes, else the largest allowed (used by fitting)
+entitlements.max_monitors                    # Integer, or nil for no cap
+entitlements.monitor_limit_reached?(count)   # false when max_monitors is nil
+entitlements.monitors_left(count)            # nil when uncapped, else [max - count, 0].max
+Entitlements.problems(values)                # => [] or whole-sentence messages, for Account validation
+```
+
+Resolution per key: self-hosted gives the unlimited value. Hosted gives the stored value if the key is present and valid, otherwise the hosted default. A present but invalid stored value (impossible through `Account` validation, but possible if the column is edited by hand) falls back to the default. It is logged as `"Ignoring invalid entitlement #{key} for account #{id}"`, with the key name only. In stored JSON, `"max_monitors": null` explicitly means no cap, which is different from a missing key.
+
+Valid values: `uptime_intervals` is a non-empty array of distinct integers from `UPTIME_INTERVALS`. `max_monitors` is `null` or an integer ≥ 0.
+
+**`Account`** (slice 1):
+- `#entitlements` returns an `Entitlements` object.
+- `validate :entitlement_values_well_formed` uses `Entitlements.problems`.
+- `#update_entitlements!(values)` replaces the whole document. It stores only `KEYS` and drops unknown keys, logging the key names only. This is the single write path the future push uses.
+
+**`EntitlementsHelper`** (slice 1):
+- `upgrade_to_unlock(text = "Upgrade to unlock", classes: …)` renders a link to `config.x.upgrade_url` (`target: "_blank"`, `rel: "noopener"`) when the URL is set, and a plain span otherwise.
+- `entitlements` returns `Current.account.entitlements`, memoised per request.
+- Views only call these helpers when `!entitlements.unlimited?`.
+
+**Test helper** (slice 1, `test/test_helper.rb`): `with_hosted_mode(hosted = true) { … }` sets and restores `Rails.configuration.x.hosted`.
+
+### 12.3 Future billing push contract (documented only; do not build)
+
+A separate private billing app will **push** values to goodsorcery_web. Nothing here is built now. `Account#update_entitlements!` and the reconciliation below are the parts ready for it.
+
+- **Endpoint:** `PUT /api/internal/v1/accounts/:account_id/entitlements`, routed only when `config.x.hosted`. It is an `ActionController::API` controller with no cookies, sessions or CSRF.
+- **Auth:** an HMAC signature header, `X-Goodsorcery-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256(GOODSORCERY_BILLING_SECRET, "#{t}.#{raw_body}")>`.
+  - Compare with `ActiveSupport::SecurityUtils.secure_compare`.
+  - Reject a `t` more than 5 minutes from now.
+  - Rate-limit per IP.
+- **Body:** `{"entitlements":{"uptime_intervals":[1,5,10,60],"max_monitors":25},"sequence":42}`.
+  - The document is complete: an omitted key falls back to the hosted defaults, and `"max_monitors": null` means no cap.
+  - `sequence` increases monotonically per account. A push whose `sequence` is ≤ the stored one is acknowledged and ignored, so out-of-order delivery is harmless. The push slice adds `accounts.entitlements_sequence bigint` for this; it is not added now.
+- **Responses:**
+  - `204` when applied or ignored as stale.
+  - `401 {"error":"invalid_signature"}`.
+  - `404 {"error":"unknown_account"}`.
+  - `422 {"error":"invalid_entitlements","messages":[…]}`, built from `Entitlements.problems`.
+- **Values only.** Tier names, prices and customer data are never sent or stored. The billing app maps its plans to values itself.
+- **Effect:** `account.update_entitlements!(values)`. Its `after_update_commit` runs `fit_uptime_monitors_to_entitlements` (§12.3.1).
+
+#### 12.3.1 Fitting monitors to entitlements (slice 2, built now)
+
+`Account::UptimeMonitoring#fit_uptime_monitors_to_entitlements` handles downgrades and upgrades, so lowering stored values never leaves monitors running outside them.
+
+1. Every monitor whose interval isn't allowed gets `entitlements.nearest_uptime_interval(interval)`, with one `update_all` per distinct interval.
+2. Monitors beyond `max_monitors`, newest first by `id`, get `paused_at`. Paused monitors that fit again, oldest first, are unpaused, with `paused_at` set to nil and `next_check_at` to now.
+
+When self-hosted, the result is all monitors unpaused and intervals left unchanged.
+
+It runs in three places:
+- after a commit that changes `entitlement_values`;
+- after a monitor is destroyed (`after_destroy_commit`, which frees a slot);
+- through `bin/rails goodsorcery:fit_uptime_monitors` (all accounts, `find_each`), which operators run after switching hosted mode on or changing `config/entitlements.yml`.
+
+### 12.4 Scheduling (slice 2)
+
+**Cron** (`config/schedule.yml`):
+```yaml
+schedule_uptime_checks:
+  cron: "* * * * *"
+  class: ScheduleUptimeChecksJob
+  description: "Enqueue one uptime check per monitor that is due"
+```
+
+**Queue:** add `[uptime, 2]` to `config/sidekiq.yml`, placed after `alerts`. `ScheduleUptimeChecksJob` and `UptimeCheckJob` run on `uptime`, and the uptime alert job runs on `alerts`. Checks are I/O-bound and take up to about 20 seconds in the worst case (two 10-second attempts). Capacity is roughly concurrency × 60 / average check seconds per minute. Operators can scale with a dedicated Sidekiq process for `uptime`; this goes in `docs/DEPLOYMENT.md` (slice 2).
+
+**`UptimeSchedule`** (`app/models/uptime_schedule.rb`):
+- `UptimeSchedule.enqueue_due(now: Time.current)` loops `#claim_batch` until it returns fewer than `BATCH` (500) ids. Each batch is enqueued with one `ActiveJob.perform_all_later(ids.map { UptimeCheckJob.new(_1) })`.
+- `#claim_batch` is one statement, wrapped in `uncached { }` because of the jobs' query cache gotcha:
+  ```sql
+  UPDATE uptime_monitors
+  SET next_check_at = date_trunc('minute', CAST(:now AS timestamp)) + make_interval(mins => interval_minutes)
+  WHERE id IN (
+    SELECT id FROM uptime_monitors
+    WHERE paused_at IS NULL AND next_check_at <= CAST(:now AS timestamp)
+    ORDER BY next_check_at
+    LIMIT :batch
+    FOR NO KEY UPDATE SKIP LOCKED)
+  RETURNING id
+  ```
+  - Claiming by bumping `next_check_at` is the double-enqueue guard. An overlapping cron run sees the bumped rows as not due, and `SKIP LOCKED` keeps concurrent runs from waiting on each other.
+  - `NO KEY UPDATE` avoids conflicts with the FK key-share locks taken by check inserts.
+  - Aligning to the minute stops a 10-minute monitor drifting to 11 minutes when the next cron run fires a few milliseconds early.
+  - It uses `index_uptime_monitors_due` and needs no per-monitor query.
+
+**Stale-claim guard:** `UptimeCheckJob` skips a monitor with `last_checked_at > RECHECK_GAP.ago` (`UptimeMonitor::RECHECK_GAP = 30.seconds`). A backed-up queue therefore can't run the same monitor twice in a row.
+
+### 12.5 The check (slice 2)
+
+**`UptimeCheckJob`** (queue `uptime`) runs `perform(uptime_monitor_id)` and takes **an integer id only**.
+1. `UptimeMonitor.find_by(id:)` with `includes(:project)`. It returns if the monitor is missing, paused, or `checked_recently?`.
+2. `result = monitor.run_check`. This is network I/O outside any transaction.
+3. `monitor.record_check(result)` (below).
+4. After commit: `monitor.alert_later(incident, kind)` when there was a transition (§12.9), and `monitor.broadcast_checked` (§12.8).
+
+**`UptimeMonitor::Checking`** (concern):
+- `#run_check` calls `UptimeProbe.new(url).check`. If the result is down and its `error_kind` isn't `blocked_address`, it probes **once more immediately** and keeps the second result. One check row is stored either way.
+- `#record_check(result, at: Time.current)` runs one transaction:
+  1. `lock("FOR NO KEY UPDATE")`, which reloads the monitor row and serialises the transition.
+  2. `UptimeCheck.insert`.
+  3. `UptimeHourlyCount.upsert` with `on_duplicate: Arel.sql("checks_count = … + 1, up_count = … + EXCLUDED.up_count, response_time_ms_sum = … + EXCLUDED.response_time_ms_sum")` and `record_timestamps: false`.
+  4. The state transition (below).
+  5. An update of the monitor's `status`, `last_checked_at`, `last_response_time_ms`, `last_http_status`, `last_error_kind` and `down_since`.
+
+  It returns `[incident, kind]` or nil.
+- `#check_soon` is the "Check now" gate (§12.8). It returns true when `Rails.cache.write(["uptime_check_now", id], 1, unless_exist: true, expires_in: RECHECK_GAP)` succeeds and the monitor wasn't checked in the last `RECHECK_GAP`. The caller then enqueues `UptimeCheckJob.perform_later(id)`. The cache holds an id only. It does not touch `next_check_at`.
+
+**State machine** (`UptimeMonitor::Checking#transition_for(result)`):
+
+| from | result | to | side effect | alert kind |
+|---|---|---|---|---|
+| pending | up | up | — | — |
+| pending / up | down | down | `down_since = at`; insert `UptimeIncident(started_at: at, error_kind, http_status)` | `monitor_down` |
+| down | down | down | — (the incident stays open) | — |
+| down | up | up | `down_since = nil`; set the open incident's `resolved_at = at` | `monitor_recovered` |
+| up | up | up | — | — |
+
+The unique partial index makes a second open incident impossible. If the insert conflicts, the transaction is retried as down→down. Changing a monitor's URL or interval sets `next_check_at` to now and leaves the state alone.
+
+**`UptimeProbe`** (`app/models/uptime_probe.rb`, PORO) is the HTTP client and SSRF guard. `#check` returns an `UptimeProbe::Result = Data.define(:status, :response_time_ms, :http_status, :error_kind)` with `#up?` and `#down?`. It never raises for network outcomes.
+
+- **Request:** `GET`, with `User-Agent: GoodSorcery-Uptime/1.0`, `Accept: */*` and `Accept-Encoding: identity` (no decompression, no zip bombs). No cookies, no auth. There is no keep-alive: each hop is a new connection, closed afterwards.
+- **Budget:** `UptimeProbe::TOTAL_TIMEOUT = 10` seconds per attempt, tracked by `UptimeProbe::Deadline` (`#remaining`, `#expired?`, monotonic clock). The DNS timeout (`Addrinfo.getaddrinfo(host, nil, nil, :STREAM, timeout: remaining)`) and `open_timeout`, `ssl_timeout`, `read_timeout` and `write_timeout` are all set to the remaining budget before each hop. The deadline is checked between hops and between body chunks. As a hard backstop, one attempt's network part (no DB, no locks) runs inside `Timeout.timeout(TOTAL_TIMEOUT + 1)`, because a trickling server could otherwise outlast the per-read timeouts.
+- **Up:** the final response is 2xx or 3xx. **Down:** any other status (`error_kind: "http_status"`, with the code stored), or an error.
+- **Redirects:** follow at most `MAX_REDIRECTS = 3` 3xx responses with a `Location`. Each hop is parsed by `UptimeUrl` (http/https only, no userinfo), resolved and vetted again, and connected through a new pinned connection. A redirect to a refused address ends the check as down with `blocked_address`. A 3xx whose `Location` is missing, unparseable or not http(s), or one past the limit, is itself the final response and counts as up.
+- **Body:** read and discarded in chunks, at most `MAX_BODY_BYTES = 64.kilobytes`, then the connection is closed. Nothing from the body is kept.
+- **Pinning (no DNS rebinding):** `UptimeProbe::AddressGuard#vet(hostname)` resolves once and returns one vetted `IPAddr`. The connection is `Net::HTTP.new(hostname, port, nil)` with `http.ipaddr = vetted_ip.to_s`.
+  - The third argument `nil` disables `http_proxy` from ENV, which would otherwise bypass the pin.
+  - Net::HTTP still sends `Host: hostname` and uses it for SNI and certificate hostname verification (`verify_mode = VERIFY_PEER`, `verify_hostname = true`).
+  - IP-literal hosts are vetted the same way.
+- **Address rules** (`AddressGuard`): the host is refused when **any** resolved address is blocked, so mixed public and private answers are refused. No addresses means `dns_failure`. Blocked ranges:
+  - IPv4: `0.0.0.0/8`, `10.0.0.0/8`, `100.64.0.0/10` (CGNAT, including Alibaba's `100.100.100.200` metadata), `127.0.0.0/8`, `169.254.0.0/16` (link-local, including `169.254.169.254` metadata), `172.16.0.0/12`, `192.0.0.0/24`, `192.0.2.0/24`, `192.88.99.0/24`, `192.168.0.0/16`, `198.18.0.0/15`, `198.51.100.0/24`, `203.0.113.0/24`, `224.0.0.0/4` (multicast), `240.0.0.0/4`, `255.255.255.255/32`.
+  - IPv6: `::/128`, `::1/128`, `fc00::/7` (ULA, including `fd00:ec2::254` metadata), `fe80::/10`, `fec0::/10`, `ff00::/8`, `100::/64`, `2001:db8::/32`. Addresses that embed IPv4 are unwrapped and the IPv4 is checked against the list: `::ffff:0:0/96` (mapped), `64:ff9b::/96` (NAT64), `2002::/16` (6to4) and `::/96` (compatible).
+  - Host names `localhost` and `*.localhost` are refused before resolving.
+- **Escape hatch:** `AddressGuard.new(allow_private: Rails.configuration.x.uptime.allow_private_addresses)`. It is off by default and never on in production. Tests inject `allowed_ips: ["127.0.0.1"]`, which allows exactly the local test server while still blocking every other range, and `resolver:` (a lambda `host, timeout -> [IPAddr]`) for pinning tests. Tests never use the ENV variable.
+- **Error kinds** (`UptimeCheck::ERROR_KINDS`, with labels in `UptimeCheck.error_label(kind, http_status)`, shared by UI and email):
+
+  | kind | from | label |
+  |---|---|---|
+  | `timeout` | `Net::OpenTimeout`, `Net::ReadTimeout`, `Net::WriteTimeout`, `Deadline::Exceeded`, `Timeout::Error`, a DNS timeout | "Timed out after 10 s" |
+  | `dns_failure` | `Socket::ResolutionError` / `SocketError` from getaddrinfo, no addresses | "DNS lookup failed" |
+  | `connection_refused` | `Errno::ECONNREFUSED` | "Connection refused" |
+  | `tls_error` | `OpenSSL::SSL::SSLError` (including certificate verification) | "TLS handshake failed" |
+  | `http_status` | a final status outside 200..399 | "HTTP 503" |
+  | `blocked_address` | `UptimeProbe::BlockedAddress` (first hop or redirect) | "Address not allowed" |
+  | `connection_error` | `Errno::ECONNRESET`, `EHOSTUNREACH`, `ENETUNREACH`, `EPIPE`, `EOFError`, `IOError`, `Net::HTTPBadResponse`, any other `StandardError` | "Connection failed" |
+
+  An unexpected `StandardError` is logged as `"Uptime check #{monitor_id} failed: #{error.class}"`, with the class name only and never the message, since messages carry host names and URLs.
+
+**`UptimeUrl`** (`app/models/uptime_url.rb`) is used by validation and by redirects.
+- `UptimeUrl.parse(string)` returns a normalised `URI`, or nil. It strips whitespace, removes the fragment, and requires an `http` or `https` scheme, a host and no userinfo. Length must be ≤ 2,048.
+- `#public?` refuses `localhost` and IP literals in the blocked ranges, which gives an early, friendly validation error. The real guard is still the resolve-time check above.
+- `UptimeMonitor#host` is `UptimeUrl.parse(url)&.host`. This is the only part of the URL shown outside the edit form and the detail page.
+
+### 12.6 URL secrecy (every slice)
+
+- `url` is encrypted at rest and decrypted only to probe, to fill the edit form and to show the detail page (ERB-escaped).
+- Lists show the name and `host`. Emails show the name and `host`, never the path or query.
+- It never appears in job arguments (ids only), Redis, `Rails.cache`, broadcasts (pointer `reload_frame` only, §12.8), logs, exception messages, validation messages, `alert_deliveries` or check rows.
+- `config/initializers/filter_parameter_logging.rb` adds `:url` (slice 2), which matches `uptime_monitor[url]` in request logs.
+- Net::HTTP debug output is never enabled.
+- Tests: the fixture URL carries a secret query (`?token=uptime-fixture-secret`). Slice 2 asserts it is absent from job args and captured logs (a check, a failing check and a create request). Slice 4 asserts it is absent from email subject, parts and headers.
+
+### 12.7 Models and queries (slice 2)
+
+- **`UptimeMonitor`**:
+  - `belongs_to :project, inverse_of: :uptime_monitors`; `has_many :checks (UptimeCheck), :hourly_counts, :incidents`; `encrypts :url`.
+  - `enum :status` (`pending up down`).
+  - `INTERVALS = Entitlements::UPTIME_INTERVALS`, and `INTERVAL_LABELS = { 1 => "Every minute", 5 => "Every 5 minutes", 10 => "Every 10 minutes", 60 => "Every hour" }`.
+  - Scopes `active` (unpaused) and `due(now)`. Methods `#paused?`, `#checked_recently?`, `#host`, `#interval_label`, `#open_incident`.
+  - Includes `UptimeMonitor::Checking`, `UptimeMonitor::Broadcasting` (a stub, `def broadcast_checked = nil  # Implemented by slice 3`) and `UptimeMonitor::Alerting` (a stub, `def alert_later(incident, kind) = nil  # Implemented by slice 4`). Those two stub files are the only ones whose ownership transfers.
+  - **Validations:**
+    - `name` is 1..60 chars.
+    - `url` is present and valid by `UptimeUrl` (`public?`), with the message "must be a public http:// or https:// address". The message never echoes the value.
+    - `interval_minutes` is in `INTERVALS`.
+    - `validate :interval_entitled` uses `project.account.entitlements.allows_uptime_interval?`, with the message "isn't available on this account". It runs on create, and on update only when `interval_minutes` changed, so fitting and other edits never trip it.
+    - `validate :within_monitor_limit, on: :create` first runs `Account.where(id: project.account_id).lock("FOR NO KEY UPDATE").pick(:id)` (validations run inside `save`'s transaction, so concurrent creates serialise), then checks `entitlements.monitor_limit_reached?(account.uptime_monitors.count)`. The error goes on `:base`: "This account has reached its limit of N monitor(s)."
+- **`UptimeCheck`**: `enum :status` (`up down`), `ERROR_KINDS`, `.error_label`, `scope :recent`, `MAX_KEPT_DAYS = 7`.
+- **`UptimeIncident`**: `scope :open`, `scope :recent`, `#open?`, `#duration` (to `resolved_at` or now), `#cause_label`, `KEPT_FOR = 31.days`.
+- **`UptimeHourlyCount`** answers every one of these queries with a single grouped query, however many monitors there are:
+  - `.uptime_percentages(monitor_ids, now:)` returns `{ id => { "24h" => Float|nil, "7d" => …, "30d" => … } }`. It uses `SUM(up_count) FILTER (WHERE hour >= …) / SUM(checks_count) FILTER (…)` in one query, and nil means no checks in that window.
+  - `.hourly_bars(monitor_ids, hours: 24, now:)` returns `{ id => [[hour, checks, up], …] * 24 }`, zero-filled through `TimeSeries`.
+  - `.daily_bars(monitor, days: 30, zone:)` uses the viewer's local days (`DATE((hour AT TIME ZONE 'UTC') AT TIME ZONE zone)`, as `IssueHourlyCount.series` does).
+  - `.average_response_ms(monitor_ids, since:)` returns `{ id => Integer|nil }`.
+- **`UptimeCheck.response_series(monitor, since: 24.hours.ago)`** returns 15-minute `date_bin` buckets of the average `response_time_ms` of up checks (≤ 96 points), for the detail sparkline.
+- **`Account::UptimeMonitoring`** (concern; slice 2 adds the `include` line to `account.rb`): `has_many :uptime_monitors, through: :projects`, `#monitor_limit_reached?` (one count), `#fit_uptime_monitors_to_entitlements` (§12.3.1), and `after_update_commit` on an `entitlement_values` change.
+- **`Project`**: `has_many :uptime_monitors, inverse_of: :project`.
+
+### 12.8 Web (slice 3)
+
+**Routes** (inside `resources :projects … scope module: :projects`):
+```ruby
+resources :uptime_monitors, path: "uptime" do      # index new create show edit update destroy
+  scope module: :uptime_monitors do
+    resource :check, only: :create                  # "Check now"
+    resource :row, only: :show                      # live frame on the list
+    resource :report, only: :show                   # live frame on the detail page
+  end
+end
+```
+URLs look like `/projects/storefront/uptime` and `/projects/storefront/uptime/12`. Helpers are `project_uptime_monitors_path`, `project_uptime_monitor_path`, `new_/edit_project_uptime_monitor_path`, `project_uptime_monitor_check_path`, `project_uptime_monitor_row_path` and `project_uptime_monitor_report_path`.
+
+**Controllers:**
+
+| Controller | Actions | Notes |
+|---|---|---|
+| `Projects::UptimeMonitorsController` | index, new, create, show, edit, update, destroy | `include ProjectScoped, VerifiedEmailRequired`, with `require_verified_email only: %i[new create]` (a monitor makes outbound requests, like creating apps and keys). `@uptime_monitor = @project.uptime_monitors.find(params[:id])`. Strong params are `params.expect(uptime_monitor: %i[name url interval_minutes])`. create/update redirect to show with a notice, and 422 re-renders the form. destroy uses `button_to … method: :delete, data: { turbo_confirm: "Delete <name>? Its check history goes too." }` and redirects to index |
+| `Projects::UptimeMonitors::ChecksController` | create | `rate_limit to: 10, within: 1.minute, by: -> { Current.user.id }, name: "uptime_check_now", store: Ingest::RateLimitStore`. Then `@uptime_monitor.check_soon`: if true, it enqueues `UptimeCheckJob` and redirects back with "Checking <name> now…". Otherwise it redirects back with "Checked less than 30 seconds ago." A paused monitor is refused |
+| `Projects::UptimeMonitors::RowsController` | show | frame `dom_id(monitor, :row)` |
+| `Projects::UptimeMonitors::ReportsController` | show | frame `dom_id(monitor, :report)` |
+
+The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_monitor = @project.uptime_monitors.find(params[:uptime_monitor_id])`. A monitor of another app or account is a 404. Every page keeps `Cache-Control: no-store` (inherited). The edit and detail pages, which show the URL, add `<meta name="turbo-cache-control" content="no-cache">`.
+
+**Live updates:**
+- `UptimeMonitor::Broadcasting#broadcast_checked` replaces slice 2's stub. It sends `reload_frame` on stream `[project, :uptime]` for `dom_id(monitor, :row)` (src the row path) and `dom_id(monitor, :report)` (src the report path), through `LiveFrames` paths.
+- These are pointers only, and `AuthorizedStreamsChannel` already accepts `Project` streams.
+- The index and show pages place `live_stream_from @project, :uptime`.
+- There is at most one broadcast per check, so no debounce is needed.
+
+**Presentation objects:**
+- `UptimeOverview.new(monitors, now:)#rows` costs a fixed 3 queries for the list: monitors, `uptime_percentages` and `hourly_bars`. The account monitor count (one query) feeds the limit message.
+- `UptimeReport.new(monitor, zone:)` serves the detail page with `#percentages`, `#daily_bars`, `#average_response_ms`, `#response_series`, `#recent_checks` (20), `#incidents` (`incidents.recent.limit(10)` within `KEPT_FOR`) and `#open_incident`.
+
+**Screens** follow the flat pastel theme with existing tokens and component classes (`.panel`, `.chip-*`, `.btn*`, `.segmented`, `.toggle`), server-rendered SVG, no inline styles or scripts, and no new JS beyond the existing Stimulus controllers.
+- **Sidebar:**
+  - Uptime becomes a real `nav_link_to "Uptime", project_uptime_monitors_path(project), key: "uptime", icon: :uptime`, placed in "Grimoire" between Issues and Alerts.
+  - With no project it is `nav_placeholder "Uptime"` with no "soon" note.
+  - The "Coming from the suite" label and placeholder are removed.
+  - When any monitor of the sidebar project is down, a coral dot badge shows, titled "N down". It is one `exists?`/count query, like the issues badge.
+- **Uptime index:**
+  - Header: eyebrow "<app> · uptime", then "Uptime — N monitors", then an "Add a monitor" `btn-primary`.
+  - When hosted and the limit is reached, the button is replaced by a muted chip "N of N monitors" plus `upgrade_to_unlock`.
+  - The table is a `div` grid like the issue rows, with the name link stretched over the row. Columns:
+    - a status chip: "Up" mint, "Down" coral with dot plus "for 12 min" (`down_since`), "Pending" muted, "Paused" muted;
+    - name with `host` in small mono below;
+    - `interval_label`;
+    - last check (`time_ago_compact`);
+    - last response time ("212 ms");
+    - uptime 24h/7d/30d ("99.93%", "—" for no data);
+    - a 24-segment hourly status bar.
+  - A paused row adds "Over this account's monitor limit. Upgrade to unlock" (hosted only).
+- **Status bar:** `UptimeHelper#uptime_bar_svg(buckets, height: 22)` is pure SVG built with `tag`, like `ChartHelper`. Each segment has a `<title>` such as "Oct 3, 14:00 · 98.3% up · 60 checks". Colours come from `ChartHelper` constants:
+  - no checks: `PAPER` at 0.45 opacity;
+  - all up: `MINT`;
+  - some down with ≥ 50% up: `CORAL` at 0.55;
+  - < 50% up: `CORAL`.
+- **Empty state** (`shared/_empty_state`):
+  - Title "Watch your app from the outside".
+  - Body "Uptime requests a URL of yours every few minutes, from outside your servers, and emails you when it stops answering and again when it's back."
+  - Action "Add a monitor".
+  - With hosted and a limit of 0, the action is replaced by `upgrade_to_unlock`.
+- **Detail** (`show`; the hero, ribbon, bars and recent checks sit inside the `dom_id(monitor, :report)` frame):
+  - Hero: status chip, name in `font-display`, the full URL in mono (escaped), `interval_label`, and the buttons Check now (`btn-sm`), Edit and Delete.
+  - Ribbon: Uptime 24h / 7d / 30d, Avg response 24h, Last check (`clock_label` · ago), and "Down since" or "Up since" (the last incident's `resolved_at`, or the first check).
+  - A 30-day daily status bar (`daily_bars`, the viewer's days).
+  - A 24h response-time `sparkline_svg(fluid: true)` in IRIS.
+  - Incidents: started, resolved or "ongoing" (a coral dot), duration and `cause_label`.
+  - Recent checks: time, status, ms, HTTP code and error label.
+- **Form** (`_form`, used by new and edit):
+  - Name, optional; the hint says it is filled from the host.
+  - URL: `url_field`, `autocomplete: "off"`, placeholder `https://example.com/up`. The hint says "Kept encrypted. Lists and emails show only the host."
+  - Interval: a `select` of `INTERVALS` with `INTERVAL_LABELS`, default `entitlements.default_uptime_interval`. Locked intervals are `disabled` options labelled "Every minute · Upgrade to unlock". Below the select, `upgrade_to_unlock` renders when any interval is locked. This only happens when hosted.
+  - Errors are whole sentences in coral, with `aria-invalid`, like Settings › Alerts.
+  - `new`, when the limit is reached, renders a panel "This account has reached its limit of N monitor(s)." with `upgrade_to_unlock` instead of the form. `create` is still rejected by validation.
+
+### 12.9 Alerts (slice 4)
+
+**Rules.**
+- `AlertRule::DEFAULTS` gains `"monitor_down" => { enabled: true }` and `"monitor_recovered" => { enabled: true }`.
+- New constants: `AlertRule::UPTIME_KINDS = %w[monitor_down monitor_recovered]` and `AlertRule::ERROR_KINDS = KINDS - UPTIME_KINDS`.
+- `INSTANT_KINDS` becomes `ERROR_KINDS - %w[daily_digest]`. Its meaning is unchanged: error alerts covered by the "Email alerts" switch and counted by the cap.
+- `#uptime?` is added.
+- `Project::Alerting#alert_rules_in_order(kinds = AlertRule::ERROR_KINDS)`.
+- `AlertsHelper::RULE_COPY` gains:
+  - `"monitor_down" => ["Monitor down", "A monitor fails its check, after one immediate retry."]`;
+  - `"monitor_recovered" => ["Monitor recovered", "A monitor that was down passes its check again."]`.
+- The environment scope (`alert_scope`) doesn't apply to uptime rules.
+
+**Delivery.**
+- `UptimeMonitor::Alerting#alert_later(incident, kind)` (replacing the stub) runs `UptimeAlertJob.perform_later(incident.id, kind)`.
+- `UptimeAlertJob` runs on queue `alerts` and takes `perform(uptime_incident_id, kind)`. It discards a missing incident (the monitor was deleted).
+- `UptimeAlert` (`app/models/uptime_alert.rb`) provides `UptimeAlert.new(incident, kind).deliver`, which returns the users mailed. `#due?` requires:
+  - the app's rule for the kind is on;
+  - for `monitor_down`, the incident is still open;
+  - for `monitor_recovered`, it is resolved.
+- Recipients are `project.uptime_alert_recipients`: verified members who haven't muted uptime alerts for that app (`Membership.receiving_uptime_alerts_for(project)`).
+  - For `monitor_recovered`, only those who were sent this incident's down email are included: `AlertDelivery.where(dedupe_key: incident_key("monitor_down", incident), status: "sent").select(:user_id)`. Nobody gets a "recovered" email without the matching "down" one.
+- Per recipient: `AlertDelivery.record(user:, project:, kind:, dedupe_key: AlertDelivery.incident_key(kind, incident))`. This uses **`record`, never `claim`**, so the row is always `"sent"`, never `"folded"`, and never part of `AlertSummary`. When it inserted, `AlertsMailer.public_send(kind, user, incident).deliver_later` follows.
+- **Dedupe keys:** `AlertDelivery.incident_key(kind, incident)` gives `"monitor_down:<incident_id>"` and `"monitor_recovered:<incident_id>"`, so there is one email of each kind per incident per user. `issue_id` is nil on these rows.
+- **Cap exemption:** `AlertDelivery.sent_in_last_hour` keeps counting `AlertRule::INSTANT_KINDS` only, which no longer includes uptime kinds. Tests check two things: a user at the cap still gets `monitor_down`, and uptime rows don't move the count.
+
+**Switches and mute links.**
+- `NotificationPreference::STREAMS = %w[alerts uptime digest]`, with `STOPPED["uptime"] = { uptime_alerts_muted: true }` and `#receives?("uptime")`.
+- `Membership#receives_uptime_alerts?(project)`.
+- `AlertMute` accepts the stream `uptime`, and `alert_mute_subject` says "uptime alerts".
+- The Notifications page gains a third switch column, "Uptime alerts" (`NOTIFICATION_ROW_GRID` becomes `minmax(0,1fr)_96px_96px_96px`), and still has a fixed query count.
+- Settings › Alerts gains an "Uptime" panel below Rules, with the two uptime rules using the same `_rule` partial. Its intro says that the environment scope doesn't apply and that alerts are sent once per incident.
+
+**`AlertsMailer`** (with `MailerHelper` blocks, `mail_in_zone` and `allow_unsubscribe(project, "uptime")`):
+- `monitor_down(user, incident)`:
+  - Subject: `"Down: <monitor name> in <app>"`.
+  - Body: heading "<name> is down", the text "Good Sorcery couldn't reach <host>, even after an immediate retry.", then `email_details` (App, Monitor, Host, Cause `cause_label`, Since in the recipient's zone, Checks `interval_label`), an "Open monitor" button to `project_uptime_monitor_url` and `email_link_fallback`.
+  - Send-time checks: the incident is still open, and the membership `receives_uptime_alerts?`.
+- `monitor_recovered(user, incident)`:
+  - Subject: `"Recovered: <monitor name> in <app> after 14 min"`.
+  - Body: heading "<name> is back up", then details (Down for, From–To, Cause), a button and a fallback.
+  - Send-time checks: the incident is resolved, and the membership `receives_uptime_alerts?`.
+- **Content rule:** the monitor name, app name, host, labels, numbers, times and links only. Never the URL's path or query. HTML is escaped, and text parts use `raw` as the email template rule says.
+- Previews go in `test/mailers/previews/alerts_mailer_preview.rb`.
+
+### 12.10 Authorization
+
+- Same as Settings › General and Settings › Alerts (§6): any member of the account may list, create, edit, delete and "Check now" monitors. There is no role gate. Creating also requires a verified email.
+- All lookups go `Current.account.projects.find_by!(slug:)` → `@project.uptime_monitors.find(id)`.
+- **Tests on every new action** (index, new, create, show, edit, update, destroy, check, row, report):
+  - `users(:outsider)` gets 404 for acme's app and monitor URLs;
+  - a monitor of `billing` under the `storefront` slug is a 404;
+  - signed-out requests redirect to sign-in;
+  - hosted mode rejects a disallowed `interval_minutes` and an over-limit create with 422, from crafted POST/PATCH bodies.
+
+### 12.11 Retention
+
+`Ingest::Retention#prune` gains `prune_uptime` (slice 2):
+- **Checks:** per retention group (`each_retention_cutoff`), delete `UptimeCheck`s older than `[project.retention_days, UptimeCheck::MAX_KEPT_DAYS].min` days. The query is `where(uptime_monitor_id: UptimeMonitor.where(project_id: ids).select(:id), checked_at: ...cutoff).in_batches(of: BATCH).delete_all` on `[uptime_monitor_id, checked_at]`. Raw rows are capped at 7 days: they feed only the 24h sparkline and the recent list, and the percentages and bars use rollups. A 1-minute monitor would otherwise keep 43k raw rows.
+- **Rollups:** `prune_hour_slices(UptimeHourlyCount, rollup_cutoff(UPTIME_ROLLUP_DAYS))`, where `UPTIME_ROLLUP_DAYS = Project::MAX_RETENTION_DAYS + 1`. That covers the 30-day uptime and local-day bars.
+- **Incidents:** resolved before `UptimeIncident::KEPT_FOR` (31 days) are deleted. Open incidents are kept.
+- Delivery rows for uptime alerts are already pruned with `alert_deliveries` (30 days). Incident ids are never reused, so keys stay unique.
+
+### 12.12 Build slices and file ownership
+
+Never edit a file you don't own; report the need instead. Use your own test database (`TEST_DB_SUFFIX=_<slice>`). Run the full §9/§10 checklists, `bin/rubocop` and `bin/brakeman` before committing. Commit in logical steps on `main` with the trailer.
+
+**Slice 1: entitlements groundwork** (`_entitlements`)
+- `config/application.rb` (the `config.x` lines in §12.2), `config/entitlements.yml`, `config/deploy.yml` (pass `GOODSORCERY_HOSTED` and `GOODSORCERY_UPGRADE_URL` through when set, as `GOODSORCERY_ENABLE_SIGNUPS` is), `README.md` (env vars: `GOODSORCERY_HOSTED`, `GOODSORCERY_UPGRADE_URL`, `GOODSORCERY_UPTIME_ALLOW_PRIVATE_ADDRESSES`)
+- `db/migrate/*_add_entitlement_values_to_accounts.rb`, `db/schema.rb`
+- `app/models/entitlements.rb`, `app/models/account.rb` (`#entitlements`, validation, `#update_entitlements!`)
+- `app/helpers/application_helper.rb` (`hosted?` from config), `app/helpers/entitlements_helper.rb`
+- `test/test_helper.rb` (`with_hosted_mode`), `test/fixtures/accounts.yml`, `test/models/entitlements_test.rb`, `test/models/account_test.rb`, `test/helpers/entitlements_helper_test.rb`, `test/helpers/application_helper_test.rb` and `test/controllers/projects/setups_controller_test.rb` (switch from ENV to `with_hosted_mode`)
+- Required tests:
+  - self-hosted ignores stored values and is unlimited;
+  - hosted falls back per key to the defaults;
+  - stored values win, including `max_monitors: null`;
+  - invalid values are rejected by `Account` and ignored by the reader;
+  - `default_uptime_interval` and `nearest_uptime_interval` edge cases;
+  - the upgrade link with and without a URL;
+  - a grep-style test that no app/config file contains "free" or "premium" as a tier word (optional but welcome).
+
+**Slice 2: uptime models, checker, scheduling and retention** (`_uptime`)
+- `db/migrate/*_create_uptime_monitors.rb` (all four uptime tables, constraints and indexes), `db/schema.rb`, `db/seeds.rb` (demo monitors on `.example` hosts with history rows written directly: no network)
+- `app/models/uptime_monitor.rb`, `uptime_monitor/checking.rb`, `uptime_monitor/broadcasting.rb` (stub → slice 3), `uptime_monitor/alerting.rb` (stub → slice 4), `uptime_check.rb`, `uptime_hourly_count.rb`, `uptime_incident.rb`, `uptime_probe.rb`, `uptime_probe/address_guard.rb`, `uptime_probe/deadline.rb`, `uptime_url.rb`, `uptime_schedule.rb`, `account/uptime_monitoring.rb`; the one-line `include` in `account.rb` and the `has_many :uptime_monitors` in `project.rb`
+- `app/jobs/schedule_uptime_checks_job.rb`, `app/jobs/uptime_check_job.rb`
+- `app/models/ingest/retention.rb` (`prune_uptime`), `lib/tasks/goodsorcery.rake` (`goodsorcery:fit_uptime_monitors`)
+- `config/schedule.yml`, `config/sidekiq.yml`, `config/initializers/filter_parameter_logging.rb` (`:url`), `docs/DEPLOYMENT.md` (the uptime queue and scaling note)
+- `test/fixtures/{uptime_monitors,uptime_checks,uptime_hourly_counts,uptime_incidents}.yml`. Fixtures:
+  - `storefront_home` (up, 10 min, URL `https://storefront.example/up?token=uptime-fixture-secret`);
+  - `storefront_api` (down, with the open incident `storefront_api_outage`);
+  - `billing_checkout` (pending);
+  - `umbrella_site` (umbrella_app);
+  - plus one resolved incident and 24h of rollups.
+- `test/models/uptime_*_test.rb`, `test/models/account/uptime_monitoring_test.rb`, `test/jobs/{schedule_uptime_checks,uptime_check}_job_test.rb`, and the `Ingest::Retention` test additions
+- Required tests:
+  - every blocked range, including mapped, NAT64, 6to4 and metadata, plus `localhost`, plus "any address blocked refuses";
+  - the pinned connection sends the original `Host` and SNI (injected resolver plus a local `TCPServer`);
+  - a redirect to a private address gives `blocked_address`, and redirects past the limit stop;
+  - the 10-second budget, with an injected short timeout against a silent server;
+  - the body cap;
+  - error-kind mapping;
+  - retry once, and no retry for `blocked_address`;
+  - every state-machine row and the one-open-incident index;
+  - the scheduler claim: a second claim gets nothing, batches go through `perform_all_later`, and the query count is fixed regardless of the number of monitors;
+  - the stale-claim guard;
+  - validations, including hosted entitlements and the concurrent-create limit;
+  - fitting on downgrade, upgrade and destroy;
+  - the raw `url` column is ciphertext;
+  - the secret query is absent from job args and logs;
+  - retention.
+
+**Slice 3: uptime UI** (`_uptime_ui`)
+- `config/routes.rb` (the §12.8 block)
+- `app/controllers/projects/uptime_monitors_controller.rb`, `app/controllers/projects/uptime_monitors/{checks,rows,reports}_controller.rb`, `app/controllers/concerns/uptime_monitor_scoped.rb`
+- `app/models/uptime_overview.rb`, `app/models/uptime_report.rb`, `app/models/uptime_monitor/broadcasting.rb` (replacing the stub), `app/models/live_frames.rb` (uptime paths)
+- `app/views/projects/uptime_monitors/**` (index, show, new, edit, `_form`, `_row`, `_report`, `_status_chip`, `_limit_reached`, `rows/show`, `reports/show`), `app/views/layouts/_sidebar.html.erb`
+- `app/helpers/uptime_helper.rb` (`uptime_bar_svg`, status chips, percentage and ms formatting), `app/helpers/navigation_helper.rb` (the sidebar down badge, if needed there)
+- `test/controllers/projects/uptime_monitors_controller_test.rb`, `test/controllers/projects/uptime_monitors/**`, `test/models/{uptime_overview,uptime_report}_test.rb`, `test/models/uptime_monitor/broadcasting_test.rb`, `test/helpers/uptime_helper_test.rb`, `test/integration/shell_test.rb` (the sidebar Uptime link)
+- Required tests:
+  - §12.10 authorization on every action;
+  - the hosted locked options and limit message, and that self-hosted shows neither;
+  - the upgrade link;
+  - `no-store`;
+  - the Check now rate limit and 30-second gate;
+  - a fixed index query count with 1 vs. 5 monitors;
+  - broadcasts carry no URL;
+  - the empty state.
+
+**Slice 4: down and recovered alerts** (`_uptime_alerts`)
+- `db/migrate/*_add_uptime_alerts.rb` (`notification_preferences.uptime_alerts_muted` plus the alert rule backfill), `db/schema.rb`
+- `app/models/alert_rule.rb`, `alert_delivery.rb` (`incident_key`), `notification_preference.rb`, `membership.rb`, `alert_mute.rb`, `project/alerting.rb` (`uptime_alert_recipients`, `alert_rules_in_order(kinds)`), `uptime_alert.rb`, `uptime_monitor/alerting.rb` (replacing the stub)
+- `app/jobs/uptime_alert_job.rb`
+- `app/mailers/alerts_mailer.rb`, `app/views/alerts_mailer/monitor_down.{html,text}.erb`, `monitor_recovered.{html,text}.erb`, `app/helpers/alert_emails_helper.rb`, `app/helpers/alerts_helper.rb`
+- `app/views/projects/alerts/show.html.erb` (the Uptime panel), `app/views/notifications/**`, `app/views/alert_mutes/**`
+- `test/fixtures/alert_rules.yml` (follows `DEFAULTS` automatically; check it), `test/fixtures/notification_preferences.yml`, `test/models/{alert_rule,alert_delivery,notification_preference,membership,alert_mute,uptime_alert}_test.rb`, `test/models/project/alerting_test.rb`, `test/jobs/uptime_alert_job_test.rb`, `test/mailers/alerts_mailer_test.rb`, `test/mailers/previews/alerts_mailer_preview.rb`, `test/controllers/{notifications,alert_mutes}_controller_test.rb`, `test/controllers/projects/{alerts,alert_rules,notification_preferences}_controller_test.rb`
+- Required tests:
+  - one email per incident per kind per user (a repeated job sends nothing);
+  - a recovered email only to users who got the matching down email;
+  - the rule off sends nothing;
+  - uptime muted sends nothing, while error alerts still flow, and the reverse;
+  - unverified users are never mailed;
+  - the cap exemption (above), and never folded or summarised;
+  - the List-Unsubscribe uptime stream and its mute page;
+  - the fixture URL's path and query are absent from the email;
+  - the backfill migration is idempotent.
+
+**Integration (lead, after the slices):** update `CLAUDE.md` ("Current state", "Not built yet", the gotchas for `UptimeMonitor` naming, URL secrecy and the claim SQL casts), then run the full test, system, lint, Brakeman and audit pass.
