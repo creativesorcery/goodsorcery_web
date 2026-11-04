@@ -54,6 +54,24 @@ class UptimeAlertTest < ActiveSupport::TestCase
     assert_no_enqueued_emails { assert_empty UptimeAlert.new(resolved, "monitor_recovered").deliver }
   end
 
+  test "with the down rule off, recovered emails go to every recipient" do
+    alert_rules(:storefront_monitor_down).update!(enabled: false)
+    UptimeAlert.new(@incident, "monitor_down").deliver
+    @incident.update_columns(resolved_at: Time.current)
+
+    assert_enqueued_emails 2 do
+      assert_equal [ users(:jo), users(:philip) ].sort_by(&:id), UptimeAlert.new(@incident, "monitor_recovered").deliver.sort_by(&:id)
+    end
+  end
+
+  test "a monitor down for longer than deliveries are kept still sends its recovered email" do
+    travel_to(40.days.ago) { UptimeAlert.new(@incident, "monitor_down").deliver }
+    Ingest::Retention.new.prune_alert_deliveries
+    @incident.update_columns(resolved_at: Time.current)
+
+    assert_equal 2, UptimeAlert.new(@incident, "monitor_recovered").deliver.size
+  end
+
   test "a down alert needs the incident still open, a recovered alert needs it resolved" do
     assert UptimeAlert.new(@incident, "monitor_down").due?
     assert_not UptimeAlert.new(@incident, "monitor_recovered").due?

@@ -105,6 +105,22 @@ class Ingest::RetentionTest < ActiveSupport::TestCase
     assert AlertDelivery.exists?(recent.id)
   end
 
+  test "keeps old down deliveries of uptime incidents still open" do
+    open_incident = uptime_incidents(:storefront_api_outage)
+    resolved = uptime_incidents(:storefront_home_timeout)
+    kept, pruned = travel_to(31.days.ago) do
+      [ open_incident, resolved ].map do |incident|
+        AlertDelivery.record(user: users(:jo), project: projects(:storefront), kind: :monitor_down,
+                             dedupe_key: AlertDelivery.incident_key("monitor_down", incident))
+      end
+    end
+
+    Ingest::Retention.new.prune_alert_deliveries
+
+    assert AlertDelivery.exists?(kept)
+    assert_not AlertDelivery.exists?(pruned)
+  end
+
   test "prunes uptime checks past the app's retention, never keeping more than 7 days" do
     home = uptime_monitors(:storefront_home)
     old = home.checks.create!(checked_at: (UptimeCheck::MAX_KEPT_DAYS + 1).days.ago, status: "up")

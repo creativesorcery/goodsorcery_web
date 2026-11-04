@@ -10,7 +10,7 @@
 #
 # Recipients are verified members who haven't muted the app's uptime alerts.
 # A recovered email only goes to those who were sent this incident's down
-# email. Each gets one AlertDelivery.record per incident and kind: never
+# email (to every recipient when the down rule is off). Each gets one AlertDelivery.record per incident and kind: never
 # .claim, so uptime alerts skip the hourly cap and are never folded into the
 # summary.
 #
@@ -39,14 +39,17 @@ class UptimeAlert
       kind == "monitor_down" ? incident.open? : !incident.open?
     end
 
+    # With the down rule off no down email went out, so recovered goes to
+    # every recipient rather than to nobody.
     def recipients
       users = project.uptime_alert_recipients
-      return users if kind == "monitor_down"
+      return users if kind == "monitor_down" || !project.alert_rule_enabled?(:monitor_down)
 
       users.where(id: down_deliveries.select(:user_id))
     end
 
-    # Narrowed by app, kind and key; rows are kept for AlertDelivery::KEPT_FOR.
+    # Narrowed by app, kind and key. Retention keeps the rows of open
+    # incidents however old they are (Ingest::Retention#prune_alert_deliveries).
     def down_deliveries
       AlertDelivery.sent.where(project:, kind: "monitor_down", dedupe_key: AlertDelivery.incident_key("monitor_down", incident))
     end

@@ -7,7 +7,8 @@
 # - hourly rollups, one hour slice at a time: issue counts older than
 #   ISSUE_ROLLUP_DAYS and project counts older than PROJECT_ROLLUP_DAYS;
 # - inbound events that never processed within UNPROCESSED_TTL;
-# - alert deliveries (throttle keys, ids only) older than AlertDelivery::KEPT_FOR;
+# - alert deliveries (throttle keys, ids only) older than AlertDelivery::KEPT_FOR,
+#   except the down rows of uptime incidents still open;
 # - uptime checks past their app's retention, never more than
 #   UptimeCheck::MAX_KEPT_DAYS; uptime rollups older than UPTIME_ROLLUP_DAYS;
 #   resolved uptime incidents older than UptimeIncident::KEPT_FOR.
@@ -66,8 +67,12 @@ class Ingest::Retention
     end
   end
 
+  # The down rows of a still open incident stay: they pick who gets its
+  # recovered email, however long the monitor has been down.
   def prune_alert_deliveries
-    AlertDelivery.where(created_at: ...(@now - AlertDelivery::KEPT_FOR)).in_batches(of: BATCH).delete_all
+    open_down_keys = UptimeIncident.open.select(Arel.sql("'monitor_down:' || id"))
+    AlertDelivery.where(created_at: ...(@now - AlertDelivery::KEPT_FOR)).where.not(dedupe_key: open_down_keys)
+      .in_batches(of: BATCH).delete_all
   end
 
   # Raw checks feed only the 24h response series and the recent list; the
