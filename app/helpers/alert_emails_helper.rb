@@ -1,7 +1,8 @@
-# Wording for AlertsMailer (alerts, digests and summaries). Only an issue's
-# redacted summary columns (title, exception class, transaction, culprit),
-# environment names, numbers and times go into an email, never anything
-# from an occurrence payload.
+# Wording for AlertsMailer (alerts, digests, summaries and uptime). Only an
+# issue's redacted summary columns (title, exception class, transaction,
+# culprit), environment names, numbers and times go into an email, never
+# anything from an occurrence payload. Uptime emails show a monitor's name and
+# host, never its URL.
 module AlertEmailsHelper
   INTROS = {
     "new_issue" => "A brand-new issue just happened for the first time.",
@@ -31,6 +32,11 @@ module AlertEmailsHelper
 
   def alert_events_line(issue)
     "#{pluralize(delimited(issue.events_count), 'event')} · #{pluralize(delimited(issue.users_count), 'user')} affected"
+  end
+
+  # "Nov 3, 2026 09:14 GMT – Nov 3, 2026 09:28 GMT" for a resolved incident.
+  def alert_incident_period(incident)
+    "#{alert_time(incident.started_at)} – #{alert_time(incident.resolved_at)}"
   end
 
   # "New issue: 3 · Regression: 1" for one app's folded alerts.

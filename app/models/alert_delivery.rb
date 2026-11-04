@@ -12,7 +12,9 @@
 #
 # Instant alerts over the cap are recorded as `folded`; one summary email per
 # user per hour ("and N more alerts", AlertSummary) covers them and sets
-# `summarized_at`. Digests and summaries don't count towards the cap.
+# `summarized_at`. Digests, summaries and uptime alerts don't count towards
+# the cap. Uptime alerts are recorded with .record (never .claim), so they are
+# always sent and never folded.
 class AlertDelivery < ApplicationRecord
   KINDS = [ *AlertRule::KINDS, "summary" ].freeze
   HOURLY_CAP = 20
@@ -75,12 +77,17 @@ class AlertDelivery < ApplicationRecord
       "daily_digest:#{project.id}:#{local_date.iso8601}"
     end
 
+    # Once per incident of an uptime monitor: one down and one recovered email.
+    def incident_key(kind, incident)
+      "#{kind}:#{incident.id}"
+    end
+
     # One overflow summary per user per clock hour.
     def summary_key(at = Time.current)
       "summary:#{at.to_i / 1.hour.to_i}"
     end
 
-    # Instant alert emails only: digests and summaries are exempt.
+    # Instant alert emails only: digests, summaries and uptime alerts are exempt.
     def sent_in_last_hour(user)
       where(user:, kind: AlertRule::INSTANT_KINDS).sent.since(1.hour.ago).count
     end

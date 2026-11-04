@@ -21,8 +21,18 @@ class NotificationPreferenceTest < ActiveSupport::TestCase
     assert preference.receives?(:digest)
   end
 
+  test "the uptime switch is its own stream" do
+    preference = notification_preferences(:jo_billing)
+    assert preference.receives?("uptime"), "muting issue alerts keeps uptime alerts"
+
+    preference.uptime_alerts_muted = true
+    assert_not preference.receives?(:uptime)
+    assert_equal [ false, true ], [ preference.receives?("alerts"), preference.receives?("digest") ]
+  end
+
   test "stopped_attributes turns one stream off" do
     assert_equal({ alerts_muted: true }, NotificationPreference.stopped_attributes("alerts"))
+    assert_equal({ uptime_alerts_muted: true }, NotificationPreference.stopped_attributes("uptime"))
     assert_equal({ digest_enabled: false }, NotificationPreference.stopped_attributes(:digest))
     assert_raises(KeyError) { NotificationPreference.stopped_attributes("sms") }
   end

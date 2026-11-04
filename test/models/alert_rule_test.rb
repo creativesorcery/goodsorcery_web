@@ -2,10 +2,25 @@ require "test_helper"
 
 class AlertRuleTest < ActiveSupport::TestCase
   test "kinds and defaults" do
-    assert_equal %w[new_issue regression reached_production still_happening daily_digest], AlertRule::KINDS
-    assert_equal AlertRule::KINDS - %w[daily_digest], AlertRule::INSTANT_KINDS
+    assert_equal %w[new_issue regression reached_production still_happening daily_digest monitor_down monitor_recovered],
+                 AlertRule::KINDS
+    assert_equal %w[new_issue regression reached_production still_happening daily_digest], AlertRule::ERROR_KINDS
+    assert_equal %w[new_issue regression reached_production still_happening], AlertRule::INSTANT_KINDS
     assert alert_rules(:storefront_new_issue).instant?
     assert_not alert_rules(:storefront_daily_digest).instant?
+  end
+
+  test "uptime rules are on by default, have no threshold and aren't instant issue alerts" do
+    down = alert_rules(:storefront_monitor_down)
+    recovered = alert_rules(:storefront_monitor_recovered)
+
+    assert [ down, recovered ].all?(&:enabled?)
+    assert [ down, recovered ].all?(&:uptime?)
+    assert_not down.instant?, "uptime alerts are exempt from the hourly cap"
+    assert_not alert_rules(:storefront_new_issue).uptime?
+    assert down.valid?
+    down.threshold = 5
+    assert_not down.valid?
   end
 
   test "one rule per kind per app" do

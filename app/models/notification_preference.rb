@@ -1,11 +1,15 @@
 # One member's choices for one app's alert emails. Rows are sparse: without
-# one, a member gets the app's instant alerts and its daily digest (when the
-# app's digest rule is on). Use Membership#notification_preference_for, which
+# one, a member gets the app's instant alerts, its uptime alerts and its daily
+# digest (when the app's digest rule is on). Use Membership#notification_preference_for, which
 # falls back to an unsaved default.
 class NotificationPreference < ApplicationRecord
-  # The two kinds of email a member can turn off, one switch each.
-  STREAMS = %w[alerts digest].freeze
-  STOPPED = { "alerts" => { alerts_muted: true }, "digest" => { digest_enabled: false } }.freeze
+  # The kinds of email a member can turn off, one switch each.
+  STREAMS = %w[alerts uptime digest].freeze
+  STOPPED = {
+    "alerts" => { alerts_muted: true },
+    "uptime" => { uptime_alerts_muted: true },
+    "digest" => { digest_enabled: false }
+  }.freeze
 
   belongs_to :membership, inverse_of: :notification_preferences
   belongs_to :project, inverse_of: :notification_preferences
@@ -13,13 +17,17 @@ class NotificationPreference < ApplicationRecord
   validates :project_id, uniqueness: { scope: :membership_id }
   validate :project_in_membership_account
 
-  # The attributes that turn a stream off ("alerts" or "digest").
+  # The attributes that turn a stream off ("alerts", "uptime" or "digest").
   def self.stopped_attributes(stream)
     STOPPED.fetch(stream.to_s)
   end
 
   def receives?(stream)
-    stream.to_s == "digest" ? digest_enabled? : !alerts_muted?
+    case stream.to_s
+    when "digest" then digest_enabled?
+    when "uptime" then !uptime_alerts_muted?
+    else !alerts_muted?
+    end
   end
 
   private

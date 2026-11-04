@@ -54,6 +54,39 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
     assert memberships(:philip_acme).receives_alerts?(@project)
   end
 
+  test "an uptime link turns off that app's uptime alerts only" do
+    token = @user.alert_mute_token(@project, stream: "uptime")
+
+    get alert_mute_path(token:)
+    assert_response :success
+    assert_select "h1", "Mute uptime alerts?"
+    assert memberships(:philip_acme).receives_uptime_alerts?(@project)
+
+    post alert_mute_path, params: { token: }
+    assert_response :success
+    assert_select "p", text: /won't get uptime alerts from\s+storefront/
+    membership = memberships(:philip_acme).reload
+    assert_not membership.receives_uptime_alerts?(@project)
+    assert membership.receives_alerts?(@project)
+    assert membership.receives_uptime_alerts?(projects(:billing))
+
+    get alert_mute_path(token:)
+    assert_select "h1", "Already off"
+    assert_select "p", text: /Uptime alerts from\s+storefront\s+are off/
+  end
+
+  test "an uptime link sent as an RFC 8058 one-click POST works without a CSRF token" do
+    ActionController::Base.allow_forgery_protection = true
+
+    post alert_mute_path(token: @user.alert_mute_token(@project, stream: "uptime")), params: "List-Unsubscribe=One-Click",
+         headers: { "Content-Type" => "application/x-www-form-urlencoded" }
+
+    assert_response :success
+    assert_not memberships(:philip_acme).reload.receives_uptime_alerts?(@project)
+  ensure
+    ActionController::Base.allow_forgery_protection = false
+  end
+
   test "an already muted app says so" do
     memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
 

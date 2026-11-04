@@ -6,6 +6,11 @@
 #   reached_production  an issue seen elsewhere gets its first production event
 #   still_happening     an issue's events in the last hour reach `threshold`
 #   daily_digest        09:00 in each recipient's zone: open issues seen in 24h
+#   monitor_down        an uptime monitor fails its check (after one retry)
+#   monitor_recovered   a monitor that was down passes its check again
+#
+# The two uptime kinds have their own member switch ("Uptime alerts"), ignore
+# the app's environment scope and don't count towards the hourly cap.
 #
 #   project.alert_rule(:still_happening).threshold  # => 100
 #   AlertRule.enabled.still_happening.includes(:project)
@@ -15,12 +20,17 @@ class AlertRule < ApplicationRecord
     "regression" => { enabled: true },
     "reached_production" => { enabled: true },
     "still_happening" => { enabled: true, threshold: 100 },
-    "daily_digest" => { enabled: false }
+    "daily_digest" => { enabled: false },
+    "monitor_down" => { enabled: true },
+    "monitor_recovered" => { enabled: true }
   }.freeze
   KINDS = DEFAULTS.keys.freeze
+  UPTIME_KINDS = %w[monitor_down monitor_recovered].freeze
+  ERROR_KINDS = (KINDS - UPTIME_KINDS).freeze
   # Rules that send an email per issue as it happens; a member's
-  # "Email alerts" switch (NotificationPreference#alerts_muted) covers these.
-  INSTANT_KINDS = (KINDS - %w[daily_digest]).freeze
+  # "Email alerts" switch (NotificationPreference#alerts_muted) covers these,
+  # and they count towards AlertDelivery::HOURLY_CAP.
+  INSTANT_KINDS = (ERROR_KINDS - %w[daily_digest]).freeze
   THRESHOLD_RANGE = 1..100_000
   THRESHOLD_MESSAGE = "must be a whole number from #{THRESHOLD_RANGE.min} to #{THRESHOLD_RANGE.max.to_fs(:delimited)}".freeze
 
@@ -48,4 +58,6 @@ class AlertRule < ApplicationRecord
   def to_param = kind
 
   def instant? = INSTANT_KINDS.include?(kind)
+
+  def uptime? = UPTIME_KINDS.include?(kind)
 end

@@ -11,8 +11,9 @@ class CreateAlertRulesTest < ActiveSupport::TestCase
     migration.migrate(:up)
     AlertRule.reset_column_information
 
-    assert_equal Project.count * AlertRule::KINDS.size, AlertRule.count
+    # This migration backfills the original five rules; AddUptimeAlerts adds the uptime ones.
+    assert_equal Project.count * CreateAlertRules::DEFAULTS.size, AlertRule.count
     rules = projects(:billing).alert_rules.order(:id).pluck(:kind, :enabled, :threshold)
-    assert_equal AlertRule::KINDS.map { |kind| [ kind, AlertRule::DEFAULTS[kind][:enabled], AlertRule::DEFAULTS[kind][:threshold] ] }, rules
+    assert_equal CreateAlertRules::DEFAULTS, rules
   end
 end

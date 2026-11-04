@@ -1,0 +1,24 @@
+<%# The monitor's name and host, labels and times only. Never the monitor URL's path or query. -%>
+<% content_for :preheader, "#{@monitor.host} answered again after #{uptime_duration(@incident.duration)} down." %>
+<% content_for :footer do %>
+  You're receiving this because you're a member of <%= @project.account.name %> and <%= @project.name %> sends uptime alerts.
+  <%= email_footer_link "Mute #{@project.name} uptime alerts", @mute_url %> · <%= email_footer_link "Notification settings", notifications_url %>
+<% end %>
+
+<%= email_heading "#{@monitor.name} is back up" %>
+
+<%= email_text "Good Sorcery reached #{@monitor.host} again." %>
+
+<%= email_details [
+      [ "App", @project.name ],
+      [ "Monitor", @monitor.name ],
+      [ "Down for", uptime_duration(@incident.duration) ],
+      [ "From – To", alert_incident_period(@incident) ],
+      [ "Cause", @incident.cause_label ]
+    ] %>
+
+<%= email_button "Open monitor", @monitor_url %>
+
+<%= email_divider %>
+
+<%= email_link_fallback @monitor_url %>

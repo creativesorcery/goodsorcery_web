@@ -2,8 +2,8 @@ require "active_support/testing/time_helpers"
 
 # Preview all emails at http://localhost:3000/rails/mailers/alerts_mailer
 # (needs the demo data: bin/rails db:seed). Each preview uses an unresolved
-# issue inside its app's alert environments and a verified member, or the
-# mailer sends nothing.
+# issue inside its app's alert environments (or an uptime incident) and a
+# verified member, or the mailer sends nothing.
 #
 # Demo data ages, so each email is rendered as if it were a minute after the
 # issue was last seen: the digest then has its issue in the last 24 hours and
@@ -31,7 +31,23 @@ class AlertsMailerPreview < ActionMailer::Preview
     AlertsMailer.summary(recipient(projects.first), counts)
   end
 
+  # The newest open incident, or an unsaved one on the first monitor.
+  def monitor_down
+    incident = UptimeIncident.open.order(:id).last || sample_incident(resolved_at: nil)
+    AlertsMailer.monitor_down(recipient(incident.uptime_monitor.project), incident)
+  end
+
+  def monitor_recovered
+    incident = UptimeIncident.where.not(resolved_at: nil).order(:id).last || sample_incident(resolved_at: Time.current)
+    AlertsMailer.monitor_recovered(recipient(incident.uptime_monitor.project), incident)
+  end
+
   private
+    def sample_incident(resolved_at:)
+      UptimeIncident.new(uptime_monitor: UptimeMonitor.order(:id).first, started_at: 14.minutes.ago, resolved_at:,
+                         error_kind: "http_status", http_status: 503)
+    end
+
     def issue_alert(kind)
       issue = alertable_issue
       just_after(issue) { AlertsMailer.issue_alert(recipient(issue.project), issue, kind) }

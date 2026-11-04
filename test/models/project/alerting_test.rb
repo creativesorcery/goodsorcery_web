@@ -10,7 +10,8 @@ class Project::AlertingTest < ActiveSupport::TestCase
     rules = project.alert_rules.order(:id).pluck(:kind, :enabled, :threshold)
 
     assert_equal [ [ "new_issue", true, nil ], [ "regression", true, nil ], [ "reached_production", true, nil ],
-                   [ "still_happening", true, 100 ], [ "daily_digest", false, nil ] ], rules
+                   [ "still_happening", true, 100 ], [ "daily_digest", false, nil ],
+                   [ "monitor_down", true, nil ], [ "monitor_recovered", true, nil ] ], rules
   end
 
   test "alert_rule looks rules up by kind from one query" do
@@ -34,8 +35,39 @@ class Project::AlertingTest < ActiveSupport::TestCase
     assert_not rule.enabled?
   end
 
-  test "alert_rules_in_order follows AlertRule::KINDS" do
-    assert_equal AlertRule::KINDS, projects(:storefront).alert_rules_in_order.map(&:kind)
+  test "alert_rules_in_order lists the issue rules, or the kinds asked for" do
+    project = projects(:storefront)
+
+    assert_equal AlertRule::ERROR_KINDS, project.alert_rules_in_order.map(&:kind)
+    assert_equal AlertRule::UPTIME_KINDS, project.alert_rules_in_order(AlertRule::UPTIME_KINDS).map(&:kind)
+  end
+
+  test "uptime_alerts_enabled? while either uptime rule is on" do
+    project = projects(:storefront)
+    assert project.uptime_alerts_enabled?
+
+    alert_rules(:storefront_monitor_down).update!(enabled: false)
+    assert project.reload.uptime_alerts_enabled?
+
+    alert_rules(:storefront_monitor_recovered).update!(enabled: false)
+    assert_not project.reload.uptime_alerts_enabled?
+  end
+
+  test "uptime alert recipients are verified members who haven't muted the app's uptime alerts" do
+    project = projects(:storefront)
+    assert_equal [ users(:jo), users(:philip) ].sort_by(&:id), project.uptime_alert_recipients.order(:id).to_a
+
+    memberships(:jo_acme).update_notification_preference(project, uptime_alerts_muted: true)
+    assert_equal [ users(:philip) ], project.uptime_alert_recipients.to_a
+    assert_includes project.alert_recipients, users(:jo), "muting uptime alerts keeps the issue alerts"
+
+    users(:philip).update!(email_verified_at: nil)
+    assert_empty project.uptime_alert_recipients
+  end
+
+  test "muting issue alerts keeps uptime alerts" do
+    assert_equal [ users(:jo), users(:philip) ].sort_by(&:id), projects(:billing).uptime_alert_recipients.order(:id).to_a, "jo muted billing's issue alerts"
+    assert_equal [ users(:outsider) ], projects(:umbrella_app).uptime_alert_recipients.to_a
   end
 
   test "by default alerts follow the default environment" do

@@ -50,6 +50,26 @@ class AlertDeliveryTest < ActiveSupport::TestCase
     assert_not_equal AlertDelivery.summary_key(at), AlertDelivery.summary_key(at + 1.minute)
   end
 
+  test "incident keys: one down and one recovered email per incident" do
+    incident = uptime_incidents(:storefront_api_outage)
+
+    assert_equal "monitor_down:#{incident.id}", AlertDelivery.incident_key("monitor_down", incident)
+    assert_equal "monitor_recovered:#{incident.id}", AlertDelivery.incident_key(:monitor_recovered, incident)
+    assert_not_equal AlertDelivery.incident_key("monitor_down", incident),
+                     AlertDelivery.incident_key("monitor_down", uptime_incidents(:storefront_home_timeout))
+  end
+
+  test "uptime alerts don't count towards the cap" do
+    incident = uptime_incidents(:storefront_api_outage)
+    AlertDelivery::HOURLY_CAP.times do |n|
+      AlertDelivery.record(user: @user, project: @project, kind: :monitor_down, dedupe_key: "monitor_down:test-#{n}")
+    end
+    AlertDelivery.record(user: @user, project: @project, kind: :monitor_recovered, dedupe_key: AlertDelivery.incident_key(:monitor_recovered, incident))
+
+    assert_equal 0, AlertDelivery.sent_in_last_hour(@user)
+    assert_equal "sent", AlertDelivery.claim(user: @user, project: @project, kind: :new_issue, dedupe_key: "test")
+  end
+
   test "the hourly cap counts sent emails in the last hour only" do
     assert_equal 0, AlertDelivery.sent_in_last_hour(@user), "the fixture is two hours old"
 

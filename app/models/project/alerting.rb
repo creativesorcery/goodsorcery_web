@@ -5,6 +5,7 @@
 #   project.alert_environments            # => ["production"], or nil for all
 #   project.alerts_cover?(issue.environments)
 #   project.alert_recipients              # => users to email right now
+#   project.uptime_alert_recipients       # => users to email about monitors
 module Project::Alerting
   extend ActiveSupport::Concern
 
@@ -32,11 +33,14 @@ module Project::Alerting
     alert_rules.find { |rule| rule.kind == kind.to_s } || AlertRule.build_default(self, kind)
   end
 
-  def alert_rules_in_order
-    AlertRule::KINDS.map { |kind| alert_rule(kind) }
+  def alert_rules_in_order(kinds = AlertRule::ERROR_KINDS)
+    kinds.map { |kind| alert_rule(kind) }
   end
 
   def alert_rule_enabled?(kind) = alert_rule(kind).enabled?
+
+  # Does the app send any uptime alert (down or recovered)?
+  def uptime_alerts_enabled? = AlertRule::UPTIME_KINDS.any? { |kind| alert_rule_enabled?(kind) }
 
   def still_happening_threshold = alert_rule(:still_happening).threshold
 
@@ -59,6 +63,11 @@ module Project::Alerting
   # Members with a confirmed address who haven't muted this app's alerts.
   def alert_recipients
     User.where(id: account.memberships.receiving_alerts_for(self).select(:user_id))
+  end
+
+  # Members with a confirmed address who haven't muted this app's uptime alerts.
+  def uptime_alert_recipients
+    User.where(id: account.memberships.receiving_uptime_alerts_for(self).select(:user_id))
   end
 
   # Members with a confirmed address who haven't turned off this app's digest.

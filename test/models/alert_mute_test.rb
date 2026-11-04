@@ -36,6 +36,21 @@ class AlertMuteTest < ActiveSupport::TestCase
     assert membership.receives_alerts?(@project)
   end
 
+  test "an uptime token turns off that app's uptime alerts only" do
+    mute = AlertMute.find_by_token(@user.alert_mute_token(@project, stream: "uptime"))
+    assert mute.uptime?
+    assert_not mute.applied?
+
+    mute.apply
+
+    membership = memberships(:philip_acme).reload
+    assert_not membership.receives_uptime_alerts?(@project)
+    assert membership.receives_alerts?(@project)
+    assert membership.receives_digest?(@project)
+    assert membership.receives_uptime_alerts?(projects(:billing))
+    assert mute.applied?
+  end
+
   test "an expired token is rejected" do
     token = @user.alert_mute_token(@project)
 

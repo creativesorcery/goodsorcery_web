@@ -28,6 +28,7 @@ class MembershipTest < ActiveSupport::TestCase
     assert preference.new_record?
     assert membership.receives_alerts?(projects(:storefront))
     assert membership.receives_digest?(projects(:storefront))
+    assert membership.receives_uptime_alerts?(projects(:storefront))
     assert_empty membership.notification_preferences.reload, "the default is never saved"
   end
 
@@ -39,12 +40,23 @@ class MembershipTest < ActiveSupport::TestCase
     assert membership.receives_alerts?(projects(:storefront))
   end
 
+  test "muting an app's uptime alerts keeps its issue alerts, and the reverse" do
+    membership = memberships(:jo_acme)
+    assert membership.receives_uptime_alerts?(projects(:billing)), "jo muted billing's issue alerts only"
+
+    membership.update_notification_preference(projects(:storefront), uptime_alerts_muted: true)
+    assert_not membership.receives_uptime_alerts?(projects(:storefront))
+    assert membership.receives_alerts?(projects(:storefront))
+    assert_equal [ memberships(:philip_acme) ], accounts(:acme).memberships.receiving_uptime_alerts_for(projects(:storefront)).to_a
+  end
+
   test "an unverified address receives nothing" do
     membership = memberships(:jo_acme)
     membership.user.update!(email_verified_at: nil)
 
     assert_not membership.receives_alerts?(projects(:storefront))
     assert_not membership.receives_digest?(projects(:storefront))
+    assert_not membership.receives_uptime_alerts?(projects(:storefront))
   end
 
   test "update_notification_preference creates the row once, then updates it" do

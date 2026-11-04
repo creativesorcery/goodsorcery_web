@@ -1,0 +1,16 @@
+<%# Plain text: values are output raw, since HTML escaping would show up literally. Name and host only, never the URL. -%>
+<% content_for :footer, raw("You're receiving this because you're a member of #{@project.account.name} and #{@project.name} sends uptime alerts.\nMute #{@project.name} uptime alerts: #{@mute_url}\nNotification settings: #{notifications_url}") -%>
+<%= raw @monitor.name %> is back up
+
+Good Sorcery reached <%= raw @monitor.host %> again.
+
+App: <%= raw @project.name %>
+Monitor: <%= raw @monitor.name %>
+Down for: <%= uptime_duration(@incident.duration) %>
+From – To: <%= alert_incident_period(@incident) %>
+<% if @incident.cause_label -%>
+Cause: <%= @incident.cause_label %>
+<% end -%>
+
+Open monitor:
+<%= @monitor_url %>

@@ -1,14 +1,17 @@
 # Settings › Alerts, the Notifications page and the mute link pages.
 module AlertsHelper
-  NOTIFICATION_ROW_GRID = "grid grid-cols-[minmax(0,1fr)_96px_96px] gap-4".freeze
+  NOTIFICATION_ROW_GRID = "grid grid-cols-[minmax(0,1fr)_96px_96px_96px] gap-4".freeze
 
   RULE_COPY = {
     "new_issue" => [ "New issue", "The first time a brand-new issue happens." ],
     "regression" => [ "Regression", "A resolved issue happens again." ],
     "reached_production" => [ "Reached production", "An issue first seen in other environments happens in production." ],
     "still_happening" => [ "Still happening", "An issue's events in the last hour reach the threshold. At most once every 6 hours per issue." ],
-    "daily_digest" => [ "Daily digest", "At 09:00 in each person's own time zone: open issues with events in the last 24 hours." ]
+    "daily_digest" => [ "Daily digest", "At 09:00 in each person's own time zone: open issues with events in the last 24 hours." ],
+    "monitor_down" => [ "Monitor down", "A monitor fails its check, after one immediate retry." ],
+    "monitor_recovered" => [ "Monitor recovered", "A monitor that was down passes its check again." ]
   }.freeze
+  MUTE_SUBJECTS = { "alerts" => "email alerts", "uptime" => "uptime alerts", "digest" => "the daily digest" }.freeze
 
   def alert_rule_title(rule) = RULE_COPY.fetch(rule.kind).first
 
@@ -39,6 +42,6 @@ module AlertsHelper
   end
 
   def alert_mute_subject(alert_mute)
-    alert_mute.digest? ? "the daily digest" : "email alerts"
+    MUTE_SUBJECTS.fetch(alert_mute.stream)
   end
 end

@@ -1,0 +1,25 @@
+<%# The monitor's name and host, labels and times only. Never the monitor URL's path or query. -%>
+<% content_for :preheader, "Good Sorcery couldn't reach #{@monitor.host}: #{@incident.cause_label}." %>
+<% content_for :footer do %>
+  You're receiving this because you're a member of <%= @project.account.name %> and <%= @project.name %> sends uptime alerts.
+  <%= email_footer_link "Mute #{@project.name} uptime alerts", @mute_url %> · <%= email_footer_link "Notification settings", notifications_url %>
+<% end %>
+
+<%= email_heading "#{@monitor.name} is down" %>
+
+<%= email_text "Good Sorcery couldn't reach #{@monitor.host}, even after an immediate retry." %>
+
+<%= email_details [
+      [ "App", @project.name ],
+      [ "Monitor", @monitor.name ],
+      [ "Host", @monitor.host ],
+      [ "Cause", @incident.cause_label ],
+      [ "Since", alert_time(@incident.started_at) ],
+      [ "Checks", @monitor.interval_label ]
+    ] %>
+
+<%= email_button "Open monitor", @monitor_url %>
+
+<%= email_divider %>
+
+<%= email_link_fallback @monitor_url %>

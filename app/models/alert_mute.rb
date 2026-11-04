@@ -1,10 +1,10 @@
 # The one-click "mute" link in alert emails (List-Unsubscribe): turns off one
-# app's instant alerts, or its daily digest, for one person without signing
-# in. The token is signed (not encrypted) and carries ids only; it expires,
+# app's instant alerts, its uptime alerts or its daily digest, for one person
+# without signing in. The token is signed (not encrypted) and carries ids only; it expires,
 # and stops working once the person leaves the app's account.
 #
 #   token = AlertMute.token_for(user, project)                 # alerts
-#   token = AlertMute.token_for(user, project, stream: "digest")
+#   token = AlertMute.token_for(user, project, stream: "digest")   # or "uptime"
 #   AlertMute.find_by_token(token)&.apply
 class AlertMute
   EXPIRES_IN = 60.days
@@ -46,6 +46,8 @@ class AlertMute
   def user = membership.user
 
   def digest? = stream == "digest"
+
+  def uptime? = stream == "uptime"
 
   # Already off: the link was used before, or the person switched it off.
   def applied?

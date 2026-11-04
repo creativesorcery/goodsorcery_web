@@ -1,5 +1,6 @@
-# Alert emails (ARCHITECTURE.md §11.4): an instant alert about one issue, an
-# app's daily digest, and the hourly "and N more alerts" summary.
+# Alert emails (ARCHITECTURE.md §11.4, §12.9): an instant alert about one
+# issue, an app's daily digest, the hourly "and N more alerts" summary, and
+# an uptime monitor going down or recovering.
 #
 # Arguments are records (GlobalIDs in the mail job), kind strings and, for the
 # summary, counts per app id and kind: never captured data. Each email checks
@@ -8,8 +9,11 @@
 # member who hasn't switched that stream off. Times show in the recipient's
 # zone. Alerts and digests carry a one-click List-Unsubscribe link (AlertMute)
 # for that app and stream.
+#
+# Uptime emails name the monitor and its host only, never the URL's path or
+# query, which may hold tokens.
 class AlertsMailer < ApplicationMailer
-  helper :alert_emails, :number
+  helper :alert_emails, :number, :uptime
 
   SUBJECT_TITLE_LENGTH = 100
 
@@ -46,7 +50,35 @@ class AlertsMailer < ApplicationMailer
     mail_in_zone "And #{@total} more #{'alert'.pluralize(@total)} from Good Sorcery"
   end
 
+  def monitor_down(user, incident)
+    assign_uptime(user, incident)
+    return unless incident.open? && uptime_recipient?
+
+    mail_in_zone "Down: #{@monitor.name} in #{@project.name}"
+  end
+
+  def monitor_recovered(user, incident)
+    assign_uptime(user, incident)
+    return if incident.open? || !uptime_recipient?
+
+    mail_in_zone "Recovered: #{@monitor.name} in #{@project.name} after #{view_context.uptime_duration(incident.duration)}"
+  end
+
   private
+    def assign_uptime(user, incident)
+      @user, @incident, @monitor = user, incident, incident.uptime_monitor
+      @project = @monitor.project
+    end
+
+    # Checked at send time; on success sets the links the email needs.
+    def uptime_recipient?
+      return false unless membership_for(@project)&.receives_uptime_alerts?(@project)
+
+      @monitor_url = project_uptime_monitor_url(@project, @monitor)
+      allow_unsubscribe(@project, "uptime")
+      true
+    end
+
     def membership_for(project)
       project.account.memberships.find_by(user: @user)
     end

@@ -149,6 +149,94 @@ class AlertsMailerTest < ActionMailer::TestCase
     assert_emails(0) { AlertsMailer.summary(users(:outsider), counts.except(projects(:umbrella_app).id.to_s)).deliver_now }
   end
 
+  test "a down email names the monitor, app, host, cause and since, and links to the monitor" do
+    incident = uptime_incidents(:storefront_api_outage)
+    mail = AlertsMailer.monitor_down(@user, incident)
+    html = mail.html_part.body.to_s
+    text = mail.text_part.body.to_s
+    since = incident.started_at.in_time_zone("Europe/London").strftime("%b %-d, %Y %H:%M %Z")
+
+    assert_equal [ @user.email_address ], mail.to
+    assert_equal "Down: Storefront API in storefront", mail.subject
+    assert_includes html, "Storefront API is down"
+    assert_includes html, "Good Sorcery couldn&#39;t reach api.storefront.example, even after an immediate retry."
+    assert_includes html, "HTTP 503"
+    assert_includes html, since
+    assert_includes html, "Every 5 minutes"
+    assert_includes html, "http://example.com/projects/storefront/uptime/#{incident.uptime_monitor_id}"
+    assert_includes text, "Good Sorcery couldn't reach api.storefront.example, even after an immediate retry."
+    assert_includes text, "Cause: HTTP 503"
+    assert_includes text, "Since: #{since}"
+    assert_not_includes html, "/health"
+  end
+
+  test "a recovered email says how long the monitor was down" do
+    incident = uptime_incidents(:storefront_home_timeout)
+    mail = AlertsMailer.monitor_recovered(@user, incident)
+    text = mail.text_part.body.to_s
+
+    assert_equal "Recovered: Storefront home in storefront after 14 min", mail.subject
+    assert_includes mail.html_part.body.to_s, "Storefront home is back up"
+    assert_includes text, "Good Sorcery reached storefront.example again."
+    assert_includes text, "Down for: 14 min"
+    assert_includes text, "Cause: Timed out after"
+    assert_includes text, "From – To: #{incident.started_at.in_time_zone('Europe/London').strftime('%b %-d, %Y %H:%M %Z')} – "
+  end
+
+  test "uptime emails never contain the monitor URL's path or query" do
+    monitor = uptime_monitors(:storefront_home)
+    down = AlertsMailer.monitor_down(@user, monitor.incidents.create!(started_at: 3.minutes.ago, error_kind: "timeout"))
+    recovered = AlertsMailer.monitor_recovered(@user, uptime_incidents(:storefront_home_timeout))
+
+    [ down, recovered ].each do |mail|
+      content = [ mail.subject, mail.html_part.body.to_s, mail.text_part.body.to_s, *mail.header_fields.map(&:to_s) ].join("\n")
+      # The mute link carries its own ?token=; the monitor URL's path and query never appear.
+      [ "uptime-fixture-secret", "token=uptime", "storefront.example/up" ].each { |secret| assert_not_includes content, secret }
+      assert_includes content, "storefront.example"
+    end
+  end
+
+  test "uptime emails carry a List-Unsubscribe link that mutes this app's uptime alerts" do
+    mail = AlertsMailer.monitor_down(@user, uptime_incidents(:storefront_api_outage))
+    url = mail["List-Unsubscribe"].value[/\A<(.+)>\z/, 1]
+
+    assert_equal "List-Unsubscribe=One-Click", mail["List-Unsubscribe-Post"].value
+    assert_includes mail.html_part.body.to_s, url
+    assert_includes mail.text_part.body.to_s, "Mute storefront uptime alerts: #{url}"
+    mute = AlertMute.find_by_token(Rack::Utils.parse_query(URI(url).query)["token"])
+    assert_equal [ @user, @project, "uptime" ], [ mute.user, mute.project, mute.stream ]
+  end
+
+  test "escapes the monitor name in HTML" do
+    uptime_monitors(:storefront_api).update_columns(name: "<b>API</b>")
+    mail = AlertsMailer.monitor_down(@user, uptime_incidents(:storefront_api_outage))
+
+    assert_includes mail.html_part.body.to_s, "&lt;b&gt;API&lt;/b&gt; is down"
+    assert_not_includes mail.html_part.body.to_s, "<b>API</b>"
+    assert_includes mail.text_part.body.to_s, "<b>API</b> is down"
+  end
+
+  test "checked at send time: down needs an open incident, recovered a resolved one" do
+    assert_emails(0) { AlertsMailer.monitor_down(@user, uptime_incidents(:storefront_home_timeout)).deliver_now }
+    assert_emails(0) { AlertsMailer.monitor_recovered(@user, uptime_incidents(:storefront_api_outage)).deliver_now }
+  end
+
+  test "uptime emails are checked at send time: nothing for muted, unverified or non-members" do
+    incident = uptime_incidents(:storefront_api_outage)
+    memberships(:jo_acme).update_notification_preference(@project, uptime_alerts_muted: true)
+
+    assert_emails(0) { AlertsMailer.monitor_down(users(:jo), incident).deliver_now }
+    assert_emails(0) { AlertsMailer.monitor_down(users(:outsider), incident).deliver_now }
+    users(:philip).update_columns(email_verified_at: nil)
+    assert_emails(0) { AlertsMailer.monitor_down(users(:philip), incident).deliver_now }
+  end
+
+  test "muting issue alerts doesn't stop uptime emails" do
+    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+
+    assert_emails(1) { AlertsMailer.monitor_down(@user, uptime_incidents(:storefront_api_outage)).deliver_now }
+  end
+
   private
     def assert_no_captured_data(mail)
       content = [ mail.subject, mail.html_part.body.to_s, mail.text_part.body.to_s, *mail.header_fields.map(&:to_s) ].join("\n")
