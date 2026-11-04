@@ -19,7 +19,9 @@ class LayoutTest < ActionView::TestCase
     assert_select "aside a[href=?]", project_setup_path(@project)
     assert_select "aside [data-controller=dropdown] button", text: /storefront/
     assert_select "aside a[href=?]", new_project_path, text: /Add a new app/
-    assert_select "aside", text: /Uptime\s*soon/
+    assert_select "aside a.nav-link[href=?]", project_uptime_monitors_path(@project), text: /Uptime/
+    assert_select "aside", text: /soon/, count: 0
+    assert_select "aside", text: /Coming from the suite/, count: 0
     assert_select "aside a.nav-link[href=?]", project_alerts_path(@project), text: /Alerts/
     assert_select "aside", text: /Alerts\s*soon/, count: 0
     assert_select "aside a.menu-item[href=?]", notifications_path, text: /Notifications/
@@ -39,6 +41,8 @@ class LayoutTest < ActionView::TestCase
     assert_select "aside a[href=?]", new_project_path, text: /Add a new app/
     assert_select "aside a.nav-link", text: /Issues/, count: 0
     assert_select "aside a.nav-link", text: /Alerts/, count: 0
+    assert_select "aside a.nav-link", text: /Uptime/, count: 0
+    assert_select "aside span.nav-link[aria-disabled=true]", text: /Uptime/
     assert_select "aside", text: /Settings & setup/, count: 0
   end
 

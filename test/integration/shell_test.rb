@@ -44,6 +44,28 @@ class ShellTest < ActionDispatch::IntegrationTest
     assert_select "aside a.nav-link[href=?]", project_setup_path(projects(:marketing)), text: /Settings/
   end
 
+  test "the sidebar links to the app's Uptime page with a dot when a monitor is down" do
+    sign_in_as users(:philip)
+
+    get project_issues_path(projects(:storefront))
+
+    assert_select "aside a.nav-link[href=?]", project_uptime_monitors_path(projects(:storefront)), text: /Uptime/ do
+      assert_select ".coral-dot[title=?][aria-label=?]", "1 down", "1 down"
+    end
+    assert_select "aside", text: /soon/, count: 0
+  end
+
+  test "the Uptime link has no dot when nothing is down, and paused monitors don't count" do
+    sign_in_as users(:philip)
+    uptime_monitors(:storefront_api).update_columns(paused_at: Time.current)
+
+    get project_uptime_monitors_path(projects(:storefront))
+
+    assert_select "aside a.nav-link[aria-current=page][href=?]", project_uptime_monitors_path(projects(:storefront)) do
+      assert_select ".coral-dot", count: 0
+    end
+  end
+
   test "signing out from the user menu" do
     sign_in_as users(:philip)
 

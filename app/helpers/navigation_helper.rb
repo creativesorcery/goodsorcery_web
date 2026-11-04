@@ -4,6 +4,10 @@ module NavigationHelper
   SWITCHER_LIMIT = 50
   NAV_BADGE_CLASSES = "text-[11px] font-mono border rounded px-1.5".freeze
   ALL_ENVIRONMENTS_BADGE = "text-coral-300 bg-coral-500/10 border-coral-500/20".freeze
+  # Running monitors that are down, per project, read with the switcher list
+  # so the sidebar's Uptime dot costs no query of its own.
+  DOWN_MONITORS_SQL = "(SELECT COUNT(*) FROM uptime_monitors WHERE uptime_monitors.project_id = projects.id " \
+    "AND uptime_monitors.status = 'down' AND uptime_monitors.paused_at IS NULL)".freeze
 
   # In a view: <% breadcrumb Current.account.name, projects_path %> … <% breadcrumb "Issues" %>
   def breadcrumb(label, path = nil)
@@ -22,7 +26,7 @@ module NavigationHelper
     end
   end
 
-  # A non-link sidebar row, e.g. Alerts / Uptime with a "soon" note.
+  # A non-link sidebar row (Issues, Alerts, Uptime before any app exists).
   def nav_placeholder(label, icon:, note: nil)
     note_tag = note && tag.span(note, class: "text-[10px] uppercase tracking-wider text-ink-400/60")
     tag.span class: "nav-link", aria: { disabled: true } do
@@ -57,7 +61,7 @@ module NavigationHelper
     return [] unless Current.account
 
     @sidebar_projects ||= Current.account.projects.order(:name).limit(SWITCHER_LIMIT)
-      .select("projects.*", "#{ProjectOverview::LAST_SEEN_SQL} AS last_issue_seen_at").to_a
+      .select("projects.*", "#{ProjectOverview::LAST_SEEN_SQL} AS last_issue_seen_at", "#{DOWN_MONITORS_SQL} AS down_monitors_count").to_a
   end
 
   def remembered_project
@@ -82,6 +86,22 @@ module NavigationHelper
 
   def sidebar_issues_badge
     nav_badge sidebar_unresolved_count, environment: issues_environment_for(sidebar_project)
+  end
+
+  # A coral dot when any running monitor of the sidebar project is down, titled "2 down".
+  def sidebar_uptime_badge
+    count = sidebar_down_monitors_count
+    return if count.zero?
+
+    tag.span class: "coral-dot", role: "img", title: "#{count} down", "aria-label": "#{count} down"
+  end
+
+  # From the switcher's query; one count query only when the project isn't in that list.
+  def sidebar_down_monitors_count
+    return 0 unless sidebar_project
+
+    listed = sidebar_projects.find { |project| project.id == sidebar_project.id }
+    listed ? listed.down_monitors_count.to_i : sidebar_project.uptime_monitors.active.down.count
   end
 
   # Badge count for the environment the project's issue list shows
