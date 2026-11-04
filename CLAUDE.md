@@ -34,6 +34,8 @@ v1 scope:
 - **Setup/onboarding page.**
 - **Live updates:** pointer broadcasts over Action Cable. They carry ids and paths only; the browser re-fetches with its own session.
 - **Email alerts** (approved 2026-10-11, `docs/ARCHITECTURE.md` §11): per-app rules (new issue, regression, reached production, still happening, daily digest) and environment scope in Settings › Alerts; each member's per-app switches on the Notifications page (user menu); signed one-click mute links; the `alert_deliveries` throttle table. Delivery (§11.4): ingest flags new issue, regression and reached production after commit; a 5-minute still-happening sweep; an hourly digest run (09:00 local per recipient); a cap of 20 alert emails per user per hour, with the rest folded into one "and N more alerts" summary; `AlertsMailer` with List-Unsubscribe headers.
+- **Entitlements** (approved 2026-11-03, `docs/ARCHITECTURE.md` §12.2–12.3): `GOODSORCERY_HOSTED` is read once into `config.x.hosted`. Self-hosted (the default) is unlimited and ignores stored values. Hosted reads `accounts.entitlement_values` (jsonb, values only, never tier names) through the `Entitlements` PORO (`account.entitlements`), falling back per key to `config/entitlements.yml` (intervals 10 and 60 minutes, 1 monitor per account). Enforced in `UptimeMonitor` validations; locked options say "Upgrade to unlock" (`GOODSORCERY_UPGRADE_URL`). The future billing push contract is documented in §12.3, not built. `bin/rails goodsorcery:fit_uptime_monitors` re-fits monitors after the switch or the defaults change.
+- **Uptime** (approved 2026-11-03, §12): per-app `UptimeMonitor`s (1/5/10/60-minute intervals) behind the sidebar's Uptime link (a coral dot when one is down): list with status, uptime 24h/7d/30d and status bars; detail page with history and incidents; form; delete; rate-limited Check now. An every-minute cron (`ScheduleUptimeChecksJob`, queue `default`) claims due monitors by `next_check_at` and enqueues one `UptimeCheckJob` each (queue `uptime`); `UptimeProbe` is the SSRF-safe client (10 s budget, one immediate retry). Checks, hourly rollups and incidents are pruned by `goodsorcery:prune`. Down and recovered emails join the alert system: app rules in Settings › Alerts, an Uptime switch per member, mute links, one email per incident and kind, exempt from the hourly cap.
 
 ## Ruby client gem
 
@@ -43,7 +45,8 @@ The `goodsorcery` gem (module `GoodSorcery`) lives in a sibling checkout, `../go
 
 - Postgres backups (see `docs/DEPLOYMENT.md`).
 - Merge/unmerge, Assign and mute rules.
-- Uptime (shows as "soon" in the sidebar), team invites, project deletion and GitHub links.
+- The billing app and the entitlements push endpoint (contract in `docs/ARCHITECTURE.md` §12.3).
+- Team invites, project deletion and GitHub links.
 - Geo-IP, code syntax highlighting, dark mode and mobile navigation.
 - Settings pages other than Setup & API keys, General and Alerts. A user profile page (name, time zone).
 - Live updates for the tab counts and the sidebar issue badge. A regressed issue isn't inserted into an already open Unresolved list.
@@ -62,6 +65,7 @@ Read `docs/ARCHITECTURE.md` (the binding blueprint: schema, encryption, ingest p
 - **`app/models/ingest/`:** plain Ruby objects such as `Scrubber`, `MessageRedactor`, `Fingerprint`, `IssueTally`, `Rollups`, `TagRows`, `Retention` and `StaleEvents`. Their method names are descriptive, never `call`.
 - **Dashboard models:** query and presentation objects such as `IssueQuery` (chip parsing), `IssueList`, `IssueSummary`, `IssueChart`, `OccurrenceNavigator`, `ProjectOverview`, `ProjectHealth`, `SetupProgress` and `LiveFrames`.
 - **Model concerns:** `Issue::Searchable`, `Issue::Triage` and `Issue::Broadcasting`, plus `Project::Broadcasting` and `Project::Alerting`.
+- **Uptime:** `UptimeMonitor` (+ `Checking`, `Broadcasting`, `Alerting` concerns), `UptimeCheck`, `UptimeHourlyCount`, `UptimeIncident`, `UptimeSchedule` (the claim), `UptimeProbe` with `AddressGuard`, `Deadline` and `Connection`, `UptimeUrl`, `UptimeOverview`/`UptimeReport` (pages), `UptimeAlert` (`UptimeAlertJob`), `Account::UptimeMonitoring` (limit and fitting) and `Entitlements`.
 - **Alerts:** `AlertRule` (one row per app and kind), `NotificationPreference` (sparse, per membership and app), `AlertDelivery` (throttle/audit log keyed by `[user_id, dedupe_key]`) and `AlertMute` (the signed mute-link token). The delivery API is in `docs/ARCHITECTURE.md` §11.2. Delivery POROs: `IssueAlert` (instant alerts, `IssueAlertJob`), `StillHappeningCheck`, `DailyDigest` and `AlertSummary`, each driven by a job on the `alerts` queue, and `AlertsMailer` (§11.4).
 - **Live updates:** `AuthorizedStreamsChannel` checks the signed stream name and account membership. Custom Turbo Stream actions (`reload_frame`, `reload_rows`) are in `app/javascript`. Debouncing is in `LiveUpdateGate`.
 - **Theme:** Tailwind v4 `@theme` tokens and component classes are in `app/assets/tailwind/application.css`. Charts and sparklines are server-rendered SVG from helpers, with no chart JS. The CSP uses nonces, so there are no inline scripts or styles.
@@ -77,6 +81,7 @@ bin/send_test_event API_KEY http://localhost:3000   # EXCEPTION_CLASS=..., GZIP=
 bin/rails goodsorcery:prune                    # retention (daily in production)
 bin/rails goodsorcery:requeue_stale            # recover events never processed
 bin/rails goodsorcery:cap_occurrences          # trim each app to 3,000 stored occurrences (every 5 min in production)
+bin/rails goodsorcery:fit_uptime_monitors      # after switching GOODSORCERY_HOSTED on or off or editing config/entitlements.yml
 ```
 
 ## Test and lint workflow
@@ -122,6 +127,12 @@ bin/bundler-audit && bin/importmap audit
 - **Browser gate on email links:** `ApplicationController`'s `allow_browser versions: :modern` answers 406 to older browsers (iOS 16 Safari, in-app mail browsers). Any page reached from an email link must override the private `any_browser_allowed?` to return true, as `AlertMutesController` and `EmailVerificationsController#show` do.
 - **Still-happening sweep and muted apps:** an app with no recipients records no `alert_deliveries`, so the 6-hour throttle never starts. `StillHappeningCheck` skips apps where `alert_recipients.exists?` is false; keep that check, or every sweep enqueues a no-op job per hot issue.
 - **Scheduled jobs:** sidekiq-cron loads `config/schedule.yml` in the Sidekiq process (production only).
+- **`UptimeMonitor`, never `Monitor`:** Ruby's stdlib `Monitor` is used by Rails itself; a top-level `Monitor` model breaks the app.
+- **Monitor URLs are secret:** they may carry tokens. `url` is encrypted and shown only on the edit form and detail page; lists and emails show `name` and `host`. Never put it in job args (ids only), Redis, the cache, broadcasts, logs, exception or validation messages, check rows or `alert_deliveries`. Probe errors are logged by class name only. The fixture URL carries `uptime-fixture-secret`, and tests assert it never leaks.
+- **SSRF client:** every uptime request goes through `UptimeProbe`. `AddressGuard` resolves once and refuses the host if any address is private, loopback, link-local, CGNAT, multicast, ULA or metadata (embedded IPv4 unwrapped); the connection is pinned to that IP (`ipaddr=`, proxy `nil`) while Host/SNI keep the name; every redirect hop is re-vetted. `UptimeProbe::Connection` caps all bytes read per connection (Net::HTTP has no header limit). Never use `Net::HTTP.get`, `open-uri` or another client for monitor URLs. `GOODSORCERY_UPTIME_ALLOW_PRIVATE_ADDRESSES=1` (never in production) is the local-testing escape hatch; tests inject `allowed_ips:`/`resolver:` instead.
+- **Hosted mode:** read `Rails.configuration.x.hosted` (or `entitlements.unlimited?`), never `ENV` at request time; tests use `with_hosted_mode`. Views show locked options and "Upgrade to unlock" only when `!entitlements.unlimited?`. Never write a tier name ("free", "premium") anywhere; only entitlement values exist here.
+- **Uptime claim SQL:** `UptimeSchedule::CLAIM_SQL` casts its binds (`CAST(:now AS timestamp)`) because Postgres can't infer them inside `extract`/`make_interval`, runs `uncached`, and steps `next_check_at` from the monitor's own minute so late claims don't bunch monitors together. `UptimeCheckJob` drops jobs whose monitor was checked since `enqueued_at`; checks are recorded at their start time for that comparison.
+- **Check now gate:** `check_now_gap` is 30 seconds self-hosted and the shortest entitled interval hosted, so Check now can't beat the entitlements.
 - **Debug logs:** SQL logs in dev and test include redacted issue titles. Keep production at `info`.
 - **Dev data:** test events overwrite a project's runtime label and use up issue numbers; deleting issues doesn't rewind the sequence. Seeds don't run again once the demo user exists (`bin/rails db:reset` to start over).
 - **Port 3917:** something else on this machine has used it. Don't kill processes you didn't start; give dev servers you start their own pid file (`-P tmp/pids/server_PORT.pid`).
