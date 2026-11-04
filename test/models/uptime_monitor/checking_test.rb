@@ -137,6 +137,17 @@ class UptimeMonitor::CheckingTest < ActiveSupport::TestCase
     end
   end
 
+  test "check_now_gap is RECHECK_GAP self-hosted and the shortest entitled interval hosted" do
+    assert_equal UptimeMonitor::RECHECK_GAP, up_monitor.check_now_gap
+
+    with_hosted_mode do
+      assert_equal 10.minutes, up_monitor.check_now_gap
+      assert_equal 5.minutes, uptime_monitors(:umbrella_site).check_now_gap
+      accounts(:umbrella).update_columns(entitlement_values: { "uptime_intervals" => [ 1, 60 ] })
+      assert_equal 1.minute, UptimeMonitor.find(uptime_monitors(:umbrella_site).id).check_now_gap
+    end
+  end
+
   test "check_soon refuses a monitor checked recently or paused" do
     with_memory_cache do
       assert_not uptime_monitors(:storefront_home).tap { it.update_columns(last_checked_at: 10.seconds.ago) }.check_soon

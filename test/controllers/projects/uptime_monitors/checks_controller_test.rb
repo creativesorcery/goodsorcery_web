@@ -36,6 +36,24 @@ class Projects::UptimeMonitors::ChecksControllerTest < ActionDispatch::Integrati
     end
   end
 
+  test "hosted, Check now can't run more often than the account's shortest interval" do
+    with_hosted_mode do
+      post project_uptime_monitor_check_path(@project, @monitor)
+      @monitor.update_columns(last_checked_at: Time.current)
+
+      travel 31.seconds
+      assert_no_enqueued_jobs only: UptimeCheckJob do
+        post project_uptime_monitor_check_path(@project, @monitor)
+      end
+      assert_equal "Checked less than 10 minutes ago.", flash[:alert]
+
+      travel 10.minutes
+      assert_enqueued_jobs 1, only: UptimeCheckJob do
+        post project_uptime_monitor_check_path(@project, @monitor)
+      end
+    end
+  end
+
   test "a monitor checked in the last 30 seconds is refused" do
     @monitor.update_columns(last_checked_at: 10.seconds.ago)
 

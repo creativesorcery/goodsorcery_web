@@ -1,5 +1,6 @@
 # "Check now" on a monitor's page. Rate limited per user, and gated per
-# monitor by UptimeMonitor::Checking#check_soon (one check per RECHECK_GAP).
+# monitor by UptimeMonitor::Checking#check_soon (one check per
+# check_now_gap: 30 seconds, or the account's shortest uptime interval).
 # The job takes the monitor's id only.
 class Projects::UptimeMonitors::ChecksController < ApplicationController
   include UptimeMonitorScoped
@@ -14,7 +15,7 @@ class Projects::UptimeMonitors::ChecksController < ApplicationController
   private
     def check_outcome
       return { alert: "#{@uptime_monitor.name} is paused, so it isn't checked." } if @uptime_monitor.paused?
-      return { alert: "Checked less than #{UptimeMonitor::RECHECK_GAP.inspect} ago." } unless @uptime_monitor.check_soon
+      return { alert: "Checked less than #{@uptime_monitor.check_now_gap.inspect} ago." } unless @uptime_monitor.check_soon
 
       UptimeCheckJob.perform_later(@uptime_monitor.id)
       { notice: "Checking #{@uptime_monitor.name} now…" }

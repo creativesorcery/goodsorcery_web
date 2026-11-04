@@ -46,9 +46,19 @@ module UptimeMonitor::Checking
   # The "Check now" gate: true when the caller may enqueue a check. The cache
   # holds the monitor id only, and next_check_at is left alone.
   def check_soon
-    return false if paused? || checked_recently?
+    gap = check_now_gap
+    return false if paused? || checked_recently?(gap:)
 
-    Rails.cache.write([ "uptime_check_now", id ], 1, unless_exist: true, expires_in: UptimeMonitor::RECHECK_GAP) ? true : false
+    Rails.cache.write([ "uptime_check_now", id ], 1, unless_exist: true, expires_in: gap) ? true : false
+  end
+
+  # RECHECK_GAP, or the shortest interval the account is entitled to when
+  # that is longer, so "Check now" can't check more often than the plan's
+  # intervals allow.
+  def check_now_gap
+    return UptimeMonitor::RECHECK_GAP if entitlements.unlimited?
+
+    [ UptimeMonitor::RECHECK_GAP, entitlements.uptime_intervals.min.minutes ].max
   end
 
   private
