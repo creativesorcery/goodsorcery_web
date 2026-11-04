@@ -1,0 +1,54 @@
+# Monitor URLs are encrypted (encrypt_fixtures). storefront_home's URL carries
+# a secret query so tests can check it never leaks into job arguments, logs
+# or emails. acme has three monitors, over its hosted default of one: fitting
+# only runs when entitlements or monitors change, so nothing is paused here.
+storefront_home:
+  project: storefront
+  name: Storefront home
+  url: https://storefront.example/up?token=uptime-fixture-secret
+  interval_minutes: 10
+  status: up
+  next_check_at: <%= 6.minutes.from_now.to_fs(:db) %>
+  last_checked_at: <%= 4.minutes.ago.to_fs(:db) %>
+  last_response_time_ms: 212
+  last_http_status: 200
+  created_at: <%= 20.days.ago.to_fs(:db) %>
+  updated_at: <%= 20.days.ago.to_fs(:db) %>
+
+storefront_api:
+  project: storefront
+  name: Storefront API
+  url: https://api.storefront.example/health
+  interval_minutes: 5
+  status: down
+  next_check_at: <%= 3.minutes.from_now.to_fs(:db) %>
+  last_checked_at: <%= 2.minutes.ago.to_fs(:db) %>
+  last_response_time_ms: 87
+  last_http_status: 503
+  last_error_kind: http_status
+  down_since: <%= 12.minutes.ago.to_fs(:db) %>
+  created_at: <%= 10.days.ago.to_fs(:db) %>
+  updated_at: <%= 10.days.ago.to_fs(:db) %>
+
+billing_checkout:
+  project: billing
+  name: Billing checkout
+  url: https://billing.example/checkout/health
+  interval_minutes: 60
+  status: pending
+  next_check_at: <%= 1.minute.from_now.to_fs(:db) %>
+  created_at: <%= 1.minute.ago.to_fs(:db) %>
+  updated_at: <%= 1.minute.ago.to_fs(:db) %>
+
+umbrella_site:
+  project: umbrella_app
+  name: Umbrella site
+  url: https://umbrella.example/
+  interval_minutes: 5
+  status: up
+  next_check_at: <%= 2.minutes.from_now.to_fs(:db) %>
+  last_checked_at: <%= 3.minutes.ago.to_fs(:db) %>
+  last_response_time_ms: 140
+  last_http_status: 200
+  created_at: <%= 5.days.ago.to_fs(:db) %>
+  updated_at: <%= 5.days.ago.to_fs(:db) %>

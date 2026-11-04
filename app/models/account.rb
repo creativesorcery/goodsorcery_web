@@ -3,6 +3,9 @@ class Account < ApplicationRecord
   has_many :users, through: :memberships
   has_many :projects, inverse_of: :account # rows cascade in the database
 
+  # After has_many :projects, which its has_many :through needs.
+  include Account::UptimeMonitoring
+
   validates :name, presence: true, length: { maximum: 80 }
   validates :monthly_event_quota, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :entitlement_values_well_formed, if: :entitlement_values_changed?

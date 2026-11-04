@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -231,6 +231,58 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_000001) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "uptime_checks", force: :cascade do |t|
+    t.bigint "uptime_monitor_id", null: false
+    t.datetime "checked_at", null: false
+    t.string "status", null: false
+    t.integer "response_time_ms"
+    t.integer "http_status"
+    t.string "error_kind"
+    t.index ["uptime_monitor_id", "checked_at"], name: "index_uptime_checks_on_uptime_monitor_id_and_checked_at"
+    t.check_constraint "status::text = ANY (ARRAY['up'::character varying, 'down'::character varying]::text[])", name: "uptime_checks_status_check"
+  end
+
+  create_table "uptime_hourly_counts", primary_key: ["uptime_monitor_id", "hour"], force: :cascade do |t|
+    t.bigint "uptime_monitor_id", null: false
+    t.datetime "hour", null: false
+    t.integer "checks_count", default: 0, null: false
+    t.integer "up_count", default: 0, null: false
+    t.bigint "response_time_ms_sum", default: 0, null: false
+    t.index ["hour"], name: "index_uptime_hourly_counts_on_hour"
+  end
+
+  create_table "uptime_incidents", force: :cascade do |t|
+    t.bigint "uptime_monitor_id", null: false
+    t.datetime "started_at", null: false
+    t.datetime "resolved_at"
+    t.string "error_kind"
+    t.integer "http_status"
+    t.index ["resolved_at"], name: "index_uptime_incidents_on_resolved_at"
+    t.index ["uptime_monitor_id", "started_at"], name: "index_uptime_incidents_on_uptime_monitor_id_and_started_at"
+    t.index ["uptime_monitor_id"], name: "index_uptime_incidents_one_open", unique: true, where: "(resolved_at IS NULL)"
+  end
+
+  create_table "uptime_monitors", force: :cascade do |t|
+    t.bigint "project_id", null: false
+    t.string "name", null: false
+    t.text "url", null: false
+    t.integer "interval_minutes", default: 10, null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "next_check_at", null: false
+    t.datetime "last_checked_at"
+    t.integer "last_response_time_ms"
+    t.integer "last_http_status"
+    t.string "last_error_kind"
+    t.datetime "down_since"
+    t.datetime "paused_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["next_check_at"], name: "index_uptime_monitors_due", where: "(paused_at IS NULL)"
+    t.index ["project_id", "name"], name: "index_uptime_monitors_on_project_id_and_name"
+    t.check_constraint "interval_minutes = ANY (ARRAY[1, 5, 10, 60])", name: "uptime_monitors_interval_minutes_check"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying, 'up'::character varying, 'down'::character varying]::text[])", name: "uptime_monitors_status_check"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email_address", null: false
     t.string "password_digest", null: false
@@ -269,4 +321,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_000001) do
   add_foreign_key "projects", "accounts", on_delete: :cascade
   add_foreign_key "sessions", "accounts", on_delete: :cascade
   add_foreign_key "sessions", "users", on_delete: :cascade
+  add_foreign_key "uptime_checks", "uptime_monitors", on_delete: :cascade
+  add_foreign_key "uptime_hourly_counts", "uptime_monitors", on_delete: :cascade
+  add_foreign_key "uptime_incidents", "uptime_monitors", on_delete: :cascade
+  add_foreign_key "uptime_monitors", "projects", on_delete: :cascade
 end

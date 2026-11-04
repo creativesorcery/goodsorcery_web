@@ -1,0 +1,12 @@
+# storefront_api is down now; storefront_home was down for 14 minutes 3 days ago.
+storefront_api_outage:
+  uptime_monitor: storefront_api
+  started_at: <%= 12.minutes.ago.to_fs(:db) %>
+  error_kind: http_status
+  http_status: 503
+
+storefront_home_timeout:
+  uptime_monitor: storefront_home
+  started_at: <%= (3.days.ago - 14.minutes).to_fs(:db) %>
+  resolved_at: <%= 3.days.ago.to_fs(:db) %>
+  error_kind: timeout

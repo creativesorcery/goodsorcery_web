@@ -6,5 +6,7 @@
 Rails.application.config.filter_parameters += [
   :passw, :email, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :ssn, :cvv, :cvc,
   # Search input and captured error data (may contain personal data).
-  /\Aq\z/, :text, :chips, :body, :payload, :authorization
+  /\Aq\z/, :text, :chips, :body, :payload, :authorization,
+  # Uptime monitor URLs may carry tokens in their query strings.
+  :url
 ]

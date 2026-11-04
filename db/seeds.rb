@@ -62,6 +62,7 @@ class DemoSeeds
     ActiveRecord::Base.transaction do
       create_people
       PROJECTS.each { |spec| seed_project(spec) }
+      DemoUptime.new(@account).seed
     end
     puts "Seeded Acme Labs. Sign in as #{EMAIL} / #{PASSWORD} (also jo@example.com / #{PASSWORD})"
   end
@@ -282,6 +283,82 @@ class DemoProjectRollup
 
     def environment
       @project.environments.first
+    end
+end
+
+# Uptime monitors on .example hosts with 30 days of hourly rollups, a day of
+# raw checks and incidents, all written directly: seeding never makes a request.
+class DemoUptime
+  MONITORS = [
+    { project: "storefront", name: "Storefront home", url: "https://shop.acme.example/up", interval: 5, ms: 180 },
+    { project: "storefront", name: "Checkout API", url: "https://api.acme.example/health?token=demo-only", interval: 1, ms: 95,
+      outage: [ 12.minutes, nil ] },
+    { project: "billing-api", name: "Billing API", url: "https://billing.acme.example/up", interval: 10, ms: 240,
+      outage: [ 2.days, 25.minutes ] }
+  ].freeze
+
+  def initialize(account)
+    @account = account
+    @now = Time.current
+  end
+
+  # Demo monitors skip validation; fitting then applies hosted entitlements.
+  def seed
+    MONITORS.each { |spec| DemoMonitor.new(@account.projects.find_by!(name: spec[:project]), spec, @now).seed }
+    @account.fit_uptime_monitors_to_entitlements
+  end
+end
+
+class DemoMonitor
+  def initialize(project, spec, now)
+    @project = project
+    @spec = spec
+    @now = now
+    started_ago, lasted = spec[:outage]
+    @outage = started_ago && ((now - started_ago)..(lasted && now - started_ago + lasted))
+  end
+
+  def seed
+    @monitor = create_monitor
+    UptimeHourlyCount.insert_all(hourly_rows)
+    UptimeCheck.insert_all(check_rows)
+    UptimeIncident.insert_all([ incident_row ]) if @outage
+  end
+
+  private
+    def down_now? = @outage && @outage.end.nil?
+
+    def down_at?(time) = @outage&.cover?(time) || false
+
+    def create_monitor
+      @project.uptime_monitors.new(
+        name: @spec[:name], url: @spec[:url], interval_minutes: @spec[:interval], status: down_now? ? "down" : "up",
+        last_checked_at: @now - 30.seconds, last_response_time_ms: down_now? ? nil : @spec[:ms], last_http_status: down_now? ? nil : 200,
+        last_error_kind: down_now? ? "timeout" : nil, down_since: down_now? ? @outage.begin : nil
+      ).tap { it.save!(validate: false) }
+    end
+
+    def hourly_rows
+      (0...(30 * 24)).map do |ago|
+        hour = TimeSeries.align(@now, 1.hour) - ago.hours
+        times = (0...60).step(@spec[:interval]).map { |minute| hour + minute.minutes }.select { it <= @now }
+        up = times.count { !down_at?(it) }
+        { uptime_monitor_id: @monitor.id, hour:, checks_count: times.size, up_count: up, response_time_ms_sum: up * @spec[:ms] }
+      end
+    end
+
+    def check_rows
+      count = 24 * 60 / @spec[:interval]
+      (0...count).map do |i|
+        at = @now - 30.seconds - (i * @spec[:interval]).minutes
+        down = down_at?(at)
+        { uptime_monitor_id: @monitor.id, checked_at: at, status: down ? "down" : "up", error_kind: down ? "timeout" : nil,
+          http_status: down ? nil : 200, response_time_ms: down ? nil : @spec[:ms] + (i * 37) % 60 }
+      end
+    end
+
+    def incident_row
+      { uptime_monitor_id: @monitor.id, started_at: @outage.begin, resolved_at: @outage.end, error_kind: "timeout" }
     end
 end
 

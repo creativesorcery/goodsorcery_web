@@ -7,12 +7,15 @@ class EncryptionTest < ActiveSupport::TestCase
     assert_ciphertext ApiKey, api_keys(:storefront_production).id, :token, FIXTURE_TOKENS[:storefront_production]
     assert_ciphertext InboundEvent, inbound_events(:storefront_pending).id, :body, "mara@example.com"
     assert_ciphertext IssueActivity, issue_activities(:note).id, :body, "CartTotal"
+    assert_ciphertext UptimeMonitor, uptime_monitors(:storefront_home).id, :url, "uptime-fixture-secret"
+    assert_ciphertext UptimeMonitor, uptime_monitors(:storefront_home).id, :url, "storefront.example"
   end
 
   test "encrypted attributes round-trip" do
     assert_match(/mara@example\.com/, occurrences(:nomethod_latest).payload)
     assert_equal FIXTURE_TOKENS[:storefront_production], api_keys(:storefront_production).token
     assert_equal "Mobile Safari", issue_tag_counts(:nomethod_browser_safari).value
+    assert_equal "https://storefront.example/up?token=uptime-fixture-secret", uptime_monitors(:storefront_home).url
   end
 
   test "tag values are encrypted" do

@@ -1,0 +1,26 @@
+# The last hour of raw checks: storefront_home up every 10 minutes,
+# storefront_api failing with 503 for the last 12 minutes.
+<% 6.times do |i| %>
+storefront_home_c<%= i %>:
+  uptime_monitor: storefront_home
+  checked_at: <%= (4.minutes.ago - (i * 10).minutes).to_fs(:db) %>
+  status: up
+  response_time_ms: <%= 200 + i * 4 %>
+  http_status: 200
+<% end %>
+
+<% 12.times do |i| %>
+storefront_api_c<%= i %>:
+  uptime_monitor: storefront_api
+  checked_at: <%= (2.minutes.ago - (i * 5).minutes).to_fs(:db) %>
+<% if i < 3 %>
+  status: down
+  response_time_ms: 87
+  http_status: 503
+  error_kind: http_status
+<% else %>
+  status: up
+  response_time_ms: <%= 90 + i %>
+  http_status: 200
+<% end %>
+<% end %>

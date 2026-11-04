@@ -1,0 +1,20 @@
+<%
+  # 24 hours of rollups relative to "now". storefront_home is up every hour
+  # except one with a timeout; storefront_api went down in the current hour.
+  now_hour = Time.current.utc.beginning_of_hour
+%>
+<% 24.times do |i| %>
+storefront_home_h<%= i %>:
+  uptime_monitor: storefront_home
+  hour: <%= (now_hour - i.hours).to_fs(:db) %>
+  checks_count: 6
+  up_count: <%= i == 5 ? 5 : 6 %>
+  response_time_ms_sum: <%= (i == 5 ? 5 : 6) * 210 %>
+
+storefront_api_h<%= i %>:
+  uptime_monitor: storefront_api
+  hour: <%= (now_hour - i.hours).to_fs(:db) %>
+  checks_count: 12
+  up_count: <%= i.zero? ? 9 : 12 %>
+  response_time_ms_sum: <%= (i.zero? ? 9 : 12) * 95 %>
+<% end %>
