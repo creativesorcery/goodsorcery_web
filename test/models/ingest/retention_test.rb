@@ -104,4 +104,39 @@ class Ingest::RetentionTest < ActiveSupport::TestCase
     assert_not AlertDelivery.exists?(old)
     assert AlertDelivery.exists?(recent.id)
   end
+
+  test "prunes uptime checks past the app's retention, never keeping more than 7 days" do
+    home = uptime_monitors(:storefront_home)
+    old = home.checks.create!(checked_at: (UptimeCheck::MAX_KEPT_DAYS + 1).days.ago, status: "up")
+    kept = home.checks.create!(checked_at: (UptimeCheck::MAX_KEPT_DAYS - 1).days.ago, status: "up")
+    projects(:billing).update_column(:retention_days, 2)
+    billing = uptime_monitors(:billing_checkout)
+    billing_old = billing.checks.create!(checked_at: 3.days.ago, status: "down", error_kind: "timeout")
+    billing_kept = billing.checks.create!(checked_at: 1.day.ago, status: "up")
+
+    Ingest::Retention.new.prune_uptime
+
+    assert_not UptimeCheck.exists?(old.id)
+    assert_not UptimeCheck.exists?(billing_old.id)
+    assert UptimeCheck.exists?(kept.id)
+    assert UptimeCheck.exists?(billing_kept.id)
+    assert UptimeCheck.exists?(uptime_checks(:storefront_home_c0).id)
+  end
+
+  test "prunes uptime rollups after 31 days and resolved incidents after 31 days" do
+    home = uptime_monitors(:storefront_home)
+    UptimeHourlyCount.create!(uptime_monitor: home, hour: TimeSeries.align(32.days.ago, 1.hour), checks_count: 6, up_count: 6)
+    UptimeHourlyCount.create!(uptime_monitor: home, hour: TimeSeries.align(30.days.ago, 1.hour), checks_count: 6, up_count: 6)
+    old = home.incidents.create!(started_at: 40.days.ago, resolved_at: 32.days.ago)
+    recent = home.incidents.create!(started_at: 20.days.ago, resolved_at: 20.days.ago + 5.minutes)
+    open = uptime_incidents(:storefront_api_outage).tap { it.update_columns(started_at: 40.days.ago) }
+
+    Ingest::Retention.new.prune
+
+    assert_not UptimeHourlyCount.exists?(hour: ...31.days.ago)
+    assert UptimeHourlyCount.exists?(uptime_monitor_id: home.id, hour: TimeSeries.align(30.days.ago, 1.hour))
+    assert_not UptimeIncident.exists?(old.id)
+    assert UptimeIncident.exists?(recent.id)
+    assert UptimeIncident.exists?(open.id), "open incidents are kept"
+  end
 end

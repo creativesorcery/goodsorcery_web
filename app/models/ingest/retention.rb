@@ -7,7 +7,10 @@
 # - hourly rollups, one hour slice at a time: issue counts older than
 #   ISSUE_ROLLUP_DAYS and project counts older than PROJECT_ROLLUP_DAYS;
 # - inbound events that never processed within UNPROCESSED_TTL;
-# - alert deliveries (throttle keys, ids only) older than AlertDelivery::KEPT_FOR.
+# - alert deliveries (throttle keys, ids only) older than AlertDelivery::KEPT_FOR;
+# - uptime checks past their app's retention, never more than
+#   UptimeCheck::MAX_KEPT_DAYS; uptime rollups older than UPTIME_ROLLUP_DAYS;
+#   resolved uptime incidents older than UptimeIncident::KEPT_FOR.
 class Ingest::Retention
   # The issue chart's 30d view reaches back 30 local days; one more covers
   # any time zone offset.
@@ -16,6 +19,8 @@ class Ingest::Retention
   # The issue list's 30d summary compares against the 30 days before (61 daily
   # buckets) and the monthly quota sums from the start of the UTC month.
   PROJECT_ROLLUP_DAYS = 90
+  # Uptime percentages reach back 30 days and the daily bars 30 local days.
+  UPTIME_ROLLUP_DAYS = Project::MAX_RETENTION_DAYS + 1
   UNPROCESSED_TTL = 1.day
   BATCH = 1_000
 
@@ -29,6 +34,7 @@ class Ingest::Retention
     prune_rollups
     prune_unprocessed
     prune_alert_deliveries
+    prune_uptime
   end
 
   # One batched delete per distinct retention period, not per project.
@@ -64,11 +70,22 @@ class Ingest::Retention
     AlertDelivery.where(created_at: ...(@now - AlertDelivery::KEPT_FOR)).in_batches(of: BATCH).delete_all
   end
 
+  # Raw checks feed only the 24h response series and the recent list; the
+  # percentages and status bars read the rollups.
+  def prune_uptime
+    each_retention_cutoff(cap_days: UptimeCheck::MAX_KEPT_DAYS) do |project_ids, cutoff|
+      monitor_ids = UptimeMonitor.where(project_id: project_ids).select(:id)
+      UptimeCheck.where(uptime_monitor_id: monitor_ids, checked_at: ...cutoff).in_batches(of: BATCH).delete_all
+    end
+    prune_hour_slices(UptimeHourlyCount, rollup_cutoff(UPTIME_ROLLUP_DAYS))
+    UptimeIncident.where(resolved_at: ...(@now - UptimeIncident::KEPT_FOR)).in_batches(of: BATCH).delete_all
+  end
+
   private
     # A value above the cap (set before it existed, or by hand) is pruned at the cap.
-    def each_retention_cutoff
+    def each_retention_cutoff(cap_days: Project::MAX_RETENTION_DAYS)
       Project.distinct.pluck(:retention_days).each do |days|
-        yield Project.where(retention_days: days).select(:id), @now - [ days, Project::MAX_RETENTION_DAYS ].min.days
+        yield Project.where(retention_days: days).select(:id), @now - [ days, cap_days ].min.days
       end
     end
 

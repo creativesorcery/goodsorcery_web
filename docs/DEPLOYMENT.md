@@ -172,8 +172,17 @@ and sign up; sign-up closes after the first account.
 - **Roll back:** `bin/kamal rollback VERSION` (a git SHA from `bin/kamal app images`), or revert the commit on `main`.
 - **Console, logs:** `bin/kamal console`, `bin/kamal logs`, `bin/kamal logs -r job`, `bin/kamal dbc`.
 - **Scheduled jobs:** sidekiq-cron runs `config/schedule.yml` inside the job
-  container: the retention sweep daily and the stale-event requeue every 10
-  minutes. The rake tasks still work by hand: `bin/kamal app exec "bin/rails goodsorcery:prune"`.
+  container: the retention sweep daily, the stale-event requeue every 10
+  minutes and the uptime scheduler every minute. The rake tasks still work by hand: `bin/kamal app exec "bin/rails goodsorcery:prune"`.
+- **Uptime checks:** they run on the `uptime` Sidekiq queue. A check waits on
+  the network for up to about 20 seconds (two 10-second attempts), so one
+  Sidekiq thread manages roughly 60 / (average check seconds) checks a minute,
+  and the total is that times `SIDEKIQ_CONCURRENCY`. With many monitors, add a
+  job role that runs only that queue (`bundle exec sidekiq -q uptime`, with its
+  own `SIDEKIQ_CONCURRENCY`) so slow checks never hold up ingest or alerts.
+  Each due monitor is claimed once, so several processes can share the queue.
+  After switching `GOODSORCERY_HOSTED` on or editing `config/entitlements.yml`,
+  run `bin/kamal app exec "bin/rails goodsorcery:fit_uptime_monitors"`.
 - **Accessories:** `bin/kamal accessory logs tunnel`. Upgrading Postgres to a
   new major version needs a dump and restore.
 

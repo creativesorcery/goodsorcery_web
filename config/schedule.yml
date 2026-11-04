@@ -31,3 +31,8 @@ cap_stored_occurrences:
   cron: "*/5 * * * *"
   class: CapStoredOccurrencesJob
   description: "Trim each app to its stored occurrence cap, most repeated issues first"
+
+schedule_uptime_checks:
+  cron: "* * * * *"
+  class: ScheduleUptimeChecksJob
+  description: "Enqueue one uptime check per monitor that is due"
