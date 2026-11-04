@@ -21,5 +21,14 @@ module ActiveSupport
     fixtures :all
 
     # Add more helper methods to be used by all tests here...
+
+    # Hosted mode is read once at boot into config.x.hosted (docs/ARCHITECTURE.md §12.2).
+    def with_hosted_mode(hosted = true)
+      previous = Rails.configuration.x.hosted
+      Rails.configuration.x.hosted = hosted
+      yield
+    ensure
+      Rails.configuration.x.hosted = previous
+    end
   end
 end

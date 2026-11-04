@@ -11,7 +11,7 @@ module ApplicationHelper
   end
 
   def hosted?
-    ActiveModel::Type::Boolean.new.cast(ENV["GOODSORCERY_HOSTED"]) || false
+    Rails.configuration.x.hosted
   end
 
   def signups_enabled?

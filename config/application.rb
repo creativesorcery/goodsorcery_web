@@ -31,5 +31,16 @@ module GoodsorceryWeb
 
     # Every encrypted column must hold ciphertext; never read plaintext fallbacks.
     config.active_record.encryption.support_unencrypted_data = false
+
+    # Hosted mode (docs/ARCHITECTURE.md §12.2). Self-hosted, the default, makes
+    # every entitlement unlimited; hosted reads each account's stored values and
+    # falls back to the hosted defaults in config/entitlements.yml.
+    config.x.hosted = ActiveModel::Type::Boolean.new.cast(ENV["GOODSORCERY_HOSTED"]) || false
+    config.x.upgrade_url = ENV["GOODSORCERY_UPGRADE_URL"].presence
+    config.x.entitlements = config_for(:entitlements)
+
+    # Local testing of uptime checks against private addresses; never honoured in production.
+    config.x.uptime.allow_private_addresses =
+      ENV["GOODSORCERY_UPTIME_ALLOW_PRIVATE_ADDRESSES"] == "1" && !Rails.env.production?
   end
 end

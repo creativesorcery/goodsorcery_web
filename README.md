@@ -189,7 +189,9 @@ Every variable below is read by the app's code or config.
 | `RAILS_LOG_LEVEL` | no | `info` | Keep `info`. `debug` logs SQL, which includes the (redacted) issue titles. |
 | `GOODSORCERY_ENABLE_SIGNUPS` | no | sign-up is open only until the first account exists | `1` keeps public sign-up open (hosted service). |
 | `GOODSORCERY_DISABLE_SIGNUPS` | no | none | `1` closes sign-up completely, even before the first account exists. It overrides `ENABLE`. |
-| `GOODSORCERY_HOSTED` | no | `false` | `true` marks this as the managed hosting service: the sidebar shows "Hosted" instead of "Self-hosted", and the setup page's install snippets drop the `config.endpoint` / `GOODSORCERY_ENDPOINT` line. |
+| `GOODSORCERY_HOSTED` | no | `false` | `true` (or `1`) marks this as the managed hosting service. Read once at boot. The sidebar shows "Hosted" instead of "Self-hosted", and the setup page's install snippets drop the `config.endpoint` / `GOODSORCERY_ENDPOINT` line. It also turns on entitlements: each account's stored values (`accounts.entitlement_values`) decide which uptime intervals it can use and how many monitors it can have, and missing values fall back to the hosted defaults in `config/entitlements.yml` (intervals of 10 and 60 minutes, 1 monitor). Self-hosted (unset), every entitlement is unlimited and stored values are ignored. After switching it on, run `bin/rails goodsorcery:fit_uptime_monitors`. |
+| `GOODSORCERY_UPGRADE_URL` | no | none | Hosted mode only. Where the "Upgrade to unlock" text next to locked options links to (opens in a new tab). Unset, the text is shown without a link. |
+| `GOODSORCERY_UPTIME_ALLOW_PRIVATE_ADDRESSES` | no | off | `1` lets uptime checks reach loopback and private addresses, for testing monitors against a local server in development. Ignored in production, where checks always refuse private, loopback, link-local and cloud-metadata addresses. |
 | `POSTMARK_API_TOKEN` | to send mail through Postmark | none | A Postmark **server** API token. When set, mail (password resets) is delivered through Postmark's API. Without it, configure SMTP instead (see "Email"). |
 | `GOODSORCERY_API_KEY` | no | none | Ingest key the `goodsorcery` gem uses to report this app's own errors (`config/initializers/goodsorcery.rb`). Unset, nothing is sent. |
 | `GOODSORCERY_MAIL_FROM` | no | `Good Sorcery <no-reply@HOST>`, with HOST taken from the public URL | Sender address for password-reset emails. |
@@ -199,6 +201,12 @@ Every variable below is read by the app's code or config.
 Account event quotas aren't environment variables. Each account has a
 `monthly_event_quota` column (`nil` means unlimited, the self-hosted default).
 Ingest returns `429 quota_exceeded` once an account reaches it.
+
+Entitlements aren't environment variables either. In hosted mode each account's
+values live in the `accounts.entitlement_values` jsonb column
+(`{"uptime_intervals": [5, 10, 60], "max_monitors": 3}`; `"max_monitors": null`
+means no limit) and are written with `account.update_entitlements!(values)`.
+See `docs/ARCHITECTURE.md` §12.2–12.3.
 
 ### Secrets
 

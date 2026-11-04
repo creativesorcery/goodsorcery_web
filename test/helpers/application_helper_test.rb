@@ -1,9 +1,10 @@
 require "test_helper"
 
 class ApplicationHelperTest < ActionView::TestCase
-  test "hosted? and signups_enabled? read the environment" do
-    with_env("GOODSORCERY_HOSTED" => "1") { assert hosted? }
-    with_env("GOODSORCERY_HOSTED" => nil) { assert_not hosted? }
+  test "hosted? reads the hosted-mode config and is off by default" do
+    assert_not hosted?
+    with_hosted_mode { assert hosted? }
+    with_hosted_mode(false) { assert_not hosted? }
   end
 
   test "signups_enabled? is closed by default once an account exists" do

@@ -60,6 +60,13 @@ env:
     # Keep public sign-up open after the first account (see Signup.open?).
     GOODSORCERY_ENABLE_SIGNUPS: "1"
 <% end %>
+<% if ENV["GOODSORCERY_HOSTED"].to_s.strip != "" %>
+    # Managed hosting: entitlements come from each account (docs/ARCHITECTURE.md §12.2).
+    GOODSORCERY_HOSTED: <%= ENV["GOODSORCERY_HOSTED"].to_json %>
+<% end %>
+<% if ENV["GOODSORCERY_UPGRADE_URL"].to_s.strip != "" %>
+    GOODSORCERY_UPGRADE_URL: <%= ENV["GOODSORCERY_UPGRADE_URL"].to_json %>
+<% end %>
   secret:
     - SECRET_KEY_BASE
     - ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY

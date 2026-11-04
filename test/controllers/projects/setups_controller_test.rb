@@ -141,7 +141,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
   test "hosted instances keep the gem's default endpoint on the ruby page" do
     projects(:marketing).update!(platform: "ruby")
 
-    with_env("GOODSORCERY_HOSTED" => "1") { get project_setup_path(projects(:marketing)) }
+    with_hosted_mode { get project_setup_path(projects(:marketing)) }
 
     assert_select "#install_manual pre", text: /# config\.endpoint = "https:\/\/errors\.yourco\.internal"  # self-hosted/
     assert_select "#install_env pre", text: /GOODSORCERY_ENDPOINT/, count: 0
@@ -203,13 +203,5 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     # "i.Add the gem": the step number and title of each panel, in page order.
     def step_headings
       css_select("section h2").map { |heading| heading.text.squish }
-    end
-
-    def with_env(values)
-      previous = values.keys.index_with { |key| ENV[key] }
-      values.each { |key, value| ENV[key] = value }
-      yield
-    ensure
-      previous.each { |key, value| ENV[key] = value }
     end
 end
