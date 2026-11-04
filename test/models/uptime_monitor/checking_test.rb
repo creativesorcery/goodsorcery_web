@@ -110,6 +110,37 @@ class UptimeMonitor::CheckingTest < ActiveSupport::TestCase
     assert_state down_monitor, status: "down"
   end
 
+  test "a flapping monitor reopens its last incident: one down and one recovered alert" do
+    transitions = 3.times.flat_map do |cycle|
+      [ up_monitor.record_check(down_result("timeout"), at: (cycle * 2).minutes.from_now),
+        up_monitor.record_check(up_result, at: (cycle * 2 + 1).minutes.from_now) ]
+    end.compact
+    incident = up_monitor.incidents.where(started_at: Time.current..).sole
+
+    # One down transition. Each recovery reports one, but they share the
+    # incident, so its AlertDelivery key lets one recovered email through.
+    assert_equal [ [ incident, "monitor_down" ], [ incident, "monitor_recovered" ] ], transitions.uniq
+    assert_equal 1, transitions.count { it.last == "monitor_down" }
+    assert_predicate up_monitor.reload, :up?
+  end
+
+  test "going down after the flap grace opens a new incident and alerts again" do
+    up_monitor.record_check(down_result("timeout"))
+    up_monitor.record_check(up_result, at: 1.minute.from_now)
+
+    incident, kind = up_monitor.record_check(down_result("timeout"), at: 1.minute.from_now + up_monitor.flap_grace + 1.second)
+
+    assert_equal "monitor_down", kind
+    assert_equal 2, up_monitor.incidents.where(started_at: Time.current..).count
+    assert_predicate incident, :open?
+  end
+
+  test "flap_grace is three intervals, at most 30 minutes" do
+    assert_equal 30.minutes, up_monitor.flap_grace
+    assert_equal 15.minutes, down_monitor.flap_grace
+    assert_equal 30.minutes, pending_monitor.flap_grace
+  end
+
   test "the database allows one open incident per monitor" do
     assert_raises(ActiveRecord::RecordNotUnique) do
       UptimeIncident.create!(uptime_monitor: down_monitor, started_at: Time.current)

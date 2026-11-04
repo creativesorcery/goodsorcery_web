@@ -9,7 +9,16 @@
 #   pending/up → down → down    down_since, opens an incident   monitor_down
 #   down       → down → down    none (the incident stays open)
 #   down       → up   → up      clears down_since, resolves it   monitor_recovered
+#
+# Flapping: going down again within flap_grace of the last incident's
+# recovery reopens that incident instead of opening a new one, with no down
+# alert. Each recovery still reports monitor_recovered, but alerts are
+# deduped per incident, so a flapping monitor sends one down and one
+# recovered email, not a pair per cycle (uptime alerts skip the hourly cap).
 module UptimeMonitor::Checking
+  FLAP_GRACE_INTERVALS = 3
+  FLAP_GRACE_MAX = 30.minutes
+
   HOURLY_ON_DUPLICATE = <<~SQL.squish.freeze
     checks_count = uptime_hourly_counts.checks_count + 1,
     up_count = uptime_hourly_counts.up_count + EXCLUDED.up_count,
@@ -61,6 +70,9 @@ module UptimeMonitor::Checking
     [ UptimeMonitor::RECHECK_GAP, entitlements.uptime_intervals.min.minutes ].max
   end
 
+  # Three intervals, at most 30 minutes.
+  def flap_grace = [ (interval_minutes * FLAP_GRACE_INTERVALS).minutes, FLAP_GRACE_MAX ].min
+
   private
     def insert_check(result, at)
       UptimeCheck.insert({ uptime_monitor_id: id, checked_at: at, status: result.status, response_time_ms: result.response_time_ms,
@@ -81,13 +93,23 @@ module UptimeMonitor::Checking
       resolve_open_incident(at) if result.up? && down?
     end
 
-    # ON CONFLICT on the one-open index: an incident left open (say, by a
-    # hand-edited status) makes this a down → down check, with no alert.
+    # An incident left open (say, by a hand-edited status) makes this a
+    # down → down check, with no alert; ON CONFLICT on the one-open index
+    # backs that up.
     def open_incident_for(result, at)
+      return if incidents.open.exists? || reopen_flapping_incident(at)
+
       row = { uptime_monitor_id: id, started_at: at, error_kind: result.error_kind, http_status: result.http_status }
       inserted = UptimeIncident.insert(row, unique_by: :index_uptime_incidents_one_open, returning: %i[id])
       incident_id = inserted.rows.dig(0, 0)
       [ UptimeIncident.find(incident_id), "monitor_down" ] if incident_id
+    end
+
+    # Returns true when an incident resolved within flap_grace was reopened.
+    # Its down and recovered emails were already sent, so none go out again.
+    def reopen_flapping_incident(at)
+      incident = incidents.where(resolved_at: (at - flap_grace)..).order(:resolved_at).last
+      incident&.update_columns(resolved_at: nil) || false
     end
 
     def resolve_open_incident(at)
