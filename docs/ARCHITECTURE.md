@@ -2026,7 +2026,7 @@ DELETE FROM apm_traces WHERE id IN (
                   FROM apm_traces WHERE hour >= :from AND hour < :to) ranked
   WHERE rank > :kept)
 ```
-`:kept` = `ApmTrace::KEPT_PER_CLOSED_HOUR` (3), deleting at most 1,000 ids per statement until none are left. Three hours of look-back cover traces that arrive late (they are accepted up to 2 hours late). The open hour is never trimmed.
+`:kept` = `ApmTrace::KEPT_PER_CLOSED_HOUR` (3), deleting at most 1,000 ids per statement until none are left. Three hours of look-back cover traces that arrive late (they are accepted up to 2 hours late). When runs were missed (Sidekiq down), the window starts instead at the oldest earlier hour, within `Entitlements::MAX_APM_RETENTION_DAYS`, that still has more than 3 traces of one transaction (one `GROUP BY apm_transaction_id, hour HAVING COUNT(*) > 3` over the `hour` index). The open hour is never trimmed.
 
 **Sidekiq:** add `[apm, 2]` to `config/sidekiq.yml` after `ingest`. `ProcessApmBatchJob` is short and DB-bound; one queue for both kinds.
 
