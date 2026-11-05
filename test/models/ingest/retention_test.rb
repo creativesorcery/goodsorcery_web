@@ -155,4 +155,90 @@ class Ingest::RetentionTest < ActiveSupport::TestCase
     assert UptimeIncident.exists?(recent.id)
     assert UptimeIncident.exists?(open.id), "open incidents are kept"
   end
+
+  # Performance data (docs/ARCHITECTURE.md §13.7).
+
+  def apm_stat_row(model, transaction, time)
+    { apm_transaction_id: transaction.id, model.time_column => time, requests_count: 1 }
+  end
+
+  def add_apm_trace(transaction, minute)
+    ApmTrace.insert({ project_id: transaction.project_id, apm_transaction_id: transaction.id, uuid: Apm::TraceId.generate(minute),
+                      minute:, hour: TimeSeries.align(minute, 1.hour), started_at: minute, payload: "{}", created_at: minute },
+                    returning: %i[id]).rows.first.first
+  end
+
+  test "prunes per-minute performance rows after 2 days" do
+    checkout = apm_transactions(:checkout_create)
+    old, kept = TimeSeries.align(50.hours.ago, 1.minute), TimeSeries.align(47.hours.ago, 1.minute)
+    ApmMinuteStat.insert_all([ apm_stat_row(ApmMinuteStat, checkout, old), apm_stat_row(ApmMinuteStat, checkout, kept) ])
+
+    Ingest::Retention.new.prune_apm
+
+    assert_not ApmMinuteStat.exists?(apm_transaction_id: checkout.id, minute: old)
+    assert ApmMinuteStat.exists?(apm_transaction_id: checkout.id, minute: kept)
+  end
+
+  test "prunes hourly performance rows, traces and stale transactions past each account's retention" do
+    checkout, umbrella = apm_transactions(:checkout_create), apm_transactions(:umbrella_home)
+    hour = TimeSeries.align(10.days.ago, 1.hour)
+    ApmHourlyStat.insert_all([ apm_stat_row(ApmHourlyStat, checkout, hour), apm_stat_row(ApmHourlyStat, umbrella, hour) ])
+    old_trace, umbrella_trace = add_apm_trace(checkout, hour), add_apm_trace(umbrella, hour)
+    stale = ApmTransaction.create!(project: projects(:storefront), environment: "production", kind: "web", name: "Old#gone",
+                                   first_seen_at: 40.days.ago, last_seen_at: 31.days.ago)
+
+    with_hosted_mode do
+      accounts(:umbrella).update!(entitlement_values: accounts(:umbrella).entitlement_values.merge("apm_retention_days" => 14))
+      Ingest::Retention.new.prune_apm
+    end
+
+    assert_not ApmHourlyStat.exists?(apm_transaction_id: checkout.id, hour:), "acme has the hosted default of 1 day"
+    assert_not ApmTrace.exists?(old_trace)
+    assert ApmHourlyStat.exists?(apm_transaction_id: umbrella.id, hour:), "umbrella keeps 14 days"
+    assert ApmTrace.exists?(umbrella_trace)
+    assert_not ApmTransaction.exists?(stale.id)
+    assert ApmTransaction.exists?(checkout.id)
+    assert ApmTrace.exists?(apm_traces(:checkout_failed).id)
+    assert ApmTransaction.exists?(apm_transactions(:storefront_web_total).id), "total rows stay"
+  end
+
+  test "self-hosted keeps performance data for the instance setting" do
+    checkout = apm_transactions(:checkout_create)
+    hour = TimeSeries.align(10.days.ago, 1.hour)
+    ApmHourlyStat.insert_all([ apm_stat_row(ApmHourlyStat, checkout, hour) ])
+
+    Ingest::Retention.new.prune_apm
+    assert ApmHourlyStat.exists?(apm_transaction_id: checkout.id, hour:)
+
+    Rails.configuration.x.apm_retention_days, previous = 7, Rails.configuration.x.apm_retention_days
+    Ingest::Retention.new.prune_apm
+    assert_not ApmHourlyStat.exists?(apm_transaction_id: checkout.id, hour:)
+  ensure
+    Rails.configuration.x.apm_retention_days = previous if previous
+  end
+
+  test "a backstop deletes anything older than the longest retention" do
+    checkout = apm_transactions(:checkout_create)
+    hour = TimeSeries.align(40.days.ago, 1.hour)
+    ApmHourlyStat.insert_all([ apm_stat_row(ApmHourlyStat, checkout, hour) ])
+    trace = add_apm_trace(checkout, hour)
+    Ingest::Retention.new.prune_apm_backstop
+    assert_not ApmTrace.exists?(trace)
+    assert_not ApmHourlyStat.exists?(apm_transaction_id: checkout.id, hour:)
+  end
+
+  test "deletes inbound performance batches after a day, logging unprocessed ids only" do
+    old = apm_inbound_batches(:storefront_pending_metrics)
+    old.update_columns(received_at: 25.hours.ago)
+    log = StringIO.new
+    previous, Rails.logger = Rails.logger, ActiveSupport::Logger.new(log)
+
+    Ingest::Retention.new.prune_apm
+
+    assert_not ApmInboundBatch.exists?(old.id)
+    assert_includes log.string, old.id.to_s
+    assert_not_includes log.string, "Checkouts"
+  ensure
+    Rails.logger = previous
+  end
 end

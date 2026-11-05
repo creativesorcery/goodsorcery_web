@@ -11,7 +11,12 @@
 #   except the down rows of uptime incidents still open;
 # - uptime checks past their app's retention, never more than
 #   UptimeCheck::MAX_KEPT_DAYS; uptime rollups older than UPTIME_ROLLUP_DAYS;
-#   resolved uptime incidents older than UptimeIncident::KEPT_FOR.
+#   resolved uptime incidents older than UptimeIncident::KEPT_FOR;
+# - performance data (#prune_apm): minute rows after ApmMinuteStat::KEPT_FOR;
+#   hourly rows, traces and transactions not seen within each account's
+#   apm_retention_days (a downgrade applies here); anything older than
+#   Entitlements::MAX_APM_RETENTION_DAYS + 1 days as a backstop; inbound
+#   performance batches after ApmInboundBatch::KEPT_FOR.
 class Ingest::Retention
   # The issue chart's 30d view reaches back 30 local days; one more covers
   # any time zone offset.
@@ -22,6 +27,7 @@ class Ingest::Retention
   PROJECT_ROLLUP_DAYS = 90
   # Uptime percentages reach back 30 days and the daily bars 30 local days.
   UPTIME_ROLLUP_DAYS = Project::MAX_RETENTION_DAYS + 1
+  APM_BACKSTOP_DAYS = Entitlements::MAX_APM_RETENTION_DAYS + 1
   UNPROCESSED_TTL = 1.day
   BATCH = 1_000
 
@@ -36,6 +42,7 @@ class Ingest::Retention
     prune_unprocessed
     prune_alert_deliveries
     prune_uptime
+    prune_apm
   end
 
   # One batched delete per distinct retention period, not per project.
@@ -86,7 +93,46 @@ class Ingest::Retention
     UptimeIncident.where(resolved_at: ...(@now - UptimeIncident::KEPT_FOR)).in_batches(of: BATCH).delete_all
   end
 
+  def prune_apm
+    prune_hour_slices(ApmMinuteStat, @now - ApmMinuteStat::KEPT_FOR, column: :minute)
+    each_apm_retention_cutoff { |transaction_ids, cutoff| prune_apm_history(transaction_ids, cutoff) }
+    prune_apm_backstop
+    prune_apm_batches
+  end
+
+  # Whatever an account's value, nothing is kept past the longest retention.
+  def prune_apm_backstop
+    cutoff = rollup_cutoff(APM_BACKSTOP_DAYS)
+    prune_hour_slices(ApmHourlyStat, cutoff)
+    ApmTrace.where(hour: ...cutoff).in_batches(of: BATCH).delete_all
+  end
+
   private
+    # Accounts grouped by their resolved apm_retention_days (computed in
+    # Ruby: hosted values live in a jsonb document), then one pass per value.
+    def each_apm_retention_cutoff
+      account_ids_by_days = Hash.new { |hash, days| hash[days] = [] }
+      Account.find_each { |account| account_ids_by_days[account.entitlements.apm_retention_days] << account.id }
+      account_ids_by_days.each do |days, account_ids|
+        yield ApmTransaction.where(project_id: Project.where(account_id: account_ids).select(:id)), @now - days.days
+      end
+    end
+
+    def prune_apm_history(transactions, cutoff)
+      prune_hour_slices(ApmHourlyStat.where(apm_transaction_id: transactions.select(:id)), cutoff)
+      ApmTrace.where(apm_transaction_id: transactions.select(:id), hour: ...cutoff).in_batches(of: BATCH).delete_all
+      transactions.listed.where(last_seen_at: ...cutoff).in_batches(of: BATCH).delete_all
+    end
+
+    # Their jobs keep failing; the body is deleted unread and only ids are logged.
+    def prune_apm_batches
+      ApmInboundBatch.where(received_at: ...(@now - ApmInboundBatch::KEPT_FOR)).in_batches(of: BATCH) do |batch|
+        unprocessed = batch.where(processed_at: nil).ids
+        Rails.logger.info { "Retention deleted unprocessed APM batches #{unprocessed.join(', ')}" } if unprocessed.any?
+        batch.delete_all
+      end
+    end
+
     # A value above the cap (set before it existed, or by hand) is pruned at the cap.
     def each_retention_cutoff(cap_days: Project::MAX_RETENTION_DAYS)
       Project.distinct.pluck(:retention_days).each do |days|
@@ -96,10 +142,11 @@ class Ingest::Retention
 
     def rollup_cutoff(days) = TimeSeries.align(@now - days.days, 1.hour)
 
-    # Deletes by `hour` range (indexed), never by composite primary key.
-    def prune_hour_slices(model, cutoff)
-      while (oldest = model.where(hour: ...cutoff).minimum(:hour))
-        model.where(hour: oldest...[ oldest + 1.hour, cutoff ].min).delete_all
+    # Deletes by time range (indexed), one hour slice per statement, never by
+    # composite primary key. scope is a model or a relation.
+    def prune_hour_slices(scope, cutoff, column: :hour)
+      while (oldest = scope.where(column => ...cutoff).minimum(column))
+        scope.where(column => oldest...[ oldest + 1.hour, cutoff ].min).delete_all
       end
     end
 end
