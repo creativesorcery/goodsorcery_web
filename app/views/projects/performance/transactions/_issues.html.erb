@@ -1,0 +1,22 @@
+<%# locals: (project:, transaction:, report:) -%>
+<section id="errors" class="panel p-5 rise rise-3" aria-labelledby="apm_errors_heading">
+  <h2 id="apm_errors_heading" class="text-[15px] font-semibold text-ink-50">Errors on this <%= transaction.web? ? "endpoint" : "job" %></h2>
+  <p class="mt-1 mb-2 text-[12.5px] text-ink-300">Unresolved issues raised by this <%= transaction.web? ? "endpoint" : "job" %>.</p>
+  <% if report.issues.any? %>
+    <% report.issues.each do |issue| %>
+      <%= link_to project_issue_path(project, issue), class: "block rounded-xl px-3 py-2.5 -mx-1 hover:bg-paper-850 transition" do %>
+        <span class="flex flex-wrap items-center gap-2 min-w-0"><%= issue_class_name(issue) %><%= issue_badge(issue) %></span>
+        <span class="block mt-0.5 text-[13px] text-ink-100 truncate"><%= issue_title(issue) %></span>
+        <span class="block mt-1 font-mono text-[11.5px] text-ink-400">
+          <%= issue.short_id %> · <%= pluralize(delimited(issue.events_count), "event") %> · <%= time_ago_compact(issue.last_seen_at) %>
+        </span>
+      <% end %>
+    <% end %>
+    <% if report.issues_count > report.issues.size %>
+      <%= link_to "All #{report.issues_count} issues →", project_issues_path(project, q: "is:unresolved #{transaction.name}", env: transaction.environment),
+            class: "inline-block mt-2 text-[12.5px] font-semibold text-iris-300 hover:underline" %>
+    <% end %>
+  <% else %>
+    <p class="text-[13px] text-mint-300">No unresolved issues from this <%= transaction.web? ? "endpoint" : "job" %>.</p>
+  <% end %>
+</section>

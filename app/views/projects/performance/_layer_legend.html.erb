@@ -1,0 +1,9 @@
+<%# locals: (line: false) -%>
+<div class="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[12px] text-ink-200">
+  <% PerformanceHelper::LAYER_NAMES.each do |layer, name| %>
+    <span class="flex items-center gap-1.5"><%= apm_swatch(layer) %><%= name %></span>
+  <% end %>
+  <% if line %>
+    <span class="flex items-center gap-1.5"><%= apm_line_swatch(95) %>p95</span>
+  <% end %>
+</div>

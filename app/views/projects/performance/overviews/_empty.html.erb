@@ -1,0 +1,13 @@
+<%# locals: (project:) -%>
+<div class="panel border-dashed px-8 py-12 mt-8 text-center rise rise-1">
+  <div class="mx-auto w-12 h-12"><%= render "shared/sigil" %></div>
+  <h2 class="font-display text-[22px] text-ink-50 mt-4">See where request time goes</h2>
+  <p class="text-[14px] text-ink-400 mt-2 max-w-md mx-auto">
+    Turn on performance monitoring in the goodsorcery gem to see response times, slow endpoints and traces of the slowest requests.
+  </p>
+  <div class="code-pane mt-5 mx-auto max-w-md text-left">
+    <div class="code-pane-header"><span>config/initializers/goodsorcery.rb</span></div>
+    <pre class="code-pane-body">config.performance_monitoring = <span class="tok-k">true</span></pre>
+  </div>
+  <div class="mt-5"><%= link_to "Settings & setup", project_setup_path(project), class: "btn btn-sm" %></div>
+</div>

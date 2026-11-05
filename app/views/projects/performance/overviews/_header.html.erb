@@ -1,0 +1,13 @@
+<%# locals: (project:, overview:) -%>
+<div class="flex flex-wrap items-end justify-between gap-6 rise">
+  <div>
+    <div class="eyebrow"><%= project.name %> · <%= overview.environment %></div>
+    <h1 class="page-title">Performance <span class="text-ink-400 text-[28px]">— <%= overview.range.label %></span></h1>
+  </div>
+  <div class="flex flex-wrap items-center gap-2">
+    <%= render "projects/performance/environment_menu", selection: overview.selection,
+          path_for: ->(name) { project_performance_path(project, overview.link_params(env: name)) } %>
+    <%= render "projects/performance/range_picker", range: overview.range,
+          path_for: ->(key) { project_performance_path(project, overview.link_params(range: key)) } %>
+  </div>
+</div>

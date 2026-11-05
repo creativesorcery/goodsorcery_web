@@ -1,0 +1,18 @@
+<% provide :title, "#{@transaction.name} · Performance" %>
+<% provide :nav, "performance" %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb @project.name, project_issues_path(@project) %>
+<% breadcrumb "Performance", project_performance_path(@project, @selection.link_params(tab: (@transaction.job? ? "jobs" : nil))) %>
+<% breadcrumb @transaction.name %>
+
+<div class="px-8 pt-8 pb-16 max-w-[1400px]">
+  <%= render "projects/performance/transactions/hero", project: @project, transaction: @transaction, selection: @selection, report: @report %>
+  <%= render "projects/performance/transactions/ribbon", project: @project, transaction: @transaction, report: @report %>
+
+  <%= render "projects/performance/transactions/response_chart", report: @report %>
+  <div class="mt-4 grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-4 items-start">
+    <%= render "projects/performance/transactions/where_time_goes", report: @report %>
+    <%= render "projects/performance/transactions/issues", project: @project, transaction: @transaction, report: @report %>
+  </div>
+  <%= render "projects/performance/transactions/traces", transaction: @transaction, selection: @selection, list: @report.traces %>
+</div>

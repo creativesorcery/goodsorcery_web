@@ -1,0 +1,28 @@
+<% provide :title, "Trace no longer kept · #{@project.name}" %>
+<% provide :nav, "performance" %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb @project.name, project_issues_path(@project) %>
+<% breadcrumb "Performance", project_performance_path(@project) %>
+<% breadcrumb "Trace" %>
+
+<div class="px-8 pt-8 pb-16 max-w-[1400px]">
+  <div class="panel border-dashed px-8 py-12 text-center rise">
+    <div class="mx-auto w-12 h-12"><%= render "shared/sigil" %></div>
+    <h1 class="font-display text-[26px] text-ink-50 mt-4">This trace is no longer kept</h1>
+    <p class="text-[14px] text-ink-400 mt-2 max-w-md mx-auto">
+      <% if @lookup.reason == :trimmed %>
+        We keep the slowest request each minute this hour, and the 3 slowest of each earlier hour. A slower request replaced this one.
+      <% elsif entitlements.unlimited? %>
+        This instance keeps performance data for <%= pluralize(@lookup.retention_days, "day") %>.
+      <% else %>
+        Good Sorcery keeps performance data for <%= pluralize(@lookup.retention_days, "day") %> on this account.
+      <% end %>
+    </p>
+    <div class="mt-5 flex flex-wrap items-center justify-center gap-4">
+      <%= link_to "Back to Performance", project_performance_path(@project), class: "btn btn-sm" %>
+      <% if @lookup.reason == :plan && !entitlements.unlimited? %>
+        <%= upgrade_to_unlock("Upgrade to keep more days", classes: "text-[13px] font-semibold text-iris-300") %>
+      <% end %>
+    </div>
+  </div>
+</div>

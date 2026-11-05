@@ -1,0 +1,19 @@
+<%# locals: (project:, transaction:, selection:, report:) -%>
+<div class="flex flex-wrap items-start justify-between gap-6 rise">
+  <div class="min-w-0">
+    <div class="eyebrow"><%= transaction.web? ? "Web request" : "Background job" %> · <%= transaction.environment %></div>
+    <h1 class="mt-2 font-mono text-[30px] leading-[1.15] font-semibold text-ink-50 break-all"><%= transaction.name %></h1>
+    <div class="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-2 font-mono text-[13px] text-ink-200">
+      <% apm_source_line(transaction).each_with_index do |part, index| %>
+        <% if index.positive? %><span class="text-paper-500" aria-hidden="true">•</span><% end %>
+        <span class="break-all"><%= part %></span>
+      <% end %>
+      <% if (ratio = report.slower_ratio) %>
+        <% since = report.climbing_since %>
+        <span class="chip chip-coral font-sans"><span class="coral-dot w-1.5 h-1.5"></span>p95 in the last hour is <%= apm_ratio(ratio) %> the day's<%= ", climbing since about #{since.in_time_zone.strftime('%H:%M')}" if since %></span>
+      <% end %>
+    </div>
+  </div>
+  <%= render "projects/performance/range_picker", range: selection.range,
+        path_for: ->(key) { project_performance_transaction_path(project, transaction, selection.link_params(range: key, traces: (selection.trace_sort unless selection.trace_sort == "slowest"))) } %>
+</div>

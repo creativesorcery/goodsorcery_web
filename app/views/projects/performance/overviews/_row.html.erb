@@ -1,0 +1,25 @@
+<%# locals: (project:, overview:, row:) -%>
+<% transaction, figures = row.transaction, row.figures %>
+<div class="<%= PerformanceHelper::TABLE_GRID %> group relative px-5 py-3.5 border-b border-paper-700/70 last:border-b-0 hover:bg-iris-500/[.04] transition">
+  <div class="min-w-0">
+    <div class="flex flex-wrap items-center gap-2 min-w-0">
+      <%= link_to transaction.name, project_performance_transaction_path(project, transaction, overview.selection.link_params),
+            class: "font-mono text-[13.5px] font-semibold text-ink-50 truncate after:absolute after:inset-0 focus:outline-none" %>
+      <% if row.slower? %><%= apm_slower_chip %><% end %>
+      <% if row.n_plus_one %><%= apm_n_plus_one_chip %><% end %>
+    </div>
+    <% if (route = apm_route_line(transaction, queue_wait_ms: figures.queue_wait_p95)) %>
+      <div class="font-mono text-[12px] text-ink-300 mt-0.5 truncate"><%= route %></div>
+    <% end %>
+  </div>
+  <span class="text-right font-mono text-[13px] text-ink-50"><%= apm_rate(row.rate) %></span>
+  <span class="text-right font-mono text-[13px] text-ink-100"><%= apm_duration(figures.p50) %></span>
+  <span class="text-right font-mono text-[13px] <%= row.slower? ? "text-coral-300 font-semibold" : "text-ink-50" %>"><%= apm_duration(figures.p95) %></span>
+  <span class="text-right font-mono text-[13px] text-ink-100"><%= apm_duration(figures.p99) %></span>
+  <span class="text-right font-mono text-[13px] text-ink-100"><%= apm_percent(figures.failed_rate) %></span>
+  <span class="flex items-center gap-2">
+    <%= apm_share_bar_svg(row.share) %>
+    <span class="font-mono text-[12.5px] text-ink-100"><%= apm_percent(row.share) %></span>
+  </span>
+  <span title="p95 per hour, last 24 hours"><%= apm_p95_sparkline(row.sparkline, slower: row.slower?) || "—" %></span>
+</div>

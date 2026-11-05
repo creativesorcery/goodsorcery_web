@@ -44,6 +44,16 @@ class ShellTest < ActionDispatch::IntegrationTest
     assert_select "aside a.nav-link[href=?]", project_setup_path(projects(:marketing)), text: /Settings/
   end
 
+  test "the sidebar links to the app's Performance page right after Issues" do
+    sign_in_as users(:philip)
+
+    get project_issues_path(projects(:storefront))
+
+    labels = css_select("aside nav[aria-label=Main] .nav-link").map { it.text.squish }
+    assert_equal "Performance", labels[labels.index { it.start_with?("Issues") } + 1]
+    assert_select "aside a.nav-link[href=?]", project_performance_path(projects(:storefront)), text: /Performance/
+  end
+
   test "the sidebar links to the app's Uptime page with a dot when a monitor is down" do
     sign_in_as users(:philip)
 

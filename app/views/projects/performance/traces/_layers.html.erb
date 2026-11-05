@@ -1,0 +1,14 @@
+<%# locals: (page:) -%>
+<% layers = page.layers %>
+<section class="panel p-5 mt-5 rise rise-1" aria-label="Time by layer">
+  <%= apm_split_bar_svg(layers.to_h { |layer, ms, _| [ layer, ms ] }, scale_ms: layers.sum { it[1] }, height: 16,
+        title: layers.map { |layer, ms, share| "#{PerformanceHelper::LAYER_NAMES[layer]} #{apm_duration(ms)} (#{apm_percent(share)})" }.join(" · ")) %>
+  <div class="mt-3.5 flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-ink-200">
+    <% layers.each do |layer, ms, share| %>
+      <span class="flex items-center gap-2">
+        <%= apm_swatch(layer) %><%= PerformanceHelper::LAYER_NAMES[layer] %>
+        <span class="font-mono text-ink-50"><%= apm_duration(ms) %></span><span class="text-ink-400"><%= (share * 100).round %>%</span>
+      </span>
+    <% end %>
+  </div>
+</section>

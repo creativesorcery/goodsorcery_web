@@ -1,0 +1,26 @@
+<%# locals: (project:, page:, selection:) -%>
+<% trace, transaction, details = page.trace, page.transaction, page.details %>
+<div class="flex flex-wrap items-start justify-between gap-6 rise">
+  <div class="min-w-0">
+    <div class="eyebrow">
+      Slow trace · <%= page.open_hour? ? "the slowest #{page.web? ? 'request' : 'run'} in its minute" : "one of the 3 slowest in its hour" %>
+    </div>
+    <h1 class="page-title break-all"><%= page.title %></h1>
+    <div class="mt-2 font-mono text-[13px] text-ink-200 break-all">
+      <%= [ transaction.name, trace.started_at.in_time_zone.strftime("%b %-d, %H:%M:%S"), details.host.presence,
+            (page.web? ? (page.request_id && "request #{page.request_id}") : apm_route_line(transaction)) ].compact.join(" · ") %>
+    </div>
+  </div>
+  <nav class="flex items-center gap-2 shrink-0" aria-label="Other traces of <%= transaction.name %>">
+    <% if page.older %>
+      <%= link_to "← Older trace", project_performance_trace_path(project, page.older, selection.link_params), class: "btn btn-sm" %>
+    <% else %>
+      <span class="btn btn-sm" aria-disabled="true">← Older trace</span>
+    <% end %>
+    <% if page.newer %>
+      <%= link_to "Newer trace →", project_performance_trace_path(project, page.newer, selection.link_params), class: "btn btn-sm" %>
+    <% else %>
+      <span class="btn btn-sm" aria-disabled="true">Newer trace →</span>
+    <% end %>
+  </nav>
+</div>

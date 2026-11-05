@@ -1,0 +1,30 @@
+<%# locals: (page:) -%>
+<% ticks = page.axis_ticks %>
+<% total = page.duration_ms %>
+<section class="panel mt-4 overflow-hidden rise rise-2" aria-labelledby="apm_timeline_heading">
+  <div class="px-5 py-4 flex flex-wrap items-baseline justify-between gap-3">
+    <h2 id="apm_timeline_heading" class="text-[15px] font-semibold text-ink-50">Timeline</h2>
+    <span class="text-[12px] text-ink-300">Repeated queries are grouped into one row.</span>
+  </div>
+  <div class="overflow-x-auto">
+    <div class="min-w-[900px]">
+      <div class="<%= PerformanceHelper::TIMELINE_GRID %> px-5 py-2 border-y border-paper-700 bg-paper-850/60 text-[10.5px] uppercase tracking-[.14em] text-ink-400">
+        <span>Span</span><%= apm_axis_svg(ticks) %><span class="text-right">Time</span>
+      </div>
+      <div class="<%= PerformanceHelper::TIMELINE_GRID %> px-5 py-2 border-b border-paper-700/70">
+        <span class="flex items-center gap-2 min-w-0">
+          <span class="w-11 shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-ink-400"><%= page.web? ? "Action" : "Job" %></span>
+          <span class="font-mono text-[12.5px] text-ink-50 truncate"><%= page.transaction.name %></span>
+        </span>
+        <%= apm_timeline_bar_svg(0, total, total, color: PerformanceChartHelper::IRIS_SOFT, ticks:) %>
+        <span class="text-right font-mono text-[12px] text-ink-50"><%= apm_duration(total) %></span>
+      </div>
+      <% page.spans.each do |span| %>
+        <%= render "projects/performance/traces/span", span:, total:, ticks:, detailed: span.equal?(page.n_plus_one) %>
+      <% end %>
+      <% if page.spans_dropped.positive? %>
+        <p class="px-5 py-2.5 text-[12px] text-ink-400"><%= pluralize(delimited(page.spans_dropped), "span") %> not shown.</p>
+      <% end %>
+    </div>
+  </div>
+</section>

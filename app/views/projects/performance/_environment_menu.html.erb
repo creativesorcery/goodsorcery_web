@@ -1,0 +1,16 @@
+<%# locals: (selection:, path_for:) -%>
+<%# The environments with performance data; each link keeps the range. -%>
+<div class="relative" data-controller="dropdown" data-apm-environments>
+  <button type="button" class="btn btn-sm" data-dropdown-target="button" data-action="dropdown#toggle"
+          aria-haspopup="true" aria-expanded="false" aria-label="Environment: <%= selection.environment %>">
+    <%= environment_dot(selection.environment) %><%= selection.environment %> ▾
+  </button>
+  <div class="menu right-0" data-dropdown-target="menu" hidden>
+    <% selection.environments.each do |name| %>
+      <%= link_to path_for.call(name), class: "menu-item", aria: { current: ("true" if name == selection.environment) } do %>
+        <%= environment_dot(name) %><span class="flex-1"><%= name %></span>
+        <% if name == selection.environment %><%= icon :check, classes: "w-4 h-4 text-iris-300" %><% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

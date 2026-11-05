@@ -1,0 +1,25 @@
+<%# locals: (report:) -%>
+<% series = report.series %>
+<% values = series.lines.values.flatten.compact %>
+<section class="panel p-5 mt-6 rise rise-2" aria-labelledby="apm_response_heading">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <h2 id="apm_response_heading" class="text-[15px] font-semibold text-ink-50">Response time</h2>
+    <div class="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[12px] text-ink-200">
+      <% Apm::EndpointReport::LINES.each do |line| %>
+        <span class="flex items-center gap-1.5"><%= apm_line_swatch(line) %><%= line == :average ? "Average" : "p#{line}" %></span>
+      <% end %>
+    </div>
+  </div>
+  <% if values.any? %>
+    <% max = apm_axis_max(values) %>
+    <div class="flex gap-2 mt-4">
+      <%= render "projects/performance/y_axis", max: %>
+      <div class="flex-1 min-w-0">
+        <%= apm_lines_svg(series.lines, max:, label: "Average, p75, p90, p95 and p99 response time, #{report.range.label}") %>
+        <%= render "projects/performance/x_axis", range: report.range %>
+      </div>
+    </div>
+  <% else %>
+    <p class="mt-4 text-[13.5px] text-ink-400">No <%= report.transaction.web? ? "requests" : "runs" %> in the <%= report.range.label %>.</p>
+  <% end %>
+</section>

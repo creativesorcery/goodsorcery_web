@@ -1,0 +1,11 @@
+<%# locals: (page:) -%>
+<% trace = page.trace %>
+<div class="mt-4 flex flex-wrap items-center gap-2 rise rise-1" aria-label="Trace summary">
+  <%= chip apm_duration(trace.duration_ms), tone: :iris, mono: true %>
+  <%= chip apm_status_label(trace), tone: (apm_failed_status?(trace) ? :coral : :mint) %>
+  <%= chip pluralize(delimited(trace.sql_count), "SQL query", plural: "SQL queries") %>
+  <%= chip pluralize(delimited(trace.http_count), "HTTP call") %>
+  <% if trace.n_plus_one_count.positive? %>
+    <%= chip pluralize(trace.n_plus_one_count, "N+1 pattern"), tone: :lilac %>
+  <% end %>
+</div>

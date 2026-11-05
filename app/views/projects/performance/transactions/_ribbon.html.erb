@@ -1,0 +1,32 @@
+<%# locals: (project:, transaction:, report:) -%>
+<% range = report.range %>
+<dl class="mt-7 panel overflow-hidden grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 divide-x divide-paper-700/70 rise rise-1" aria-label="Summary">
+  <% report.ribbon.each do |stat| %>
+    <div class="px-5 py-4 min-w-0" data-stat="<%= stat.key %>">
+      <% case stat.key %>
+      <% when :requests %>
+        <dt class="text-[12px] text-ink-300"><%= apm_requests_label(transaction, range) %></dt>
+        <dd class="font-display text-[26px] text-ink-50 mt-1"><%= delimited(stat.value) %></dd>
+        <dd class="text-[12px] text-ink-300 mt-0.5"><%= apm_rate(report.rate_per_minute) %> per minute · last hour <%= apm_rate(stat.last_hour) %></dd>
+      <% when :failed %>
+        <dt class="text-[12px] text-ink-300">Failed</dt>
+        <dd class="font-display text-[26px] text-ink-50 mt-1"><%= apm_tile_value(:percent, stat.value) %></dd>
+        <dd class="text-[12px] text-ink-300 mt-0.5">
+          Last hour <%= apm_percent(stat.last_hour) %> ·
+          <% if report.issues_count.positive? %>
+            <%= link_to pluralize(report.issues_count, "issue"), project_issues_path(project, q: "is:unresolved #{transaction.name}", env: transaction.environment),
+                  class: "text-iris-300 hover:underline" %>
+          <% else %>
+            no issues
+          <% end %>
+        </dd>
+      <% else %>
+        <dt class="text-[12px] text-ink-300"><%= stat.label %></dt>
+        <dd class="font-display text-[26px] mt-1 whitespace-nowrap <%= stat.change ? "text-coral-300" : "text-ink-50" %>"><%= apm_tile_value(:duration, stat.value) %></dd>
+        <dd class="text-[12px] mt-0.5 <%= stat.change ? "text-coral-300" : "text-ink-300" %>">
+          Last hour <%= apm_duration(stat.last_hour) %><%= " · ▲ #{apm_ratio(stat.change)}" if stat.change %>
+        </dd>
+      <% end %>
+    </div>
+  <% end %>
+</dl>

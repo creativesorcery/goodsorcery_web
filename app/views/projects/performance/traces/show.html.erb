@@ -1,0 +1,27 @@
+<%# Shows decrypted trace data (SQL, paths, code): never cached by Turbo either. -%>
+<% trace, transaction = @page.trace, @page.transaction %>
+<% provide :title, "Trace #{trace.short_id} · #{transaction.name}" %>
+<% provide :nav, "performance" %>
+<% content_for :head, tag.meta(name: "turbo-cache-control", content: "no-cache") %>
+<% breadcrumb Current.account.name, projects_path %>
+<% breadcrumb @project.name, project_issues_path(@project) %>
+<% breadcrumb "Performance", project_performance_path(@project, @selection.link_params(tab: (transaction.job? ? "jobs" : nil))) %>
+<% breadcrumb transaction.name, project_performance_transaction_path(@project, transaction, @selection.link_params) %>
+<% breadcrumb "trace #{trace.short_id}" %>
+
+<div class="px-8 pt-8 pb-16 max-w-[1400px]">
+  <%= render "projects/performance/traces/hero", project: @project, page: @page, selection: @selection %>
+  <%= render "projects/performance/traces/chips", page: @page %>
+  <%= render "projects/performance/traces/layers", page: @page %>
+  <%= render "projects/performance/traces/timeline", page: @page %>
+
+  <div class="mt-4 grid grid-cols-1 <%= @page.n_plus_one ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "lg:grid-cols-2" %> gap-4 items-start">
+    <% if @page.n_plus_one %>
+      <%= render "projects/performance/traces/n_plus_one", span: @page.n_plus_one %>
+    <% end %>
+    <div class="<%= @page.n_plus_one ? "space-y-4" : "contents" %>">
+      <%= render "projects/performance/traces/request", page: @page %>
+      <%= render "projects/performance/traces/errors", project: @project, page: @page %>
+    </div>
+  </div>
+</div>

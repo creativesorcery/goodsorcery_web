@@ -1,0 +1,6 @@
+<%# locals: (max:) -%>
+<div class="w-12 h-[220px] shrink-0 flex flex-col justify-between text-right font-mono text-[10.5px] leading-none text-ink-400" aria-hidden="true">
+  <% apm_y_ticks(max).each do |value| %>
+    <span><%= value.zero? ? "0" : apm_duration(value) %></span>
+  <% end %>
+</div>

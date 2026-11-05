@@ -1,0 +1,27 @@
+<%# locals: (project:, overview:) -%>
+<% rows = overview.rows %>
+<% nouns = overview.labels[:nouns] %>
+<% if rows.any? %>
+  <section class="panel mt-4 overflow-x-auto rise rise-3" aria-label="<%= nouns.capitalize %>" data-apm-table>
+    <div class="min-w-[1040px]">
+      <div class="<%= PerformanceHelper::TABLE_GRID %> px-5 py-2.5 text-[11px] uppercase tracking-[.16em] text-ink-400/80 border-b border-paper-700 bg-paper-850/60">
+        <span><%= overview.web? ? "Endpoint" : "Job" %></span><span class="text-right"><%= overview.web? ? "Req/min" : "Runs/min" %></span>
+        <span class="text-right">p50</span><span class="text-right">p95</span><span class="text-right">p99</span>
+        <span class="text-right">Failed</span><span>Time share</span><span>p95 · 24h</span>
+      </div>
+      <% rows.each do |row| %>
+        <%= render "projects/performance/overviews/row", project:, overview:, row: %>
+      <% end %>
+    </div>
+  </section>
+  <p class="mt-3 text-center text-[12px] text-ink-300">
+    Showing <%= delimited(rows.size) %> of <%= delimited(overview.total_rows_count) %> <%= nouns %>
+    <% if overview.limited? %>
+      · <%= link_to "show all", project_performance_path(project, overview.link_params(all: "1")), class: "text-iris-300 hover:underline" %>
+    <% end %>
+  </p>
+<% elsif overview.query.present? %>
+  <p class="mt-6 text-[13.5px] text-ink-400">No <%= nouns %> match “<%= overview.query %>” in the <%= overview.range.label %>.</p>
+<% else %>
+  <p class="mt-6 text-[13.5px] text-ink-400">No <%= overview.web? ? "requests" : "job runs" %> in the <%= overview.range.label %>.</p>
+<% end %>

@@ -1,0 +1,24 @@
+<%# locals: (overview:) -%>
+<% bins = overview.chart %>
+<% noun = overview.labels[:noun] %>
+<section class="panel p-5 mt-6 rise rise-2" aria-labelledby="apm_layers_heading">
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h2 id="apm_layers_heading" class="text-[15px] font-semibold text-ink-50">Where <%= noun %> time goes</h2>
+      <p class="mt-1 text-[12.5px] text-ink-300">Average time per <%= overview.web? ? "request" : "run" %> by layer, <%= apm_bin_phrase(overview.range) %>. The line is p95.</p>
+    </div>
+    <%= render "projects/performance/layer_legend", line: true %>
+  </div>
+  <% if bins.any? %>
+    <% max = apm_axis_max(bins.flat_map { [ it.p95, it.split&.values&.sum ] }) %>
+    <div class="flex gap-2 mt-5">
+      <%= render "projects/performance/y_axis", max: %>
+      <div class="flex-1 min-w-0">
+        <%= apm_layer_bars_svg(bins, max:, label: "Average time per #{overview.web? ? 'request' : 'run'} by layer and p95, #{overview.range.label}") %>
+        <%= render "projects/performance/x_axis", range: overview.range %>
+      </div>
+    </div>
+  <% else %>
+    <p class="mt-4 text-[13.5px] text-ink-400">No <%= overview.web? ? "requests" : "job runs" %> in the <%= overview.range.label %>.</p>
+  <% end %>
+</section>
