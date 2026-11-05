@@ -99,7 +99,7 @@ module PerformanceChartHelper
     labels = ticks.each_with_index.map do |(ms, fraction), index|
       tag.text(index.zero? ? "0" : apm_duration(ms), x: apm_percent_attr(fraction), y: 12, "text-anchor": apm_tick_anchor(index, ticks.size))
     end
-    tag.svg safe_join(labels), width: "100%", height: 16, class: "block overflow-visible fill-ink-400 font-mono text-[11px]", "aria-hidden": true
+    tag.svg safe_join(labels), width: "100%", height: 16, class: "block overflow-visible fill-ink-400 font-mono text-[11px] normal-case tracking-normal", "aria-hidden": true
   end
 
   # A 10px legend square in a layer's colour.

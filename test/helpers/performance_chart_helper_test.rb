@@ -5,6 +5,13 @@ class PerformanceChartHelperTest < ActionView::TestCase
 
   Bin = Apm::Overview::Bin
 
+  test "the timeline axis keeps its units lowercase inside the uppercase header" do
+    svg = Nokogiri::HTML5.fragment(apm_axis_svg([ [ 0, 0.0 ], [ 1000, 0.5 ], [ 2000, 1.0 ] ])).at_css("svg")
+
+    assert_includes svg["class"].split, "normal-case"
+    assert_equal [ "0", "1 s", "2 s" ], svg.css("text").map(&:text)
+  end
+
   test "axis tops are round and hold every value" do
     assert_equal 600, apm_axis_max([ 120, 590, nil ])
     assert_equal 3000, apm_axis_max([ 2180 ])
