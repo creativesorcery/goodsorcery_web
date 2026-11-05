@@ -9,6 +9,9 @@ class EncryptionTest < ActiveSupport::TestCase
     assert_ciphertext IssueActivity, issue_activities(:note).id, :body, "CartTotal"
     assert_ciphertext UptimeMonitor, uptime_monitors(:storefront_home).id, :url, "uptime-fixture-secret"
     assert_ciphertext UptimeMonitor, uptime_monitors(:storefront_home).id, :url, "storefront.example"
+    assert_ciphertext ApmTrace, apm_traces(:checkout_slow).id, :payload, "apm-fixture-secret"
+    assert_ciphertext ApmTrace, apm_traces(:checkout_slow).id, :payload, "api.taxjar.com"
+    assert_ciphertext ApmInboundBatch, apm_inbound_batches(:storefront_pending_metrics).id, :body, "CheckoutsController"
   end
 
   test "encrypted attributes round-trip" do
@@ -16,6 +19,7 @@ class EncryptionTest < ActiveSupport::TestCase
     assert_equal FIXTURE_TOKENS[:storefront_production], api_keys(:storefront_production).token
     assert_equal "Mobile Safari", issue_tag_counts(:nomethod_browser_safari).value
     assert_equal "https://storefront.example/up?token=uptime-fixture-secret", uptime_monitors(:storefront_home).url
+    assert_includes apm_traces(:checkout_slow).payload, "apm-fixture-secret"
   end
 
   test "tag values are encrypted" do

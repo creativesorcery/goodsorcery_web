@@ -32,6 +32,11 @@ cap_stored_occurrences:
   class: CapStoredOccurrencesJob
   description: "Trim each app to its stored occurrence cap, most repeated issues first"
 
+trim_apm_traces:
+  cron: "3 * * * *"   # just after each hour
+  class: TrimApmTracesJob
+  description: "Keep the 3 slowest performance traces per transaction for each closed hour"
+
 schedule_uptime_checks:
   cron: "* * * * *"
   class: ScheduleUptimeChecksJob
