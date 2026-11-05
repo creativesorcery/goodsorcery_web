@@ -7,6 +7,7 @@ Client libraries such as the `goodsorcery` Ruby gem use this API to report error
 - **Body:** one JSON object per request, describing one error event (or `{"events":[…]}` for a batch)
 - **Result:** `202 Accepted` with the event id. Processing (grouping, counting, live updates) happens in the background, usually within a second.
 - **Key check:** `GET {endpoint}/api/v1/verify` confirms a key without sending an event (see [Verifying a key](#verifying-a-key)).
+- **Performance data:** `POST {endpoint}/api/v1/apm/metrics` and `POST {endpoint}/api/v1/apm/traces` (see [Performance monitoring](#performance-monitoring-apm)).
 
 API keys are **ingest-only** and belong to one project environment (for example `production` or `staging`). A key can only submit events. It cannot read anything. Keep keys in server-side configuration and never ship them to browsers or mobile apps.
 
@@ -214,6 +215,194 @@ Retry the whole batch on `429` and `5xx`, reusing every `event_id` (events that 
 
 The Ruby gem uses it for its install check (`bin/rails goodsorcery:verify`).
 
+## Performance monitoring (APM)
+
+Two endpoints receive performance data. Clients aggregate in process and send **once a minute per process**: one metrics payload, and one traces payload when there are traces. The Ruby gem does this when `config.performance_monitoring = true`.
+
+- `POST {endpoint}/api/v1/apm/metrics`: per-transaction, per-minute counts and histograms.
+- `POST {endpoint}/api/v1/apm/traces`: timelines of the slowest request per transaction per minute.
+
+Both use the same `Authorization`, `Content-Type: application/json` and optional `Content-Encoding: gzip` headers as error events (gzip is recommended; the gem always compresses bodies of 1 KiB or more). The **environment comes from the API key**. Performance data **does not count toward the monthly event quota** and is accepted when the quota is used up; it has its own rate limits (below).
+
+### Transactions
+
+A transaction is what ran:
+
+| `kind` | `name` | Labels |
+|---|---|---|
+| `web` | `Controller#action`, e.g. `CheckoutsController#create` | `method` (`POST`) and `route`, the route **pattern** (`/products/:slug`), never the real path |
+| `job` | the job class, e.g. `Orders::PlaceJob` | `adapter` (`sidekiq`, `async`, …) and `queue` |
+
+Both kinds may send `source`, the app-relative file of the controller or job class (`app/controllers/checkouts_controller.rb`). The server keeps at most 500 names per app, environment and kind; data for further names is counted under the name `(other)`. Clients should fold names past their own cap into `(other)` too.
+
+### Histogram buckets (scheme `gs-v1`)
+
+Durations are counted in 31 fixed buckets on a log scale. These are the upper bounds of buckets 0–29 in milliseconds; bucket 30 holds everything from 48,000 ms up:
+
+```
+1, 1.5, 2, 3, 4.5, 6.5, 9.5, 14, 20, 28,
+40, 60, 85, 125, 180, 260, 380, 550, 800, 1150,
+1700, 2450, 3550, 5100, 7500, 11000, 16000, 23000, 33000, 48000
+```
+
+Bucket `i` holds durations `d` with `bound[i-1] <= d < bound[i]` (bucket 0 starts at 0). In other words, the index is the number of bounds that are `<= d`: 0.4 ms goes in bucket 0, exactly 1 ms in bucket 1, 250 ms in bucket 15 and 60 s in bucket 30. Each edge is about 1.45× the one before, so a reported percentile is within about ±20% of the true value. Queue wait uses the same buckets.
+
+### Metrics payload
+
+```json
+{
+  "batch_id": "0192f7b0-1a2b-7c3d-8e4f-5a6b7c8d9e0f",
+  "histogram": "gs-v1",
+  "notifier": { "name": "goodsorcery-ruby", "version": "0.2.0" },
+  "minutes": [
+    {
+      "minute": "2026-11-04T14:32:00Z",
+      "transactions": [
+        {
+          "kind": "web",
+          "name": "CheckoutsController#create",
+          "method": "POST",
+          "route": "/checkout",
+          "source": "app/controllers/checkouts_controller.rb",
+          "count": 42,
+          "failed": 1,
+          "duration_ms": 14280.5,
+          "buckets": [[15, 30, 2101.4, 3302.0, 1500.2, 1040.1], [17, 10, 1820.1, 2640.2, 300.4, 410.0], [20, 2, 1210.0, 1180.3, 80.2, 96.0]]
+        },
+        {
+          "kind": "job",
+          "name": "Orders::PlaceJob",
+          "adapter": "sidekiq",
+          "queue": "critical",
+          "source": "app/jobs/orders/place_job.rb",
+          "count": 38,
+          "failed": 0,
+          "duration_ms": 16012.0,
+          "buckets": [[17, 37, 8020.5, 4100.0, 0, 3471.5], [19, 1, 300.0, 600.0, 0, 120.0]],
+          "queue_wait_ms": 4210.0,
+          "queue_wait": [[11, 30], [15, 8]]
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `batch_id` | UUID string | Optional but recommended. The idempotency key: a payload resent with the same `batch_id` is accepted and counted once. Reuse it when retrying. Missing or invalid → the server generates one (and cannot deduplicate). |
+| `histogram` | string | **Required**, `"gs-v1"`. Any other value gets `422`. |
+| `notifier` | object | `name` and `version` of the client library. |
+| `minutes[]` | array | **Required**, 1–5 entries, one per minute (a client sends more than one only after a failed flush). |
+| `minutes[].minute` | ISO 8601 timestamp | **Required**, the UTC start of the minute (seconds and fractions must be 0). The minute in which the requests **finished**. Minutes more than 24 hours old or more than 2 minutes in the future are skipped. |
+| `minutes[].transactions[]` | array | **Required**, 1–1,000 entries. A transaction appears at most once per minute. |
+| `kind` | string | **Required**, `web` or `job`. |
+| `name` | string | **Required**, 1–255 chars (longer is truncated). |
+| `method`, `route` | strings | Web only; `method` ≤ 16 chars, `route` ≤ 255 chars. Optional. |
+| `adapter`, `queue` | strings | Jobs only; ≤ 32 and ≤ 128 chars. Optional. |
+| `source` | string | Optional, ≤ 500 chars, app-relative. |
+| `count` | integer | **Required**, ≥ 1: requests (or job runs) that finished in this minute. |
+| `failed` | integer | **Required**, 0..`count`. Web: status ≥ 500 or an exception escaped. Job: an exception escaped (each attempt counts). |
+| `duration_ms` | number | **Required**, ≥ 0: the sum of the total durations. |
+| `buckets[]` | array of arrays | **Required**, 1–31 entries `[index, count, db_ms, http_ms, view_ms, ruby_ms]`, one per bucket that has requests, in any order: `index` 0..30 (each at most once), `count` ≥ 1, and the summed time per layer of the requests in that bucket (numbers ≥ 0). The counts must add up to `count`. Layers: `db_ms` is SQL time (not schema or cached queries), `http_ms` outgoing HTTP calls, `view_ms` template rendering (without double-counting nested renders or the queries inside them), `ruby_ms` the rest (per request: total − the other three, floored at 0). |
+| `queue_wait_ms` | number | Jobs only, optional: the summed queue wait (start − `enqueued_at`, or − `scheduled_at` for scheduled jobs). |
+| `queue_wait[]` | array of arrays | Jobs only, optional, ≤ 31 entries `[index, count]`; the counts add up to at most `count` (jobs without an enqueue time have no wait). |
+
+Numbers are JSON numbers (integers or decimals; `NaN`/`Infinity` are invalid). Unknown fields are ignored. The server merges metrics by **addition**: any number of processes may report the same transaction and minute.
+
+### Traces payload
+
+```json
+{
+  "batch_id": "0192f7b0-1a2c-7d4e-9f50-6b7c8d9e0f1a",
+  "notifier": { "name": "goodsorcery-ruby", "version": "0.2.0" },
+  "traces": [
+    {
+      "id": "0192f7af-9c1e-7a3b-8c2d-4e5f6a7b7f3a",
+      "kind": "web",
+      "name": "CheckoutsController#create",
+      "method": "POST",
+      "route": "/checkout",
+      "minute": "2026-11-04T14:32:00Z",
+      "started_at": "2026-11-04T14:32:08.114Z",
+      "duration_ms": 2940.2,
+      "db_ms": 1220.4, "http_ms": 1230.0, "view_ms": 320.1, "ruby_ms": 169.7,
+      "status": 200,
+      "failed": false,
+      "error_event_id": null,
+      "request": { "method": "POST", "path": "/checkout", "request_id": "7f3a9c1e-55d2-4c1a-9e0b-2d1f0a9b8c7d" },
+      "host": "web-2",
+      "process": "Puma worker 3",
+      "runtime": { "ruby": "3.4.1", "rails": "8.0.2" },
+      "gc": { "time_ms": 14.0, "count": 3 },
+      "allocations": 1400000,
+      "sql_count": 43,
+      "http_count": 2,
+      "spans_dropped": 0,
+      "spans": [
+        { "type": "sql", "offset_ms": 12.1, "duration_ms": 3.0, "name": "User Load",
+          "sql": "SELECT \"users\".* FROM \"users\" WHERE \"users\".\"id\" = $1 LIMIT $2", "rows": 1 },
+        { "type": "sql", "offset_ms": 40.1, "duration_ms": 1180.0, "span_ms": 1215.2, "count": 38, "rows": 38,
+          "name": "Product Load",
+          "sql": "SELECT \"products\".* FROM \"products\" WHERE \"products\".\"id\" = $1 LIMIT $2",
+          "call_site": { "file": "app/services/cart_total.rb", "line": 27, "method": "total_cents",
+                         "context": { "start_line": 25, "lines": ["def total_cents", "  items.sum do |item|", "    item.product.price_cents * item.quantity", "  end", "end"] } } },
+        { "type": "http", "offset_ms": 1260.0, "duration_ms": 550.0, "method": "POST", "host": "api.taxjar.com", "path": "/v2/taxes", "status": 200 },
+        { "type": "view", "offset_ms": 2560.3, "duration_ms": 320.1, "template": "checkouts/create.html.erb" },
+        { "type": "enqueue", "offset_ms": 2900.0, "duration_ms": 4.0, "job": "Orders::PlaceJob", "queue": "critical" }
+      ]
+    }
+  ]
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `batch_id` | UUID string | As for metrics. |
+| `traces[]` | array | **Required**, 1–50 traces. |
+| `id` | UUID string | The trace id, a **UUIDv7** (its first 48 bits are the start time in Unix ms). Missing or invalid → generated. |
+| `kind`, `name`, `method`, `route`, `adapter`, `queue` | | As for metrics; `kind` and `name` are required. |
+| `minute` | ISO 8601 timestamp | **Required**, the UTC start of the minute in which the request finished (the metrics minute). Traces more than 2 hours old or more than 2 minutes in the future are skipped. |
+| `started_at` | ISO 8601 timestamp | **Required**, with milliseconds. |
+| `duration_ms` | number | **Required**, ≥ 0. |
+| `db_ms`, `http_ms`, `view_ms`, `ruby_ms` | numbers | The request's time per layer (as in metrics buckets). |
+| `status` | integer | Web: the HTTP status (500 when an exception escaped). Omit for jobs. |
+| `failed` | boolean | As for metrics. |
+| `error_event_id` | UUID string or null | The `event_id` of the error event reported for this request, if any. The trace page links to its issue. |
+| `request` | object | Web only: `method`, `path` (≤ 1,024 chars, **no query string**) and `request_id` (≤ 128 chars). Nothing else: no params, headers, cookies or bodies. |
+| `job` | object | Jobs only: `adapter`, `queue`, `queue_wait_ms`, `executions` (integer). |
+| `host`, `process` | strings | ≤ 255 chars each: server host name and a process label. |
+| `runtime` | object | `ruby` and `rails` version strings (≤ 64 chars). |
+| `gc` | object | `time_ms` (number) and `count` (integer) during the request. |
+| `allocations` | integer | Objects allocated during the request. |
+| `sql_count`, `http_count` | integers | Calls made, counting every call in a grouped span. |
+| `spans_dropped` | integer | Spans not sent because of the client's cap. |
+| `spans[]` | array | ≤ 300 spans (more are dropped and counted in `spans_dropped`), in start order. Common fields: `type` (`sql`, `http`, `view`, `enqueue`; others are dropped), `offset_ms` (from the request start), `duration_ms`. A **grouped** span (the same normalised SQL repeated, or the same template rendered repeatedly) adds `count` (≥ 2), `span_ms` (first start to last end) and has `duration_ms` = the total of its calls. |
+| `sql` spans | | `sql` (≤ 2,000 chars, **normalised**: no literal values, see below), `name` (≤ 255, e.g. `Product Load`), `rows` (integer, optional), and for a group `call_site`: `file` (app-relative), `line`, `method`, and optional `context` (`start_line` plus ≤ 5 `lines` of ≤ 200 chars). |
+| `http` spans | | `method`, `host` (≤ 255, never `user:pass@`), `path` (≤ 1,024, **no query string**), `status` (integer, absent when no response). |
+| `view` spans | | `template` (≤ 255, relative to `app/views`). |
+| `enqueue` spans | | `job` (class name) and `queue`. |
+
+**SQL must be normalised by the client.** String and dollar-quoted literals and numbers become `?`, `IN (…)` lists of placeholders collapse to `IN (…)`, comments are removed and whitespace is collapsed; bind placeholders such as `$1` stay. The server repeats this and scrubs secrets from every string as a second layer, and drops any key not listed above. Repeated identical SQL in one trace counts as an **N+1 query** when it ran 10 or more times.
+
+The server keeps at most one trace per transaction per minute while that hour is open (a slower trace for the same minute replaces the stored one) and the 3 slowest per transaction for each earlier hour. Traces are stored encrypted.
+
+### Responses
+
+| Status | Body | Meaning |
+|---|---|---|
+| `202 Accepted` | `{"id":"0192f7b0-1a2b-7c3d-8e4f-5a6b7c8d9e0f"}` | Stored and queued (or already received: the same `batch_id` is never counted twice). |
+| `400 Bad Request` | `{"error":"invalid_json"}` | |
+| `401 Unauthorized` | `{"error":"invalid_api_key"}` | |
+| `413 Payload Too Large` | `{"error":"payload_too_large"}` | Metrics over 512 KiB, traces over 2 MiB, compressed or decompressed. |
+| `415 Unsupported Media Type` | `{"error":"unsupported_media_type"}` | |
+| `422 Unprocessable Entity` | `{"error":"invalid_payload","messages":["minutes[0].transactions[3].buckets must add up to count"]}` | The payload is checked as a whole; nothing is stored. Messages name fields, never values. |
+| `429 Too Many Requests` | `{"error":"rate_limited"}` | With `Retry-After: 60`. |
+
+Checks run in this order: per-IP rate limit, API key (`401`), per-key and per-account rate limits, media type (`415`), body size (`413`), JSON (`400`), shape (`422`). There is no quota check.
+
+Clients should keep a payload and retry it (same `batch_id`) on `429` (after `Retry-After`) and `5xx`, for a few minutes at most, and drop it on `400`, `401`, `413`, `415` and `422`. A `404` means the server has no performance endpoints (an older version); the gem then turns performance monitoring off for the process.
+
 ## Limits
 
 | Item | Limit |
@@ -222,6 +411,9 @@ The Ruby gem uses it for its install check (`bin/rails goodsorcery:verify`).
 | Batch | 1–100 events; each event ≤ 512 KiB once re-serialised |
 | Rate | 1,200 events/minute per API key; 6,000 events/minute per account (a batch of N counts N); 6,000 requests/minute per IP |
 | Key checks (`/verify`) | 60/minute per API key |
+| Performance (`/apm/metrics`, `/apm/traces`) | 600 requests/minute per API key; 3,000 requests/minute per account; 6,000 requests/minute per IP. Not counted toward the event quota or the event rate limits |
+| Performance metrics | body 512 KiB; 1–5 minutes; 1–1,000 transactions per minute; 500 transaction names per app, environment and kind (more become `(other)`) |
+| Performance traces | body 2 MiB; 1–50 traces; 300 spans per trace; SQL 2,000 chars; code context 5 lines of 200 chars |
 | Tag values | 100 distinct values per tag key per issue (later new values count as "Other values"); 40 tag keys per issue |
 | Apps and keys | 100 apps per account; 10 API keys per app |
 | Exception message | 10,000 chars |
@@ -281,6 +473,7 @@ It prints the status and body and exits non-zero unless the response is `202`. S
 
 - Events are processed by Sidekiq on the `ingest` queue, with weights `ingest: 3`, `default: 2`, `mailers: 1`.
 - Run `bin/rails goodsorcery:prune` daily (cron or a Kamal accessory). It deletes occurrences older than each project's retention period (default and maximum 30 days), affected-user records and tag values of issues not seen within that period, hourly issue counts older than 31 days, hourly project counts older than 90 days and inbound events that failed to process for over a day. Each issue keeps at most its newest 100 stored occurrences, and each project at most 3,000 (`CapStoredOccurrencesJob`, every 5 minutes): the issues with the most stored copies lose their oldest first, and every issue keeps its newest. Every event is still counted.
+- Performance data is processed on the `apm` queue. `goodsorcery:prune` also deletes per-minute performance rows after 2 days, hourly rows and traces past the retention (`GOODSORCERY_APM_RETENTION_DAYS`, default and maximum 30 days on a self-hosted instance) and performance batches after a day. An hourly job trims each closed hour to the 3 slowest traces per transaction.
 - `bin/rails goodsorcery:requeue_stale` re-enqueues events that were accepted but have not been processed after 10 minutes (for example after a Redis outage). Processing is idempotent, so a requeued event that was in fact processed is a no-op.
 - Accepted bodies wait in the `inbound_events` table (encrypted) until processed; job arguments hold only the record's GlobalID, so Redis never sees event data. Events that turn out to be malformed or duplicates are discarded and logged by id only.
 - Production needs the Active Record encryption keys as the env vars `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY`, `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` and `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT`. Generate them with `bin/rails db:encryption:init`. Losing them makes stored events unreadable.
@@ -290,3 +483,4 @@ It prints the status and body and exits non-zero unless the response is `202`. S
   - `GOODSORCERY_MAIL_FROM` sets the sender of emails; the default is `Good Sorcery <no-reply@<public host>>`.
   - Sign-up is open only until the first account exists. `GOODSORCERY_ENABLE_SIGNUPS=1` keeps it open (the hosted service); `GOODSORCERY_DISABLE_SIGNUPS=1` turns it off completely and sends visitors to sign-in.
   - `GOODSORCERY_HOSTED=1` marks the instance as the hosted service; leave it unset when self-hosting.
+  - `GOODSORCERY_APM_RETENTION_DAYS` (1–30, default 30) is how many days a self-hosted instance keeps performance data.

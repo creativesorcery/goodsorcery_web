@@ -19,7 +19,7 @@ Stack: Ruby 4.0.7, Rails 8.1.4, Postgres (pg_trgm), Propshaft, importmap, Turbo,
 5. **Performance.** No N+1 queries (use `includes`, `inverse_of` and batch queries for histograms). Counters are atomic SQL. The ingest path is bounded and tuned for minimal queries (§2.6).
 6. **Tests.** Use Minitest with fixtures. Always run with a private DB:
    `TEST_DB_SUFFIX=_<slice> bin/rails db:test:prepare && TEST_DB_SUFFIX=_<slice> bin/rails test`. Never drop the development database. Run `bin/rubocop` on your files before you finish.
-7. **Out of scope (do not build):** deploy tracking/releases UI, keyboard shortcuts, the "needs attention" callout, Merge, "Mute rules", GitHub links ("Link GitHub issue", "Open in GitHub"), team invites, project deletion, the Ruby client gem, geo-IP ("London, GB"), and syntax highlighting of code context (render plain mono text). Email alerts were out of scope for v1; they were approved later and are built (§11). Uptime was also out of scope for v1 (a "soon" placeholder); uptime monitoring and account entitlements were approved on 2026-11-03 (§12).
+7. **Out of scope (do not build):** deploy tracking/releases UI, keyboard shortcuts, the "needs attention" callout, Merge, "Mute rules", GitHub links ("Link GitHub issue", "Open in GitHub"), team invites, project deletion, the Ruby client gem, geo-IP ("London, GB"), and syntax highlighting of code context (render plain mono text). Email alerts were out of scope for v1; they were approved later and are built (§11). Uptime was also out of scope for v1 (a "soon" placeholder); uptime monitoring and account entitlements were approved on 2026-11-03 (§12). Performance monitoring (APM) was approved on 2026-11-04 (§13).
 8. **Wording.** Every "create project" affordance reads **"Add a new app"**: the projects page header button, the dashed tile and the `projects#new` page title.
 
 ---
@@ -53,7 +53,7 @@ Account ─┬─< Membership >── User ──< Session (session.account = cu
 
 ### 1.3 Tables (complete; later slices make NO schema changes)
 
-The uptime build (§12.1) adds `accounts.entitlement_values`, the `uptime_monitors`, `uptime_checks`, `uptime_hourly_counts` and `uptime_incidents` tables, and `notification_preferences.uptime_alerts_muted`.
+The uptime build (§12.1) adds `accounts.entitlement_values`, the `uptime_monitors`, `uptime_checks`, `uptime_hourly_counts` and `uptime_incidents` tables, and `notification_preferences.uptime_alerts_muted`. The APM build (§13.2) adds the `apm_transactions`, `apm_minute_stats`, `apm_hourly_stats`, `apm_traces` and `apm_inbound_batches` tables.
 
 All `id`s are `bigint`. FKs are real `add_foreign_key` constraints. "cascade" means `on_delete: :cascade`.
 
@@ -251,7 +251,7 @@ Indexes: unique `[user_id, dedupe_key]` (the race-safe throttle), `[user_id, sta
 
 ### 1.4 Active Record Encryption
 
-- Encrypted attributes are all non-deterministic with default compression: `InboundEvent#body`, `Occurrence#payload`, `ApiKey#token`, `IssueTagCount#value`, `IssueActivity#body`.
+- Encrypted attributes are all non-deterministic with default compression: `InboundEvent#body`, `Occurrence#payload`, `ApiKey#token`, `IssueTagCount#value`, `IssueActivity#body`; later builds add `UptimeMonitor#url` (§12.1), `ApmTrace#payload` and `ApmInboundBatch#body` (§13.2).
 - Keys:
   - development.rb and test.rb set fixed, clearly-labelled non-secret keys:
     ```ruby
@@ -1850,3 +1850,388 @@ Never edit a file you don't own; report the need instead. Use your own test data
   - the backfill migration is idempotent.
 
 **Integration (lead, after the slices):** update `CLAUDE.md` ("Current state", "Not built yet", the gotchas for `UptimeMonitor` naming, URL secrecy and the claim SQL casts), then run the full test, system, lint, Brakeman and audit pass.
+
+---
+
+## 13. Performance (APM) (approved 2026-11-04)
+
+This section is the binding blueprint for the performance-monitoring build. The approved UI is a canvas of three screens (overview, endpoint detail, slow request trace); the build matches its layout, copy and states with the existing Tailwind tokens, component classes and server-rendered SVG helpers (§7). Everything in §0 (ground rules), §6 (authorization) and the §9/§10 checklists applies. **Traces are captured data** (§0.4): they hold normalised SQL, request paths, host names and code context, so they are encrypted at rest and never leave Postgres except to render the trace page. The client side (the `goodsorcery` gem) is specified in `goodsorcery-ruby/docs/DESIGN.md` §8; the wire format is in `docs/INGEST_API.md` › Performance monitoring.
+
+### 13.0 Decisions (binding)
+
+- **Scope.** A simple APM for Rails apps: metrics from every web request and background job, and full timelines (traces) for a few slow requests only. Not built: logs, distributed tracing, a custom instrumentation API, latency alerts, live updates on the APM pages (they are static: no Action Cable, no broadcasts).
+- **Transactions.** Web: `Controller#action`, plus the HTTP verb and route pattern (`POST /checkout`). Jobs: the job class, plus adapter, queue and queue wait (job start − `enqueued_at`; for a job scheduled with `wait:`/`wait_until:` the gem measures from `scheduled_at`, so a deliberate delay is not counted as waiting). Each app keeps at most `Apm::MAX_TRANSACTIONS` (500) distinct names **per environment and kind**; further names are folded into the transaction `(other)`.
+- **Metrics** are aggregated in the gem per transaction per minute and flushed once a minute per process. The server merges them **by addition** (upsert), so any number of processes, retries of other batches and late minutes combine correctly. Percentiles come from the merged histogram; Average comes from `duration_ms_sum / requests_count`.
+- **Response-time statistics everywhere are Average, p75, p90, p95 and p99** (no p50): the overview KPI tiles, the endpoint stat ribbon and the endpoint response-time chart. Only the overview endpoint table keeps its **p50 / p95 / p99** columns, as in the canvas.
+- **Traces.** The gem records a timeline for every transaction cheaply and keeps only the slowest per transaction per minute per process (no duration floor). The server keeps at most one trace per transaction per minute while its hour is open (a slower one replaces it) and trims each closed hour to the 3 slowest per transaction. Trace ids are UUIDv7.
+- **Quota and limits.** APM data never counts toward the monthly event quota and is accepted when an account is over it. It has its own rate limits (§13.3).
+- **Retention.** A new entitlement `apm_retention_days` (hosted default **1**). Self-hosted: `GOODSORCERY_APM_RETENTION_DAYS` (default **30**, 1..30). Per-minute rows are kept 2 days whatever the retention. Downgrades apply at query time and at the next prune.
+- **"Slower"** replaces any "vs previous day" comparison: a transaction is Slower when its last-hour p95 is ≥ 1.5× its p95 over the past 24 hours, with minimum request counts (§13.6).
+- **Opt-in.** Performance monitoring is off by default in the gem (`config.performance_monitoring = true` turns it on). The server needs no switch: an app shows data as soon as its gem sends some.
+- **Naming.** Models use the `Apm` prefix (`ApmTransaction`, `Apm::Distribution`); controllers and views say "performance" (`Projects::Performance::…`). Never name a model `Performance`, `Transaction` or `Trace` at the top level: `Transaction` reads as a database transaction next to `ActiveRecord::Base.transaction`, and the prefix keeps every APM table and class easy to find.
+
+### 13.1 Histogram (shared with the gem; never change without a new scheme)
+
+Scheme name: **`gs-v1`**. Both repos hold the same literal list and a test asserting it element by element (`Apm::Histogram::BOUNDS_MS` here, `GoodSorcery::Performance::Histogram::BOUNDS_MS` in the gem).
+
+```ruby
+# Upper bounds in milliseconds of buckets 0..29; bucket 30 is open-ended.
+BOUNDS_MS = [
+  1, 1.5, 2, 3, 4.5, 6.5, 9.5, 14, 20, 28,
+  40, 60, 85, 125, 180, 260, 380, 550, 800, 1_150,
+  1_700, 2_450, 3_550, 5_100, 7_500, 11_000, 16_000, 23_000, 33_000, 48_000
+].freeze
+BUCKETS = 31
+SCHEME = "gs-v1"
+```
+
+- Bucket `i` holds durations `d` with `BOUNDS_MS[i-1] <= d < BOUNDS_MS[i]` (lower bound 0 for bucket 0, no upper bound for bucket 30). `Histogram.index(ms)` = the number of bounds `<= ms` (`BOUNDS_MS.bsearch_index { _1 > ms } || 30`), so 0.4 ms → 0, exactly 1 ms → 1, 250 ms → 15, 60 s → 30.
+- Edges step by ×1.33–×1.5 (about ×1.45, a log scale), so every value in a bucket is within about ±20% of the bucket's geometric centre. That is the "about 30 buckets, each ~20% wide" of the approved spec: ~20% is the precision of a reported percentile; a literal 20%-wide edge step would need ~60 buckets to cover 1 ms–48 s.
+- Queue wait uses the same buckets (counts only).
+
+### 13.2 Schema
+
+```
+Project ──< ApmTransaction (per environment + kind + name; plus one "total" row per environment + kind)
+               ├─< ApmMinuteStat  (per transaction per minute; kept 2 days)
+               ├─< ApmHourlyStat  (per transaction per hour; kept for the retention)
+               └─< ApmTrace       (encrypted timeline; ≤ 1 per minute, ≤ 3 per closed hour)
+Project ──< ApmInboundBatch (encrypted raw body until processed; dedupe by batch id)
+```
+
+All ids are `bigint`; FKs are real constraints with `on_delete: :cascade`; models declare `has_many … inverse_of:` without `dependent:`, as `Project` does. One migration, `create_apm_tables`, creates all five tables.
+
+**apm_transactions**
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| project_id | references → projects, cascade | false | | |
+| environment | string | false | | from the API key that sent the data |
+| kind | string | false | | `web` or `job` (check constraint) |
+| name | string(255) | false | | **plaintext**, like `issues.transaction_name`: `CheckoutsController#create`, `Orders::PlaceJob`, `(other)`, or the total row's fixed name |
+| total | boolean | false | false | the app-wide row for its environment and kind: `"All web requests"` / `"All background jobs"` (`ApmTransaction::TOTAL_NAMES`). Never listed, never counted toward the cap |
+| http_method | string(16) | true | | web: `POST` |
+| route | string(255) | true | | web: the route pattern `/products/:slug` (never a real path) |
+| adapter | string(32) | true | | jobs: `sidekiq`, `async`, `good_job`… |
+| queue | string(128) | true | | jobs |
+| source_file | string(500) | true | | app-relative path of the controller or job class, normalised by `Ingest::PathNormalizer` (a code location, plaintext like `culprit`) |
+| first_seen_at | datetime | false | | |
+| last_seen_at | datetime | false | | bumped at most hourly (§13.4) |
+| timestamps | | | | |
+
+Indexes: unique `[project_id, environment, kind, name]` (the registry key), `[project_id, environment, kind, last_seen_at]` (lists, env picker), `[last_seen_at]` (prune). `http_method`, `route`, `adapter`, `queue` and `source_file` keep the latest value sent (updated with `last_seen_at`).
+
+**apm_minute_stats** (`create_table …, primary_key: [:apm_transaction_id, :minute]`) and **apm_hourly_stats** (`primary_key: [:apm_transaction_id, :hour]`) have identical columns apart from the time column:
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| apm_transaction_id | bigint FK → apm_transactions, cascade | false | | |
+| minute / hour | datetime | false | | UTC minute / hour start |
+| requests_count | bigint | false | 0 | |
+| failed_count | bigint | false | 0 | web: status ≥ 500 or raised; job: raised |
+| duration_ms_sum | double precision | false | 0 | Average = sum / count |
+| bucket_counts | bigint[] | false | 31 zeros | requests per §13.1 bucket |
+| bucket_db_ms | double precision[] | false | 31 zeros | summed database time of the requests in each bucket |
+| bucket_http_ms | double precision[] | false | 31 zeros | external HTTP |
+| bucket_view_ms | double precision[] | false | 31 zeros | views |
+| bucket_ruby_ms | double precision[] | false | 31 zeros | Ruby (per request: total − the others, floored at 0) |
+| queue_wait_counts | bigint[] | false | 31 zeros | jobs only (zeros for web) |
+| queue_wait_ms_sum | double precision | false | 0 | jobs only |
+
+Check constraints: `cardinality(<each array>) = 31`. Extra index: `[minute]` / `[hour]` for pruning by time slice, like the other rollups. Arrays are always dense (31 entries); the payload's sparse buckets are densified before the upsert.
+
+**apm_traces**
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| project_id | references → projects, cascade | false | | lookup by uuid, retention |
+| apm_transaction_id | references → apm_transactions, cascade | false | | |
+| uuid | uuid | false | | UUIDv7 from the gem (or generated); the URL id |
+| minute | datetime | false | | the minute the request finished (the metrics minute) |
+| hour | datetime | false | | `minute` truncated to the hour |
+| started_at | datetime(6) | false | | |
+| duration_ms, db_ms, http_ms, view_ms, ruby_ms | double precision | false | 0 | layer totals (list columns, layer bar) |
+| sql_count, http_count, n_plus_one_count | integer | false | 0 | |
+| status | integer | true | | HTTP status (web); nil for jobs |
+| failed | boolean | false | false | |
+| error_event_uuid | uuid | true | | the error event reported by this request; links to its issue through `occurrences.uuid` |
+| payload | text | false | | **encrypted** JSON (§13.5): request/job details, host, process, runtime, GC, allocations, spans with normalised SQL, HTTP host/path, templates, call sites and code context |
+| created_at | datetime | false | | |
+
+Indexes: unique `[project_id, uuid]`, unique `[apm_transaction_id, minute]` (one trace per transaction per minute, the replacement upsert's conflict target; still true after the hourly trim), `[apm_transaction_id, started_at]` (Newest sort, older/newer navigation), `[hour]` (trim and prune).
+
+**apm_inbound_batches** (transient, like `inbound_events`)
+| column | type | null | notes |
+|---|---|---|---|
+| project_id | references → projects, cascade | false | |
+| environment | string | false | from the key |
+| kind | string | false | `metrics` or `traces` (check constraint) |
+| uuid | uuid | false | the payload's `batch_id`, or generated when absent |
+| body | text | true | **encrypted** raw JSON; set to nil once processed |
+| received_at | datetime | false | |
+| processed_at | datetime | true | |
+
+Indexes: unique `[project_id, kind, uuid]` (the idempotency key: a resent batch is accepted and ignored), `[received_at]` (pruning).
+
+**accounts.entitlement_values** gains the key `apm_retention_days` (no schema change).
+
+**Encryption (§1.4):** `ApmTrace#payload` and `ApmInboundBatch#body` join the encrypted attributes (non-deterministic, compressed). The backend slice adds the raw-ciphertext model tests.
+
+### 13.3 Ingest endpoints
+
+```ruby
+namespace :api do
+  namespace :v1 do
+    namespace :apm do
+      resource :metrics, only: :create   # POST /api/v1/apm/metrics → Api::V1::Apm::MetricsController#create
+      resource :traces, only: :create    # POST /api/v1/apm/traces  → Api::V1::Apm::TracesController#create
+    end
+  end
+end
+```
+
+Both are `ActionController::API` controllers that include **`ApmIngestEndpoint`**, a concern sharing `ApiKeyAuthentication`, `IngestErrorResponses`, `Ingest::RequestBody` (gzip, size cap) and the media-type check with `IngestEndpoint`, but **not** the quota check and not the event-weighted counters. Check order: per-IP limit, key (401), per-key and per-account request limits (429), media type (415), size (413), JSON (400), shape (422).
+
+- **Rate limits** (`Apm::Limits`, fixed one-minute windows, store `Ingest::RateLimitStore`, scope `api/v1/apm`, separate from the error counters): 6,000 requests/min per IP (Rails `rate_limit`), 600 requests/min per key and 3,000 requests/min per account (`Ingest::RateCounter` gains a `scope:` keyword, default `Ingest::RateCounter::SCOPE`; each request takes 1). A gem process sends at most 2 requests a minute, so one key covers ~300 processes. All return `429 {"error":"rate_limited"}` with `Retry-After: 60`.
+- **Bodies:** metrics ≤ 512 KiB, traces ≤ 2 MiB, compressed and decompressed (`Ingest::RequestBody#read(max:)`). `IngestBodyShield::PATH` grows to `%r{\A/api/v1/(?:events(?:/batch)?|apm/(?:metrics|traces))(?:\.[^/]*)?\z}` so neither body reaches `params` or the log.
+- **Validation at request time:** `Apm::MetricsEnvelope` / `Apm::TracesEnvelope` (`.new(json)`, `#valid?`, `#errors`, `#batch_uuid`) check the shape in `docs/INGEST_API.md` › Performance monitoring. A batch is validated as a whole: any structural error gives `422 {"error":"invalid_payload","messages":[…]}` and nothing is stored (the gem builds these payloads, so a bad one is a bug, never retried). Oversized strings are truncated, not rejected. Messages never echo payload content.
+- **Storage:** `ApmInboundBatch.store(api_key, kind:, uuid:, body:)` is one `INSERT … ON CONFLICT (project_id, kind, uuid) DO NOTHING RETURNING id` (the body encrypted through the attribute type, as `InboundEvent.store_for` does). A new row enqueues `ProcessApmBatchJob.perform_later(id)` (queue `apm`, **integer id only**); a duplicate enqueues nothing. `ApiKey.record_usage` runs once per request.
+- **Response:** `202 {"id":"<batch uuid>"}` for new and duplicate batches alike.
+
+### 13.4 Processing and merge semantics
+
+`ProcessApmBatchJob#perform(apm_inbound_batch_id)` → `Apm::BatchProcessor.new(batch).process`. One transaction, wrapped in `uncached { }` (jobs run with the query cache on):
+
+1. `lock("FOR NO KEY UPDATE")` the batch row; return when it is missing or `processed_at` is set (idempotent across Sidekiq retries).
+2. Parse the decrypted body (`Apm::MetricsPayload` / `Apm::TracesPayload`, value objects over the validated JSON). Minutes outside the accepted window are skipped silently: metrics `[now − 24 h, now + 2 min]`, traces `[now − 2 h, now + 2 min]`.
+3. **`Apm::TransactionRegistry#ids_for(entries)`** maps `(kind, name)` to `apm_transactions.id` for the batch's project and environment: one SELECT for the names; missing ones are inserted with `insert_all … ON CONFLICT DO NOTHING RETURNING id` (re-selecting conflicts) while the app has fewer than `Apm::MAX_TRANSACTIONS` non-total names of that kind in that environment, otherwise they map to `(other)` (created on demand, outside the cap). The cap is soft under concurrency (two batches may each add the last names); that is accepted. The total rows are created on demand the same way. One `UPDATE … SET last_seen_at = :now, route = …, … WHERE id IN (…) AND last_seen_at < :now - interval '1 hour'` keeps `last_seen_at` and the latest labels fresh without touching hot rows every minute.
+4. **Metrics** (`Apm::StatsUpsert`): entries are merged **in Ruby** first per `[transaction_id, minute]` (several names can map to `(other)`, and `upsert_all` cannot update one row twice), plus one entry per minute for the kind's total row (the sum of that minute's entries). Then two multi-row upserts, **rows sorted by `[apm_transaction_id, time]`** and always minute table first, hourly second (a fixed lock order, so concurrent batches never deadlock): `ApmMinuteStat.upsert_all(rows, unique_by: :primary_key, on_duplicate: Apm::StatsUpsert::ADD_SQL, record_timestamps: false)` and the same into `apm_hourly_stats` with `hour = minute` truncated. `ADD_SQL` adds every column:
+   ```sql
+   requests_count = <table>.requests_count + EXCLUDED.requests_count,
+   failed_count = <table>.failed_count + EXCLUDED.failed_count,
+   duration_ms_sum = <table>.duration_ms_sum + EXCLUDED.duration_ms_sum,
+   queue_wait_ms_sum = <table>.queue_wait_ms_sum + EXCLUDED.queue_wait_ms_sum,
+   bucket_counts = ARRAY(SELECT a + b FROM unnest(<table>.bucket_counts, EXCLUDED.bucket_counts)
+                         WITH ORDINALITY AS t(a, b, i) ORDER BY i),
+   -- the same element-wise sum for bucket_db_ms, bucket_http_ms, bucket_view_ms, bucket_ruby_ms, queue_wait_counts
+   ```
+   **Minute → hour rollup happens at write time:** every metrics batch is added to its minute row and to its hour row in the same transaction. There is no rollup job, no watermark and no "late minute" problem: a minute that arrives late (a retried flush) lands in both tables like any other. Minute rows exist only for the short ranges and the last hour; they are pruned after 2 days.
+5. **Traces** (`Apm::TraceUpsert`): each trace is normalised by `Apm::TraceNormalizer` (§13.5), then the batch keeps the slowest per `[transaction_id, minute]` in Ruby, then one `ApmTrace.upsert_all(rows, unique_by: [:apm_transaction_id, :minute], on_duplicate: Arel.sql("<every column> = EXCLUDED.<column> … WHERE EXCLUDED.duration_ms > apm_traces.duration_ms"))`, rows sorted by `[apm_transaction_id, minute]`. A slower trace for the same minute replaces the stored one (new uuid, payload and numbers); a faster or equal one changes nothing. `upsert_all` casts `payload` through the encrypted type (§1.4). If the trailing `WHERE` cannot be expressed through `on_duplicate`, write each SET as `CASE WHEN EXCLUDED.duration_ms > apm_traces.duration_ms THEN EXCLUDED.<col> ELSE apm_traces.<col> END`; the semantics are binding, not the spelling.
+6. Set `processed_at = now` and `body = nil`.
+
+Statement budget per batch (asserted in tests): metrics ≤ 8 (lock, registry select, ≤ 1 insert + ≤ 1 re-select, last-seen update, minute upsert, hour upsert, batch update); traces ≤ 7. Log lines carry the batch id, kind and counts only (`"APM batch 123 processed: 42 transactions"`); a processing error is logged and re-raised by class name only, never with a message (Postgres messages can echo row values).
+
+**Hourly trim** (`TrimApmTracesJob`, queue `default`, sidekiq-cron `"3 * * * *"`): `Apm::TraceTrim.new(now:).trim` deletes, for the closed hours `[current hour − 3 h, current hour)`, every trace past the 3 slowest per `[apm_transaction_id, hour]`:
+```sql
+DELETE FROM apm_traces WHERE id IN (
+  SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY apm_transaction_id, hour
+                                                ORDER BY duration_ms DESC, id) AS rank
+                  FROM apm_traces WHERE hour >= :from AND hour < :to) ranked
+  WHERE rank > :kept)
+```
+`:kept` = `ApmTrace::KEPT_PER_CLOSED_HOUR` (3), deleting at most 1,000 ids per statement until none are left. Three hours of look-back cover traces that arrive late (they are accepted up to 2 hours late). The open hour is never trimmed.
+
+**Sidekiq:** add `[apm, 2]` to `config/sidekiq.yml` after `ingest`. `ProcessApmBatchJob` is short and DB-bound; one queue for both kinds.
+
+### 13.5 Trace normalisation and payload (server side)
+
+`Apm::TraceNormalizer#normalize(trace_json)` → `{ columns:, payload: }`. It **allow-lists** keys (anything else in the JSON is dropped), caps every string (`Apm::Limits`), and applies a second layer of scrubbing:
+
+- SQL: `Apm::SqlScrub#scrub` repeats the gem's rules (string and dollar-quoted literals and numbers → `?`, `IN (…)` lists collapsed, comments removed, whitespace collapsed; `$1` placeholders kept), then `Ingest::Scrubber`'s string scrubbing (tokens, card numbers, JWTs, `password=…`).
+- Paths (request path, HTTP span path): the query string and fragment are dropped, then string-scrubbed. HTTP span hosts drop any `user:pass@` part.
+- Call-site files go through `Ingest::PathNormalizer`; code-context lines through the string scrubber.
+- Spans are capped at `Apm::Limits::SPANS` (300); excess spans are dropped and added to `spans_dropped`.
+- Derived columns: `sql_count` and `http_count` (from the trace's counts), `n_plus_one_count` = number of SQL spans with `count >= Apm::N_PLUS_ONE_MIN` (10), the layer columns, `status`, `failed`, `error_event_uuid` (only a valid UUID), `minute`, `hour`.
+
+Stored payload (encrypted JSON; `ApmTrace#details` parses it into `Apm::TraceDetails`, a read-only value object):
+```json
+{ "request": { "method": "POST", "path": "/checkout", "request_id": "7f3a9c1e-…" },
+  "job": null,
+  "host": "web-2", "process": "Puma worker 3",
+  "runtime": { "ruby": "3.4.1", "rails": "8.0.2" },
+  "gc": { "time_ms": 14.0, "count": 3 }, "allocations": 1400000,
+  "spans_dropped": 0,
+  "spans": [ { "type": "sql", "offset_ms": 40.1, "duration_ms": 1180.0, "span_ms": 1215.2, "count": 38, "rows": 38,
+               "name": "Product Load", "sql": "SELECT \"products\".* FROM \"products\" WHERE \"products\".\"id\" = $1 LIMIT $2",
+               "call_site": { "file": "app/services/cart_total.rb", "line": 27, "method": "total_cents",
+                              "context": { "start_line": 25, "lines": ["…"] } } } ] }
+```
+Span types: `sql`, `http`, `view`, `enqueue` (the root "Action"/"Job" row is drawn from the trace itself).
+
+### 13.6 Statistics math (`Apm::Distribution`, backend)
+
+`Apm::Distribution` is a value object over one merged histogram: `count`, `failed`, `duration_ms`, `counts[31]`, `db_ms[31]`, `http_ms[31]`, `view_ms[31]`, `ruby_ms[31]`, `queue_wait_counts[31]`, `queue_wait_ms`. `#+` adds element-wise; `Apm::Distribution.empty`.
+
+- **Average** `#average_ms` = `duration_ms / count` (nil when `count` is 0).
+- **Percentile** `#percentile(p)` for p ∈ {50, 75, 90, 95, 99}: `rank = ceil(p / 100.0 × count)`; `b` = the first bucket whose cumulative count reaches `rank`; `f = (rank − cumulative_before_b − 0.5) / counts[b]` (0 < f < 1).
+  - `b = 0`: `f × BOUNDS_MS[0]` (linear between 0 and 1 ms).
+  - `1 ≤ b ≤ 29`: `L × (U / L) ** f` with `L = BOUNDS_MS[b − 1]`, `U = BOUNDS_MS[b]` (geometric interpolation; monotone in p).
+  - `b = 30` (≥ 48 s): the bucket's own mean, `(db + http + view + ruby)[30] / counts[30]`, at least 48,000.
+- **Layer split** `#layer_split(:average | p)` → `{ db:, http:, view:, ruby: }` in ms, summing exactly to the bar's value:
+  - Average: `average_ms` split in the proportions of `Σ db_ms : Σ http_ms : Σ view_ms : Σ ruby_ms` over all buckets.
+  - Percentile p: `percentile(p)` split in the proportions of the four layer sums **of the bucket p falls in**. A bucket whose layer sums are all 0 puts everything in `ruby`.
+- `#failed_rate` = `failed / count`; `#queue_wait_percentile(p)` uses the same interpolation on `queue_wait_counts` (no overflow mean: bucket 30 reports 48,000 ms); `#rate_per_minute(minutes)`.
+
+**Queries** (`Apm::StatsQuery`, backend; every method is one or two grouped statements whatever the number of transactions):
+```ruby
+range = Apm::Range.new("1d", now: Time.current, retention_days: entitlements.apm_retention_days)
+stats = Apm::StatsQuery.new(range)
+stats.by_transaction(ids)            # => { id => Apm::Distribution } over the range
+stats.last_hour(ids)                 # => { id => Apm::Distribution } minute rows, minute >= floor(now) − 59 min
+stats.past_day(ids)                  # => { id => Apm::Distribution } hourly rows, hour >= floor_hour(now) − 23 h
+stats.series(id)                     # => [[bin_start, Apm::Distribution], …] zero-filled bins of range.bin
+stats.hourly_p95(ids, hours: 24)     # => { id => [Float | nil] * 24 } (overview sparklines)
+```
+Bucket arrays are summed with `unnest(bucket_counts, bucket_db_ms, …) WITH ORDINALITY AS b(c, db, http, view, ruby, qw, i)` grouped by `apm_transaction_id, i` (plus `date_bin` for series); scalars in a second grouped SELECT. Hosted ranges are clamped to the retention (`Apm::Range#start`).
+
+**`Apm::Range`** (backend): `KEYS = %w[15m 1h 1d 7d 30d]`, default `1d`.
+| key | rows | start | chart bin | bins |
+|---|---|---|---|---|
+| 15m | minute | floor_minute(now) − 14 min | 1 min | 15 |
+| 1h | minute | floor_minute(now) − 59 min | 1 min | 60 |
+| 1d | hourly (figures), minute (chart) | floor_hour(now) − 23 h | 15 min | 96 |
+| 7d | hourly | floor_hour(now) − 167 h | 2 h | 84 |
+| 30d | hourly | floor_hour(now) − 719 h | 8 h | 90 |
+
+`#days` (1 for 15m/1h/1d), `#locked?(entitlements)` (= `days > entitlements.apm_retention_days`), `#label` ("last 15 minutes", "last hour", "last 24 hours", "last 7 days", "last 30 days"), `#minutes` (elapsed minutes, for rates), `#cache_key` (key + current minute). Bins are epoch-aligned (`TimeSeries.align`), zero-filled through `TimeSeries`.
+
+**"Slower"** (`Apm::Slower.new(stats).ratios(ids)` → `{ id => Float }` for the slower ones only): last hour `count >= 30` **and** past 24 hours `count >= 100` **and** `last_hour.percentile(95) >= 1.5 × past_day.percentile(95)` (`Apm::SLOWER_RATIO`, `SLOWER_MIN_LAST_HOUR`, `SLOWER_MIN_PAST_DAY`). The past-day window includes the last hour.
+
+### 13.7 Retention and entitlements
+
+**Configuration** (`config/application.rb`, read once at boot):
+```ruby
+config.x.apm_retention_days = (ENV["GOODSORCERY_APM_RETENTION_DAYS"].presence || 30).to_i.clamp(1, 30)
+```
+`config/entitlements.yml` `hosted_defaults` gains `apm_retention_days: 1`.
+
+**`Entitlements`** gains:
+```ruby
+Entitlements::KEYS                       # => %w[uptime_intervals max_monitors apm_retention_days]
+Entitlements::MAX_APM_RETENTION_DAYS     # => 30
+entitlements.apm_retention_days          # self-hosted: config.x.apm_retention_days; hosted: stored or default (1)
+entitlements.allows_apm_range?(days)     # days <= apm_retention_days (1-day ranges always allowed)
+```
+Valid stored value: an integer 1..30. The unlimited value is no longer a constant for this key (it reads the self-hosted setting); keep `UNLIMITED` for the uptime keys and resolve `apm_retention_days` through a method. `PROBLEMS["apm_retention_days"]` = "APM retention days must be a whole number from 1 to 30."
+
+**Query time.** `Apm::Range` clamps its start to `now − apm_retention_days`; a locked range in the URL (crafted, or after a downgrade) falls back to `1d`. Traces older than the cutoff are not listed and their page shows "no longer kept" (§13.9).
+
+**Prune** (`Ingest::Retention#prune_apm`, run by `goodsorcery:prune`):
+- `apm_minute_stats` older than `ApmMinuteStat::KEPT_FOR` (2 days), one minute slice per DELETE through `[minute]` (`prune_hour_slices`'s pattern with a minute column).
+- `apm_hourly_stats` and `apm_traces` past each **account's** `apm_retention_days`: group accounts by the resolved value (`Account.find_each`, values computed in Ruby), then per distinct value delete `where(apm_transaction_id: ApmTransaction.where(project_id: Project.where(account_id: ids)).select(:id), hour: ...cutoff).in_batches(of: BATCH)`. A global backstop deletes anything older than `MAX_APM_RETENTION_DAYS + 1` days by hour slice.
+- `apm_transactions` (not total rows) whose `last_seen_at` is older than their account's cutoff (cascades the rest).
+- `apm_inbound_batches` with `received_at` older than 1 day, processed or not (unprocessed ones deleted unread, logged by id only).
+
+### 13.8 Web: routes, controllers, presentation objects
+
+**Routes** (inside `resources :projects … scope module: :projects`):
+```ruby
+resource :performance, only: :show, controller: "performance/overviews" do
+  scope module: :performance do
+    resources :transactions, only: :show     # /projects/storefront/performance/transactions/42
+    resources :traces, only: :show           # /projects/storefront/performance/traces/<uuid>
+  end
+end
+```
+Helpers: `project_performance_path`, `project_performance_transaction_path(project, transaction)`, `project_performance_trace_path(project, trace.uuid)`.
+
+**Shared query params** (parsed by `Apm::Selection`, UI): `env` (an environment with APM data; default the project's `default_environment` when it has data, else the environment with the most requests in the past day, else the first with any), `range` (§13.6 keys; locked or unknown → `1d`), overview `tab` (`web` | `jobs`; default `web`, or `jobs` when the environment has no web data), `sort` (`time` default | `p95` | `rate` | `failed`), `q` (filter, ≤ 100 chars, `ILIKE` on name and route with `sanitize_sql_like`), `all` (`1` lifts the 25-row limit); endpoint `traces` (`slowest` default | `newest`) and `page` (1..). Every link on these pages carries `env` and `range`.
+
+| Controller | Actions | Notes |
+|---|---|---|
+| `Projects::Performance::OverviewsController` | show | `include ProjectScoped`; `@overview = Apm::Overview.new(@project, selection)`; empty state when the project has no APM data |
+| `Projects::Performance::TransactionsController` | show | `@transaction = @project.apm_transactions.listed.find(params[:id])` (total rows and other projects' ids are 404); `@report = Apm::EndpointReport.new(@transaction, selection)` |
+| `Projects::Performance::TracesController` | show | `Apm::TraceLookup.new(@project, params[:id], entitlements:, now:)`: found → `@page = Apm::TracePage.new(trace)`; expired → renders `expired` with status **410**; unknown → `ActiveRecord::RecordNotFound` (404) |
+
+Each page sets `provide :nav, "performance"` and the breadcrumbs `Acme Labs / storefront / Performance [/ CheckoutsController#create [/ trace 7f3a9c1e]]` (the trace crumb is the **last** 8 hex digits of the uuid; UUIDv7's first digits are a timestamp and repeat within a minute).
+
+**`Apm::TraceLookup`** (backend): `#trace` (scoped `@project.apm_traces.find_by(uuid:)`), `#expired?`, `#reason`. A missing uuid is **expired** when it is a valid UUIDv7 whose embedded time (`Apm::TraceId.time(uuid)`, the first 48 bits as Unix ms) is between `project.created_at` and now; otherwise it is unknown (404). Reasons: `:plan` (hosted, older than the account's cutoff but within `MAX_APM_RETENTION_DAYS`: shows "Upgrade to keep more days"), `:retention` (older than the cutoff otherwise), `:trimmed` (within the retention: replaced by a slower request in its minute or trimmed from its hour). Another account's trace is a 404 at the project lookup, before any of this runs.
+
+**Presentation objects** (UI; they call the backend query API and never write):
+- `Apm::Overview` — `#environments`, `#tiles` (Requests/min, Average, p75, p90, p95, p99, Failed, each with range value, last-hour value and, for p95, the Slower change), `#chart` (bins of the total row: average layer split + p95), `#tab_counts` (web/jobs transactions with data in the range), `#rows` (sorted, filtered, limited 25 unless `all`), `#total_rows_count`. Fixed query count, independent of the number of transactions (≤ 12 statements; asserted with 1 vs 5 transactions). The per-transaction numbers (`{ id => numbers }`, no names) are cached 60 s under `["apm_overview", project.id, env, tab, range.cache_key]`.
+- `Apm::EndpointReport` — `#ribbon`, `#series` (five lines), `#bars` (five layer-split bars), `#summary_sentence`, `#slower_ratio`, `#climbing_since`, `#issues` (unresolved issues of the app whose `transaction_name` equals the transaction name and whose `environments` include `env`, newest `last_seen_at` first, limit 5, plus the count), `#traces` (`Apm::TraceList`: range, sort, 20 per page, `#total`), with the error links resolved in one query (`@project.occurrences.where(uuid: error_uuids).includes(:issue)`).
+- `Apm::TracePage` — `#header`, `#chips`, `#layers`, `#timeline_rows` (spans in offset order; grouped spans carry `count`), `#axis_ticks`, `#n_plus_one` (the N+1 group with the largest total, or nil), `#request_rows`, `#error_issue`, `#older`, `#newer` (the adjacent traces of the transaction by `started_at`, one query each).
+
+### 13.9 Screens (match the canvas)
+
+Flat pastel theme, existing tokens and component classes (`.panel`, `.chip-*`, `.btn*`, `.segmented`, `.tab`), server-rendered SVG, no inline styles or scripts, no new JavaScript beyond the existing Stimulus controllers (`dropdown`, `tabs`). Numbers: `apm_duration(ms)` gives "0.4 ms", "412 ms", "1.24 s", "3.2 s", "12.4 s" (3 significant digits, insignificant zeros stripped; tiles split value and unit), rates `delimited`, percentages one decimal ("1.9%", "0.24%" below 1%).
+
+**Colours** (`PerformanceChartHelper` constants): Database `LILAC` `#b39cf2`, External HTTP `IRIS` `#8f94ee`, Views `MINT_400` `#6fcca6`, Ruby `RUBY` `#d2cec4`. Lines: Average `INK` `#34374d` dashed (5 4), p75 `IRIS`, p90 `IRIS_300` `#5a5fd6`, p95 `CORAL` (2.4px), p99 `IRIS_SOFT` `#b7baf3`. Legend order: Database, External HTTP, Views, Ruby; stack order bottom-up: Ruby, Database, External HTTP, Views.
+
+**Sidebar:** "Performance" (`nav_link_to "Performance", project_performance_path(project), key: "performance", icon: :performance`) in Grimoire **after Issues**, before Uptime; `nav_placeholder "Performance", icon: :performance` without a project. `IconHelper` gains `:performance` (a gauge).
+
+**1 · Performance overview**
+- Header: eyebrow "storefront · production", title "Performance — last 24 hours" (`range.label`), the environment dropdown ("production ▾", environments with APM data) and the range `.segmented` 15m · 1h · 1d · 7d · 30d. Locked ranges render as disabled segments; when hosted, "Upgrade to unlock" (`upgrade_to_unlock`) follows them. Self-hosted never shows upgrade copy; a self-hosted range beyond the setting is disabled with the title "This instance keeps N days".
+- KPI tiles, one row of seven: **Requests per minute**, **Average**, **p75**, **p90**, **p95**, **p99**, **Failed requests** (jobs tab: "Runs per minute", "Failed runs"). Each shows the range value and a **"Last hour X"** subline: "Last hour 1,310 per minute", "Last hour 164 ms", …, "Last hour 0.31% · see issues" (link to the issue list for `env`). The p95 subline turns coral with "· ▲ 49%" (`(last_hour_p95 / past_day_p95 − 1)`, rounded) when the total row is Slower. "—" when there is no data.
+- "Where request time goes" ("Where job time goes" on the jobs tab) panel: "Average time per request by layer, every 15 minutes. The line is p95." (the bin wording follows the range). Stacked layer bars per bin (`apm_layer_bars_svg`) with the p95 line on top, y-axis ticks, x labels "−24h … now" (relative to the range), legend Database · External HTTP · Views · Ruby · p95. The tiles and the chart follow the tab: web shows the web total row, jobs the job total row.
+- Tabs "Web requests 23" / "Background jobs 14" (transactions with data in the range), the filter input ("Filter endpoints" / "Filter jobs", GET form) and "Sort: Time consumed ▾" (dropdown: Time consumed, Slowest p95, Most requests, Most failed).
+- Table columns: **Endpoint** / **Job** (name, link to the endpoint page; below it the route "POST /checkout", or for jobs "sidekiq · critical · waits 0.8 s (p95)"), **Req/min** / **Runs/min**, **p50**, **p95**, **p99**, **Failed**, **Time share** (bar of the row's `duration_ms` over the tab total, and the %), **p95 · 24h** (sparkline of `hourly_p95`, coral when Slower, iris otherwise). Chips after the name: "Slower" (coral with dot) and "N+1 queries" (lilac; any trace of the transaction in the range with `n_plus_one_count > 0`). Default sort: time consumed (`duration_ms` sum) descending. Footer "Showing 7 of 23 endpoints · show all".
+- **Empty state** (no APM data for the app): title "See where request time goes", body "Turn on performance monitoring in the goodsorcery gem to see response times, slow endpoints and traces of the slowest requests.", the snippet `config.performance_monitoring = true` and a link to Settings & setup. An environment with no data in the range shows "No requests in the last 24 hours."
+
+**2 · Endpoint detail**
+- Same range picker. Eyebrow "Web request · production" / "Background job · production"; title the name (`font-display`); below it "POST /checkout • app/controllers/checkouts_controller.rb" (jobs: "sidekiq · critical • app/jobs/orders/place_job.rb"; the file only when known). When Slower, a coral chip line: "p95 in the last hour is 1.8× the day's, climbing since about 14:00" (the clause after the comma only when `climbing_since` finds a start: the earliest of the last 6 hours from which every hourly p95 is ≥ 1.25× the day's; the time in the viewer's zone).
+- Ribbon: **Requests · 24h** (the label follows the range; "60,480", subline "42 per minute · last hour 51"), **Average**, **p75**, **p90**, **p95**, **p99** (each with "Last hour X"; p95 coral "· ▲ 1.8×" when Slower), **Failed** ("1.9%", subline "Last hour 2.4% · 2 issues", where "2 issues" links to the issue list filtered by the transaction name: `project_issues_path(project, q: name, env:)`; "· no issues" when none).
+- "Response time" chart: five lines over the range bins (`apm_lines_svg`): Average dashed ink, p75, p90, p95 coral, p99 light; legend in that order.
+- "Where time goes": "Requests around each percentile, split by layer. Last day." (range wording). Five horizontal stacked bars: Average, p75, p90, p95, p99, each labelled with its value; then the summary sentence: "Around p95 and p99, <layer> takes the most time (49% and 56%)." followed by "Typical requests mostly wait on <layer>." when the Average bar's largest layer differs, or "Typical requests spend most of their time there too." when it is the same. Layer names: "the database", "external HTTP", "views", "Ruby"; "wait on" for database/HTTP, "spend most of their time in" for views/Ruby.
+- "Errors on this endpoint" ("Unresolved issues raised by this endpoint."): rows with class, the redacted title, "GS-1042 · 1,284 events · 2 min ago" and a "New" chip, linking to the issue. Empty: "No unresolved issues from this endpoint."
+- "Slow traces · last day" ("We keep the slowest request each minute this hour, and the 3 slowest of each earlier hour."), segmented Slowest | Newest, 20 per page. Columns: Time (`clock_label` with seconds), Duration, Database, Queries, External HTTP ("1.23 s · 2"), Status (HTTP code; jobs "OK" or "Failed"; plus a coral chip with the issue short id linking to the issue when `error_event_uuid` resolves), "Trace →". Footer "8 of 131 traces in the last day" and "Next 20 →" / "← Previous 20". The panel is a `turbo_frame_tag dom_id(transaction, :traces)` so sorting and paging replace only it (`turbo_action: "advance"`).
+
+**3 · Slow request trace**
+- "← Older trace" / "Newer trace →" (disabled at the ends). Eyebrow "Slow trace · the slowest request in its minute" (open hour) or "Slow trace · one of the 3 slowest in its hour" (closed hour). Title: method + path ("POST /checkout"; jobs: the job class). Subline: "CheckoutsController#create · Nov 4, 14:32:08 · web-2 · request 7f3a9c1e" (request id: first 8 characters; jobs: queue instead).
+- Chips: duration, status ("200 OK"; coral for ≥ 500 or failed), "43 SQL queries", "2 HTTP calls", "1 N+1 pattern" (only when > 0).
+- Layer summary: one stacked bar plus four figures (Database 1.22 s 41%, External HTTP, Views, Ruby).
+- "Timeline" ("Repeated queries are grouped into one row."): axis ticks (0, 0.5 s … total), a root row ("Action CheckoutsController#create" / "Job Orders::PlaceJob") spanning the trace, then one row per span: type label (SQL / HTTP / View / Job), a short label (`apm_sql_label`: `SELECT "users" WHERE "id" = $1`; HTTP "POST api.taxjar.com/v2/taxes"; view "checkouts/create.html.erb"; enqueue "enqueue Orders::PlaceJob"), an SVG bar from `offset_ms` over `span_ms` (grouped) or `duration_ms`, in the layer colour, and the time. Grouped rows show "×4", or the lilac chip "N+1 ×38" at `count >= 10`. "N spans not shown" when `spans_dropped > 0`.
+- N+1 detail (when any): "One query, run 38 times" with the N+1 chip; the full normalised SQL formatted one clause per line (`formatted_sql`: keywords `tok-k`, placeholders `tok-n`); "Values become $1, $2 inside your app, before anything is sent."; Calls / Total / Average / Rows each; "Called from app/services/cart_total.rb:27 in total_cents" with the code context (mono, the call line highlighted, plain text); the hint "Load the products in one query instead:" with `….includes(:product)` (table from the first `FROM "x"`, singularised; without a table: "Preload the association with includes so it loads in one query.").
+- Request panel: Status, Host ("web-2 · Puma worker 3"), Started ("14:32:08.114"), Runtime ("Ruby 3.4.1 · Rails 8.0.2"), GC ("14 ms · 3 runs"), Allocations ("1.4M objects"); jobs add Queue and Queue wait. Footnote "Traces carry no params, headers, cookies or bodies."
+- "Errors in this request": the linked issue row (class, title, short id) when `error_event_uuid` resolves; "Error reported, but its event is no longer stored." when it doesn't; otherwise "None. Requests that raise link straight to their issue."
+- **Expired page** (`traces/expired`, 410): title "This trace is no longer kept"; body by reason: `:retention`/`:plan` "Good Sorcery keeps performance data for N day(s) on this account." (self-hosted: "This instance keeps performance data for N days.") and, for `:plan` only when hosted, `upgrade_to_unlock("Upgrade to keep more days")`; `:trimmed` "We keep the slowest request each minute this hour, and the 3 slowest of each earlier hour. A slower request replaced this one." A "Back to Performance" link.
+
+**SVG helpers** (`PerformanceChartHelper`, pure `tag`-built SVG like `ChartHelper`, numbers to 1 dp, a `<title>` per bar/point): `apm_layer_bars_svg(bins, line:)` (stacked bars + p95 line), `apm_lines_svg(series)` (five lines), `apm_split_bar_svg(split, scale_ms:)` (one horizontal stacked bar), `apm_timeline_bar_svg(offset_ms, width_ms, total_ms, color:)`, and the overview sparkline through the existing `sparkline_svg`. `PerformanceHelper`: `apm_duration`, `apm_rate`, `apm_percent`, `apm_tile`, `apm_slower_chip`, `apm_n_plus_one_chip`, `apm_sql_label`, `formatted_sql`, `apm_route_line`, `apm_status_label`.
+
+**Setup page:** the Rails and Ruby initializer snippets (`app/views/projects/setups/*`, `SetupHelper`) gain a commented block, in step with the gem's generator: `# Performance monitoring: response times, slow endpoints, traces of slow requests.` / `# config.performance_monitoring = true`.
+
+### 13.10 Authorization
+
+- Any member of the account may view every APM page (no role gate), as for issues.
+- Every lookup starts at `Current.account.projects.find_by!(slug:)`, then `@project.apm_transactions.listed.find(id)` or `@project.apm_traces.find_by(uuid:)`. Never `ApmTrace.find_by(uuid:)` unscoped.
+- **Tests on every action** (overview, transaction, trace, expired): `users(:outsider)` gets 404 for acme's URLs; a transaction or trace of `billing` under the `storefront` slug is 404; a total row's id is 404; signed-out requests redirect to sign-in; an unknown or non-v7 uuid is 404; the expired page renders only for the account's own app.
+
+### 13.11 Caching
+
+| What | Key | TTL | Owner |
+|---|---|---|---|
+| APM request counters | `rate-limit:api/v1/apm:<name>:<id>` | 1 min | backend |
+| Overview per-transaction numbers (ids → numbers, no names, no SQL) | `["apm_overview", project.id, env, tab, range.cache_key]` | 60 s | UI |
+
+Nothing else is cached. Transaction names, routes and anything from a trace payload are never written to the cache. Pages keep `Cache-Control: no-store` (inherited).
+
+### 13.12 Privacy rules (every slice)
+
+- **Encrypted at rest:** `apm_traces.payload` (normalised SQL, call sites, code context, request method/path/request id, job details, host, process, runtime, HTTP hosts/paths, templates) and `apm_inbound_batches.body`.
+- **Plaintext, by design:** transaction `name`, `kind`, `http_method`, `route` (a pattern), `adapter`, `queue`, `source_file`, all numbers and timestamps, `status`, `failed`, `uuid`, `error_event_uuid`. These are code identifiers, as `issues.transaction_name` and `culprit` are (§1.5).
+- **Never** in job arguments (`ProcessApmBatchJob` takes the integer batch id; `TrimApmTracesJob` none), Redis, the cache, logs, exception or validation messages, or broadcasts (there are none). Processing and trim errors are logged by class name and ids only. Error responses never echo payload content.
+- **Traces carry no params, headers, cookies, bodies, query strings or userinfo.** The gem never collects them; the server allow-lists trace keys and strips query strings and userinfo again (§13.5).
+- Views render SQL, paths and code through ERB escaping (`formatted_sql` builds with `tag`/`safe_join`); never `raw`/`html_safe`/`sanitize` on trace data.
+- Test fixture: the `checkout_slow` trace's code context and SQL carry `apm-fixture-secret`; tests assert it is absent from job args, captured logs, the cache store and every non-trace page, and that the raw `payload` column is ciphertext.
+
+### 13.13 Build slices and file ownership
+
+Two slices in this repo plus the gem build in its own repo (`goodsorcery-ruby/docs/DESIGN.md` §8), all able to run in parallel. The UI slice starts once the backend's first commit (migration, models, fixtures, the §13.6 query API with stubbed numbers if need be) has landed, and runs its tests against it. Never edit a file you don't own; report the need instead. Use your own test database (`TEST_DB_SUFFIX=_<slice>`). Keep methods ≤ 20 lines (aim for 1–8), no `call` objects, shallow conditionals. Run the §9/§10 checklists, `bin/rubocop` and `bin/brakeman` before each commit; commit in logical steps on `main` with the trailer.
+
+**Web backend** (`_apm_backend`)
+- `db/migrate/*_create_apm_tables.rb`, `db/schema.rb`, `db/seeds.rb` (a day of demo metrics and a few traces for storefront production, written directly)
+- `config/routes.rb` (the API routes of §13.3 **and** the dashboard routes of §13.8), `lib/middleware/ingest_body_shield.rb`, `config/application.rb` (`config.x.apm_retention_days`), `config/entitlements.yml`, `config/sidekiq.yml` (`apm`), `config/schedule.yml` (`trim_apm_traces`), `config/deploy.yml` (pass `GOODSORCERY_APM_RETENTION_DAYS` through when set), `README.md` (the env var), `docs/DEPLOYMENT.md` (the `apm` queue)
+- `app/controllers/api/v1/apm/{metrics,traces}_controller.rb`, `app/controllers/concerns/apm_ingest_endpoint.rb` (and `ingest_endpoint.rb` if shared parts move into a common concern)
+- Models: `app/models/apm_transaction.rb`, `apm_minute_stat.rb`, `apm_hourly_stat.rb`, `apm_trace.rb`, `apm_inbound_batch.rb`; `app/models/apm/{histogram,limits,distribution,range,stats_query,slower,metrics_envelope,traces_envelope,metrics_payload,traces_payload,batch_processor,transaction_registry,stats_upsert,trace_upsert,trace_normalizer,sql_scrub,trace_trim,trace_lookup,trace_id,trace_details}.rb`; the `has_many` lines in `project.rb`; `app/models/entitlements.rb`; `app/models/ingest/rate_counter.rb` (`scope:`); `app/models/ingest/retention.rb` (`prune_apm`)
+- `app/jobs/process_apm_batch_job.rb`, `app/jobs/trim_apm_traces_job.rb`
+- `docs/INGEST_API.md` (keep the APM section true to the build)
+- Tests: `test/fixtures/{apm_transactions,apm_minute_stats,apm_hourly_stats,apm_traces,apm_inbound_batches}.yml` (fixtures below), `test/controllers/api/v1/apm/**`, `test/models/apm/**` (except the UI's), `test/models/apm_*_test.rb`, `test/models/entitlements_test.rb`, `test/models/ingest/retention_test.rb` additions, `test/jobs/{process_apm_batch,trim_apm_traces}_job_test.rb`, `test/integration/apm_ingest_flow_test.rb`
+- **Fixtures:** `checkout_create` (storefront, production, web, `CheckoutsController#create`, `POST /checkout`), `products_show` (web), `place_order_job` (job, sidekiq, critical), `storefront_web_total`, `storefront_jobs_total`, `billing_invoices` (billing), `umbrella_home` (umbrella_app); minute stats for the last 2 hours and hourly stats for the last 25 hours (ERB-relative) for these, with `checkout_create` Slower; traces `checkout_slow` (N+1 group of 38 with call site and code context carrying `apm-fixture-secret`), `checkout_failed` (status 500, `error_event_uuid` = `nomethod_latest`'s uuid), `checkout_old_hour` (a closed hour), `umbrella_trace`; one unprocessed `apm_inbound_batches` row.
+- **Required tests:** the histogram literal and `index` edges (0, 0.999, 1, 47,999, 48,000, 10⁶); envelope validation and every error code (401/413/415/422/429 with `ActionController::Base.cache_store = :memory_store`), gzip, `Parameters: {}` for both paths, no quota check (accepted when over quota), separate rate counters from error ingest; a duplicate `batch_id` stored and counted once; processing adds minute, hourly and total rows element-wise, merges duplicate keys in Ruby, sorts rows; two concurrent batches for one transaction-minute sum correctly; the transaction cap folds into `(other)`; minutes outside the window are skipped; a slower trace replaces, a faster one doesn't; the hourly trim keeps the 3 slowest per transaction-hour and never touches the open hour; percentile and layer-split math on known histograms (single bucket, spread, overflow bucket, empty → nil, split sums to the value); Slower thresholds including the minimum counts; entitlements (hosted default 1, stored value wins, invalid ignored, self-hosted setting and clamping, `allows_apm_range?`); prune per account cutoff (including a hosted downgrade), minute rows at 2 days, inbound batches, stale transactions; `TraceLookup` found / trimmed / retention / plan / unknown / non-v7 / future; ciphertext columns; the fixture secret absent from job args, logs and cache; the statement budgets of §13.4.
+
+**Web UI** (`_apm_ui`)
+- `app/controllers/projects/performance/{overviews,transactions,traces}_controller.rb`
+- `app/models/apm/{selection,overview,endpoint_report,trace_list,trace_page,n_plus_one_hint}.rb`
+- `app/views/projects/performance/**` (`overviews/show`, `_header`, `_range_picker`, `_environment_menu`, `_tiles`, `_tile`, `_layer_chart`, `_tabs`, `_table`, `_row`, `_empty`; `transactions/show`, `_hero`, `_ribbon`, `_response_chart`, `_where_time_goes`, `_issues`, `_traces`; `traces/show`, `_hero`, `_chips`, `_layers`, `_timeline`, `_n_plus_one`, `_request`, `_errors`, `expired`)
+- `app/helpers/performance_helper.rb`, `app/helpers/performance_chart_helper.rb`, `app/helpers/icon_helper.rb` (`:performance`), `app/views/layouts/_sidebar.html.erb` (the link), `app/helpers/setup_helper.rb` and `app/views/projects/setups/**` (the snippet)
+- Tests: `test/controllers/projects/performance/**`, `test/models/apm/{selection,overview,endpoint_report,trace_list,trace_page,n_plus_one_hint}_test.rb`, `test/helpers/{performance,performance_chart}_helper_test.rb`, `test/integration/shell_test.rb` (the sidebar link), `test/system/performance_test.rb` (tabs, range and trace sort through the DOM, `press`/`type_into`)
+- **Required tests:** §13.10 authorization on every action; the overview tiles are Requests per minute, Average, p75, p90, p95, p99, Failed (no p50) each with a "Last hour" subline, and the p95 subline is coral with the % change only when Slower; the table keeps p50/p95/p99; tabs, filter, sort, "show all"; Slower and N+1 chips; the empty state with the snippet; the environment menu; locked ranges with "Upgrade to unlock" hosted, none self-hosted, a crafted locked range falls back to 1d; the endpoint ribbon (Requests, Average, p75, p90, p95, p99, Failed with the issues link), the five-line legend, five bars and the summary sentence; "Errors on this endpoint" lists only unresolved issues of that transaction and environment; traces sorted Slowest/Newest, 20 per page, error chip linking to the issue; trace chips, grouped timeline rows and N+1 detail copy ("Values become $1, $2 inside your app, before anything is sent."), "Traces carry no params, headers, cookies or bodies.", errors in the request; older/newer; the expired page (410) with "Upgrade to keep more days" hosted only; SQL containing `<script>` renders escaped; `no-store`; fixed query counts (overview 1 vs 5 transactions; endpoint and trace pages constant); the overview cache holds numbers only; the setup snippet shows `config.performance_monitoring`.
+
+**Integration (lead, after the slices):** check the gem and server agree (an end-to-end run: a dummy Rails app with the gem against `bin/dev`, data visible on all three pages), update `CLAUDE.md` ("Current state", gotchas: `Apm` naming, write-time rollup, the trace upsert, encrypted traces), then run the full test, system, lint, Brakeman and audit pass.
