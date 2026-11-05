@@ -41,6 +41,15 @@ class Apm::RangeTest < ActiveSupport::TestCase
   test "minutes elapsed and cache key" do
     range = Apm::Range.new("15m", now: NOW)
     assert_in_delta 14 + 40 / 60.0, range.minutes
-    assert_equal [ "15m", Time.utc(2026, 11, 4, 14, 32).to_i ], range.cache_key
+    assert_equal [ "15m", Entitlements::MAX_APM_RETENTION_DAYS, Time.utc(2026, 11, 4, 14, 32).to_i ], range.cache_key
+  end
+
+  test "the week and month ranges reuse their cache for ten minutes" do
+    assert_equal 1.minute, Apm::Range.new("1d", now: NOW).cache_step
+    long = Apm::Range.new("30d", now: NOW, retention_days: 30)
+    assert_equal 10.minutes, long.cache_step
+    assert_equal [ "30d", 30, Time.utc(2026, 11, 4, 14, 30).to_i ], long.cache_key
+    assert_equal long.cache_key, Apm::Range.new("30d", now: NOW + 5.minutes, retention_days: 30).cache_key
+    assert_not_equal long.cache_key, Apm::Range.new("30d", now: NOW, retention_days: 7).cache_key
   end
 end

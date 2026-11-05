@@ -3,14 +3,13 @@
 # row, the tab counts, and the table of transactions sorted by time
 # consumed. Read-only; a fixed number of statements however many
 # transactions the app has. The per-transaction figures (numbers only, keyed
-# by id) are cached for CACHE_TTL.
+# by id) cover both tabs and are cached per range.cache_step.
 #
 #   overview = Apm::Overview.new(project, selection)
 #   overview.tiles  # => [Tile(:rate, "Requests per minute", …), Tile(:average, …), …]
 #   overview.rows   # => the first ROW_LIMIT rows unless "show all"
 class Apm::Overview
   ROW_LIMIT = 25
-  CACHE_TTL = 60.seconds
   PERCENTILE_TILES = [ 75, 90, 95, 99 ].freeze
   LABELS = {
     "web" => { rate: "Requests per minute", failed: "Failed requests", noun: "request", nouns: "endpoints" },
@@ -101,13 +100,14 @@ class Apm::Overview
     def listed(kind) = transactions.select { !it.total? && it.kind == kind }
 
     def figures
-      @figures ||= Rails.cache.fetch(cache_key, expires_in: CACHE_TTL) { computed_figures }.transform_values { Apm::Figures.from_a(it) }
+      @figures ||= Rails.cache.fetch(cache_key, expires_in: range.cache_step) { computed_figures }.transform_values { Apm::Figures.from_a(it) }
     end
 
-    # { id => [numbers] } for every transaction of the environment.
+    # { id => [numbers] } for every transaction of the environment, both
+    # kinds, so the key leaves out the tab.
     def computed_figures = stats.by_transaction(transactions.map(&:id)).transform_values { Apm::Figures.from(it).to_a }
 
-    def cache_key = [ "apm_overview", project.id, environment, tab, range.cache_key ]
+    def cache_key = [ "apm_overview", project.id, environment, *range.cache_key ]
 
     def figures_for(transaction) = (transaction && figures[transaction.id]) || Apm::Figures.empty
 

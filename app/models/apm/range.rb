@@ -23,6 +23,11 @@ class Apm::Range
   }.freeze
   KEYS = SPECS.keys.freeze
   DEFAULT = "1d".freeze
+  # How long cached figures of a range may be reused: a minute, but ten for
+  # the week and month ranges, whose figures read many hourly rows and
+  # barely move in ten minutes.
+  CACHE_STEP = 1.minute
+  LONG_CACHE_STEP = 10.minutes
 
   # The range for a URL param: unknown keys and ranges the account may not
   # see (a crafted URL, or after a downgrade) fall back to DEFAULT.
@@ -61,7 +66,10 @@ class Apm::Range
 
   def past_day_start = floor_hour - 23.hours
 
-  def cache_key = [ key, floor_minute.to_i ]
+  # Changes once per cache_step (and with the retention, which clamps start).
+  def cache_key = [ key, retention_days, TimeSeries.align(now, cache_step).to_i ]
+
+  def cache_step = days > 1 ? LONG_CACHE_STEP : CACHE_STEP
 
   private
     def floor_minute = TimeSeries.align(now, 1.minute)

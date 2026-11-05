@@ -24,6 +24,18 @@ class Apm::OverviewTest < ActiveSupport::TestCase
     assert_nil tiles.find { it.key == :p95 }.change
   end
 
+  test "both tabs share one cached computation of the figures" do
+    hits = []
+    callback = ->(*, payload) { hits << payload[:hit] if payload[:key].to_s.include?("apm_overview") }
+    with_memory_cache do
+      ActiveSupport::Notifications.subscribed(callback, "cache_read.active_support") do
+        overview.tiles
+        overview(tab: "jobs").tiles
+      end
+    end
+    assert_equal [ false, true ], hits
+  end
+
   test "rows by time consumed with shares, Slower and N+1" do
     rows = overview.rows
 
@@ -58,6 +70,14 @@ class Apm::OverviewTest < ActiveSupport::TestCase
   end
 
   private
+    def with_memory_cache
+      original = Rails.cache
+      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+      yield
+    ensure
+      Rails.cache = original
+    end
+
     def overview(**params)
       selection = Apm::Selection.new(@project, ActionController::Parameters.new(params), entitlements: accounts(:acme).entitlements)
       Apm::Overview.new(@project, selection)
