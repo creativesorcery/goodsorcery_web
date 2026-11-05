@@ -11,17 +11,25 @@
 # 4. one UPDATE of last_seen_at and the latest labels for rows not seen for
 #    an hour, so hot rows are not rewritten every minute.
 #
+# Inserts and updates take their locks in [kind, name] and id order, so
+# batches flushed at the same moment by many processes don't deadlock.
+#
 # The cap is soft under concurrency (two batches may each add the last
 # names); that is accepted. Run it inside the batch transaction, uncached.
 class Apm::TransactionRegistry
+  class Unresolved < StandardError; end
+
   LABELS = %i[http_method route adapter queue source_file].freeze
   REFRESH_AFTER = 1.hour
   VALUES_TOKEN = "/*values*/".freeze
   REFRESH_SQL = <<~SQL.squish.freeze
+    WITH locked AS MATERIALIZED (
+      SELECT id FROM apm_transactions WHERE id IN (:ids) AND last_seen_at < CAST(:cutoff AS timestamp)
+      ORDER BY id FOR NO KEY UPDATE)
     UPDATE apm_transactions SET last_seen_at = CAST(:now AS timestamp), updated_at = CAST(:now AS timestamp),
       #{LABELS.map { "#{it} = COALESCE(v.#{it}, apm_transactions.#{it})" }.join(", ")}
     FROM (VALUES #{VALUES_TOKEN}) AS v(id, #{LABELS.join(", ")})
-    WHERE apm_transactions.id = v.id AND apm_transactions.last_seen_at < CAST(:cutoff AS timestamp)
+    WHERE apm_transactions.id = v.id AND apm_transactions.id IN (SELECT id FROM locked)
   SQL
 
   def initialize(project_id:, environment:, now: Time.current)
@@ -33,10 +41,11 @@ class Apm::TransactionRegistry
 
   # { [kind, name] => id } for every entry (names past the cap map to the
   # (other) id). With totals: true the kinds' total rows are ensured too.
+  # Raises Unresolved rather than hand back a nil id.
   def ids_for(entries, totals: false)
     labels = latest_labels(entries)
     resolve(labels.keys, labels, totals:)
-    labels.keys.index_with { |key| id_of(key) || id_of(other_key(key.first)) }
+    labels.keys.index_with { resolved_id(it) }
   end
 
   # The id of a kind's total row (after ids_for with totals: true).
@@ -44,6 +53,10 @@ class Apm::TransactionRegistry
 
   private
     def id_of(key) = @rows[key]&.first
+
+    def resolved_id(key)
+      id_of(key) || id_of(other_key(key.first)) || raise(Unresolved, "no transaction row for a #{key.first} name")
+    end
 
     def other_key(kind) = [ kind, ApmTransaction::OTHER_NAME ]
 
@@ -70,12 +83,14 @@ class Apm::TransactionRegistry
       inserts = missing + offered
       return if inserts.empty?
 
-      @rows.merge!(insert_rows(inserts.uniq, labels))
+      @rows.merge!(insert_rows(inserts, labels, admitted: keys.select { other?(it) }))
       unresolved = inserts.reject { @rows.key?(it) }
       @rows.merge!(select_rows(unresolved)) if unresolved.any?
     end
 
     def total?(key) = key.last == ApmTransaction::TOTAL_NAMES[key.first]
+
+    def other?(key) = key.last == ApmTransaction::OTHER_NAME
 
     # { key => [id, last_seen_at] }
     def select_rows(keys)
@@ -86,13 +101,14 @@ class Apm::TransactionRegistry
         end
     end
 
-    def insert_rows(keys, labels)
+    # A client-sent (other) is always admitted (see InsertSql).
+    def insert_rows(keys, labels, admitted:)
       sql = Apm::TransactionRegistry::InsertSql.new(project_id: @project_id, environment: @environment, now: @now)
-      ApmTransaction.connection.select_rows(sql.for(keys, labels)).to_h { |kind, name, id| [ [ kind, name ], [ id, @now ] ] }
+      ApmTransaction.connection.select_rows(sql.for(keys, labels, admitted:)).to_h { |kind, name, id| [ [ kind, name ], [ id, @now ] ] }
     end
 
     def refresh(labels)
-      stale = @rows.select { |_, (_, seen)| seen < @now - REFRESH_AFTER }.values.map(&:first)
+      stale = @rows.select { |_, (_, seen)| seen < @now - REFRESH_AFTER }.values.map(&:first).sort
       return if stale.empty?
 
       by_id = labels.filter_map { |key, values| [ id_of(key), values ] if id_of(key) }.to_h
@@ -104,7 +120,7 @@ class Apm::TransactionRegistry
       values = ids.map do |id|
         ApmTransaction.sanitize_sql_array([ "(CAST(? AS bigint), ?, ?, ?, ?, ?)", id, *LABELS.map { labels_by_id.fetch(id, {})[it] } ])
       end
-      ApmTransaction.sanitize_sql_array([ REFRESH_SQL, { now: @now, cutoff: @now - REFRESH_AFTER } ])
+      ApmTransaction.sanitize_sql_array([ REFRESH_SQL, { now: @now, cutoff: @now - REFRESH_AFTER, ids: } ])
         .sub(VALUES_TOKEN) { values.join(", ") }
     end
 end

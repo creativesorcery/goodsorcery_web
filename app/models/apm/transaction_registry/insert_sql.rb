@@ -1,9 +1,12 @@
 # The registry's single INSERT for missing transactions. Each new name of a
 # kind gets a rank (1, 2, …) and is admitted while
 # rank <= Apm::MAX_TRANSACTIONS − the names that kind already has (its
-# "room"). The total rows get rank 0 and are always admitted. The (other)
-# row gets −(the kind's new names) and is admitted only when they don't all
-# fit, so it exists only once something is folded into it. Conflicts with
+# "room"). The total rows get rank 0 and are always admitted, and so does an
+# (other) row the client sent itself (the gem folds names past its own cap
+# into one). The (other) row the registry offers on its own gets −(the
+# kind's new names) and is admitted only when they don't all fit, so it
+# exists only once something is folded into it. Keys are inserted in sorted
+# order, so concurrent batches take unique-index locks in the same order. Conflicts with
 # rows inserted concurrently are skipped (ON CONFLICT DO NOTHING) and
 # re-selected by the registry. Every value is quoted by sanitize_sql_array;
 # the quoted VALUES rows are spliced in after the statement's own binds are
@@ -34,16 +37,17 @@ class Apm::TransactionRegistry::InsertSql
     @now = now
   end
 
-  # The statement; it returns rows of [kind, name, id] when run.
-  def for(keys, labels)
+  # The statement; it returns rows of [kind, name, id] when run. admitted:
+  # keys that get rank 0 (always inserted).
+  def for(keys, labels, admitted: [])
     binds = { project_id: @project_id, environment: @environment, now: @now, max: Apm::MAX_TRANSACTIONS,
               other: ApmTransaction::OTHER_NAME }
-    ApmTransaction.sanitize_sql_array([ SQL, binds ]).sub(VALUES_TOKEN) { values(keys, labels) }
+    ApmTransaction.sanitize_sql_array([ SQL, binds ]).sub(VALUES_TOKEN) { values(keys.uniq.sort, labels, admitted) }
   end
 
   private
-    def values(keys, labels)
-      ranks = ranks_for(keys)
+    def values(keys, labels, admitted)
+      ranks = ranks_for(keys, admitted)
       keys.map do |kind, name|
         label = special?(kind, name) ? {} : labels.fetch([ kind, name ], {})
         ApmTransaction.sanitize_sql_array([ ROW, kind, name, total?(kind, name), *Apm::TransactionRegistry::LABELS.map { label[it] },
@@ -51,11 +55,12 @@ class Apm::TransactionRegistry::InsertSql
       end.join(", ")
     end
 
-    # New names 1, 2, … per kind; totals 0; (other) −(the kind's new names).
-    def ranks_for(keys)
+    # New names 1, 2, … per kind; totals and admitted keys 0; an offered
+    # (other) −(the kind's new names).
+    def ranks_for(keys, admitted)
       named = keys.reject { special?(*it) }.group_by(&:first)
       ranks = named.values.flat_map { |list| list.each_with_index.map { |key, index| [ key, index + 1 ] } }.to_h
-      keys.each { |kind, name| ranks[[ kind, name ]] ||= total?(kind, name) ? 0 : -named.fetch(kind, []).size }
+      keys.each { |key| ranks[key] ||= total?(*key) || admitted.include?(key) ? 0 : -named.fetch(key.first, []).size }
       ranks
     end
 
