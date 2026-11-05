@@ -32,6 +32,8 @@ class Projects::Performance::TransactionsControllerTest < ActionDispatch::Integr
     %w[average p75 p90 p95 p99].each { |key| assert_select "[data-stat=#{key}] dd", /Last hour/ }
     assert_select "[data-stat=p95] dd.text-coral-300", /· ▲ \d+\.\d×/
     assert_select "[data-stat=p99] dd.text-coral-300", count: 0
+    assert_select "[data-stat=p95][class*=bg-coral-500]"
+    assert_select "[data-stat=p99][class*=bg-coral-500]", count: 0
     assert_select "[data-stat=failed] dd", /Last hour \d/
     assert_select "[data-stat=failed] a[href=?]", project_issues_path(@project, q: "is:unresolved CheckoutsController#create", env: "production"),
       text: "1 issue"
@@ -47,6 +49,14 @@ class Projects::Performance::TransactionsControllerTest < ActionDispatch::Integr
     assert_equal %w[average 75 90 95 99], css_select("[data-bar]").map { it["data-bar"] }
     assert_select "[data-bar=95] .text-coral-300"
     assert_select "p", /\AAround p95 and p99, .+ takes the most time \(\d+% and \d+%\)\. Typical requests/
+  end
+
+  test "Where time goes draws its bars on one scale, so the longest value spans the width" do
+    get project_performance_transaction_path(@project, @checkout)
+
+    widths = %w[average 75 90 95 99].to_h { |key| [ key, css_select("[data-bar='#{key}'] clipPath rect").first["width"].to_f ] }
+    assert_in_delta 100.0, widths.values.max, 0.01
+    assert_operator widths["average"], :<, widths["99"]
   end
 
   test "Errors on this endpoint lists only unresolved issues of this transaction and environment" do

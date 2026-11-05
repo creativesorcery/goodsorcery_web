@@ -21,7 +21,7 @@
         <div class="min-w-[760px]">
           <div class="<%= PerformanceHelper::TRACE_GRID %> px-5 py-2 text-[11px] uppercase tracking-[.16em] text-ink-400/80 border-y border-paper-700 bg-paper-850/60">
             <span>Time</span><span class="text-right">Duration</span><span class="text-right">Database</span><span class="text-right">Queries</span>
-            <span class="text-right">External HTTP</span><span>Status</span><span></span>
+            <span class="text-right whitespace-nowrap">External HTTP</span><span>Status</span><span></span>
           </div>
           <% list.traces.each do |trace| %>
             <% issue = list.issue_for(trace) %>

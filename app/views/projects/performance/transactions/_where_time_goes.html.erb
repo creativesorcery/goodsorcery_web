@@ -1,5 +1,7 @@
 <%# locals: (report:) -%>
 <% bars = report.bars %>
+<%# Every bar shares one scale, the longest value, so their lengths compare. %>
+<% scale_ms = bars.map(&:value).max.to_f %>
 <section class="panel p-5 rise rise-3" aria-labelledby="apm_where_heading">
   <h2 id="apm_where_heading" class="text-[15px] font-semibold text-ink-50">Where time goes</h2>
   <p class="mt-1 text-[12.5px] text-ink-300"><%= report.transaction.web? ? "Requests" : "Runs" %> around each percentile, split by layer. <%= report.range.label.upcase_first %>.</p>
@@ -9,7 +11,7 @@
       <% bars.each do |bar| %>
         <div class="grid grid-cols-[56px_minmax(0,1fr)_68px] items-center gap-3 text-[12.5px]" data-bar="<%= bar.key %>">
           <span class="text-ink-200"><%= bar.label %></span>
-          <%= apm_split_bar_svg(bar.split, scale_ms: bar.value,
+          <%= apm_split_bar_svg(bar.split, scale_ms:,
                 title: PerformanceHelper::LAYER_NAMES.map { |layer, name| "#{name} #{apm_duration(bar.split[layer])}" }.join(" · ")) %>
           <span class="text-right font-mono <%= bar.key == 95 && report.slower_ratio ? "text-coral-300 font-semibold" : "text-ink-50" %>"><%= apm_duration(bar.value) %></span>
         </div>

@@ -4,7 +4,7 @@
   <p class="mt-1 mb-2 text-[12.5px] text-ink-300">Unresolved issues raised by this <%= transaction.web? ? "endpoint" : "job" %>.</p>
   <% if report.issues.any? %>
     <% report.issues.each do |issue| %>
-      <%= link_to project_issue_path(project, issue), class: "block rounded-xl px-3 py-2.5 -mx-1 hover:bg-paper-850 transition" do %>
+      <%= link_to project_issue_path(project, issue), class: "block mt-2 rounded-xl border border-paper-700 px-3 py-2.5 hover:bg-paper-850 transition" do %>
         <span class="flex flex-wrap items-center gap-2 min-w-0"><%= issue_class_name(issue) %><%= issue_badge(issue) %></span>
         <span class="block mt-0.5 text-[13px] text-ink-100 truncate"><%= issue_title(issue) %></span>
         <span class="block mt-1 font-mono text-[11.5px] text-ink-400">

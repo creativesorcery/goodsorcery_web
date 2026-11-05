@@ -2,7 +2,7 @@
 <% range = report.range %>
 <dl class="mt-7 panel overflow-hidden grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 divide-x divide-paper-700/70 rise rise-1" aria-label="Summary">
   <% report.ribbon.each do |stat| %>
-    <div class="px-5 py-4 min-w-0" data-stat="<%= stat.key %>">
+    <div class="px-5 py-4 min-w-0 <%= "bg-coral-500/[.05]" if stat.change %>" data-stat="<%= stat.key %>">
       <% case stat.key %>
       <% when :requests %>
         <dt class="text-[12px] text-ink-300"><%= apm_requests_label(transaction, range) %></dt>
