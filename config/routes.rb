@@ -8,6 +8,11 @@ Rails.application.routes.draw do
         resource :batch, only: :create
       end
       get "verify", to: "verifications#show", as: :verification
+      # Performance monitoring (docs/ARCHITECTURE.md §13.3).
+      namespace :apm do
+        resource :metrics, only: :create
+        resource :traces, only: :create
+      end
     end
   end
 
@@ -43,6 +48,13 @@ Rails.application.routes.draw do
         scope module: :api_keys do
           resource :reveal, only: :show
           resource :rotation, only: :create
+        end
+      end
+      # Performance (docs/ARCHITECTURE.md §13.8): overview, transaction and trace pages.
+      resource :performance, only: :show, controller: "performance/overviews" do
+        scope module: :performance do
+          resources :transactions, only: :show
+          resources :traces, only: :show
         end
       end
       resources :uptime_monitors, path: "uptime" do

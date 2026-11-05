@@ -1,0 +1,12 @@
+# One accepted, not yet processed metrics batch (body encrypted on insert).
+<% minute = TimeSeries.align(1.minute.ago, 1.minute).utc.iso8601 %>
+storefront_pending_metrics:
+  project: storefront
+  environment: production
+  kind: metrics
+  uuid: 0192f7b0-1a2b-7c3d-8e4f-5a6b7c8d9e0f
+  body: <%= { batch_id: "0192f7b0-1a2b-7c3d-8e4f-5a6b7c8d9e0f", histogram: "gs-v1",
+              minutes: [ { minute:, transactions: [ { kind: "web", name: "CheckoutsController#create", method: "POST", route: "/checkout",
+                                                      count: 2, failed: 0, duration_ms: 500.0,
+                                                      buckets: [ [ 15, 2, 200.0, 100.0, 100.0, 100.0 ] ] } ] } ] }.to_json.to_json %>
+  received_at: <%= 1.minute.ago.to_fs(:db) %>

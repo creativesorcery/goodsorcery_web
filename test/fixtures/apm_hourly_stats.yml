@@ -1,0 +1,13 @@
+# The last 25 hours (the current one up to now), one row per transaction per
+# hour, the sums of ApmFixtureStats' per-minute profiles.
+<% require Rails.root.join("test/test_helpers/apm_fixture_stats").to_s %>
+<% ApmFixtureStats::LABELS.each do |label| %>
+<% ApmFixtureStats.hourly_rows(label).each_with_index do |(hour, distribution), index| %>
+<%= label %>_h<%= index %>:
+  apm_transaction: <%= label %>
+  hour: <%= hour.to_fs(:db) %>
+<% ApmFixtureStats.columns(distribution).each do |column, value| %>
+  <%= column %>: <%= value.to_json %>
+<% end %>
+<% end %>
+<% end %>

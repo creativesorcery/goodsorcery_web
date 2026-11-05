@@ -16,6 +16,9 @@ class Project < ApplicationRecord
   has_many :inbound_events, inverse_of: :project
   has_many :project_hourly_counts, inverse_of: :project
   has_many :uptime_monitors, inverse_of: :project
+  has_many :apm_transactions, inverse_of: :project
+  has_many :apm_traces, inverse_of: :project
+  has_many :apm_inbound_batches, inverse_of: :project
 
   enum :platform, { rails: "rails", ruby: "ruby" }, validate: true
   enum :color, COLORS.index_by(&:itself), validate: true, prefix: true

@@ -1,0 +1,12 @@
+# The last 2 hours, one row per transaction per minute (ApmFixtureStats).
+<% require Rails.root.join("test/test_helpers/apm_fixture_stats").to_s %>
+<% ApmFixtureStats::LABELS.each do |label| %>
+<% ApmFixtureStats.minute_rows(label).each_with_index do |(minute, distribution), index| %>
+<%= label %>_m<%= index %>:
+  apm_transaction: <%= label %>
+  minute: <%= minute.to_fs(:db) %>
+<% ApmFixtureStats.columns(distribution).each do |column, value| %>
+  <%= column %>: <%= value.to_json %>
+<% end %>
+<% end %>
+<% end %>

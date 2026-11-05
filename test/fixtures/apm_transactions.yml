@@ -1,0 +1,73 @@
+# storefront production: two endpoints, one job and the two total rows.
+# checkout_create is Slower (see test/test_helpers/apm_fixture_stats.rb).
+<% seen = { first_seen_at: 20.days.ago.to_fs(:db), last_seen_at: 10.minutes.ago.to_fs(:db) } %>
+checkout_create:
+  project: storefront
+  environment: production
+  kind: web
+  name: "CheckoutsController#create"
+  http_method: POST
+  route: /checkout
+  source_file: app/controllers/checkouts_controller.rb
+  first_seen_at: <%= seen[:first_seen_at] %>
+  last_seen_at: <%= seen[:last_seen_at] %>
+
+products_show:
+  project: storefront
+  environment: production
+  kind: web
+  name: "ProductsController#show"
+  http_method: GET
+  route: /products/:slug
+  source_file: app/controllers/products_controller.rb
+  first_seen_at: <%= seen[:first_seen_at] %>
+  last_seen_at: <%= seen[:last_seen_at] %>
+
+place_order_job:
+  project: storefront
+  environment: production
+  kind: job
+  name: "Orders::PlaceJob"
+  adapter: sidekiq
+  queue: critical
+  source_file: app/jobs/orders/place_job.rb
+  first_seen_at: <%= seen[:first_seen_at] %>
+  last_seen_at: <%= seen[:last_seen_at] %>
+
+storefront_web_total:
+  project: storefront
+  environment: production
+  kind: web
+  name: All web requests
+  total: true
+  first_seen_at: <%= seen[:first_seen_at] %>
+  last_seen_at: <%= seen[:last_seen_at] %>
+
+storefront_jobs_total:
+  project: storefront
+  environment: production
+  kind: job
+  name: All background jobs
+  total: true
+  first_seen_at: <%= seen[:first_seen_at] %>
+  last_seen_at: <%= seen[:last_seen_at] %>
+
+billing_invoices:
+  project: billing
+  environment: production
+  kind: web
+  name: "InvoicesController#index"
+  http_method: GET
+  route: /invoices
+  first_seen_at: <%= seen[:first_seen_at] %>
+  last_seen_at: <%= seen[:last_seen_at] %>
+
+umbrella_home:
+  project: umbrella_app
+  environment: production
+  kind: web
+  name: "HomeController#index"
+  http_method: GET
+  route: /
+  first_seen_at: <%= seen[:first_seen_at] %>
+  last_seen_at: <%= seen[:last_seen_at] %>

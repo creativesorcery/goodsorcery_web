@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -66,6 +66,110 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_000003) do
     t.index ["created_by_id"], name: "index_api_keys_on_created_by_id"
     t.index ["project_id", "environment"], name: "index_api_keys_on_project_id_and_environment", unique: true
     t.index ["token_digest"], name: "index_api_keys_on_token_digest", unique: true
+  end
+
+  create_table "apm_hourly_stats", primary_key: ["apm_transaction_id", "hour"], force: :cascade do |t|
+    t.bigint "apm_transaction_id", null: false
+    t.datetime "hour", null: false
+    t.bigint "requests_count", default: 0, null: false
+    t.bigint "failed_count", default: 0, null: false
+    t.float "duration_ms_sum", default: 0.0, null: false
+    t.bigint "bucket_counts", default: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], null: false, array: true
+    t.float "bucket_db_ms", default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], null: false, array: true
+    t.float "bucket_http_ms", default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], null: false, array: true
+    t.float "bucket_view_ms", default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], null: false, array: true
+    t.float "bucket_ruby_ms", default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], null: false, array: true
+    t.bigint "queue_wait_counts", default: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], null: false, array: true
+    t.float "queue_wait_ms_sum", default: 0.0, null: false
+    t.index ["hour"], name: "index_apm_hourly_stats_on_hour"
+    t.check_constraint "cardinality(bucket_counts) = 31", name: "apm_hourly_stats_bucket_counts_size"
+    t.check_constraint "cardinality(bucket_db_ms) = 31", name: "apm_hourly_stats_bucket_db_ms_size"
+    t.check_constraint "cardinality(bucket_http_ms) = 31", name: "apm_hourly_stats_bucket_http_ms_size"
+    t.check_constraint "cardinality(bucket_ruby_ms) = 31", name: "apm_hourly_stats_bucket_ruby_ms_size"
+    t.check_constraint "cardinality(bucket_view_ms) = 31", name: "apm_hourly_stats_bucket_view_ms_size"
+    t.check_constraint "cardinality(queue_wait_counts) = 31", name: "apm_hourly_stats_queue_wait_counts_size"
+  end
+
+  create_table "apm_inbound_batches", force: :cascade do |t|
+    t.bigint "project_id", null: false
+    t.string "environment", null: false
+    t.string "kind", null: false
+    t.uuid "uuid", null: false
+    t.text "body"
+    t.datetime "received_at", null: false
+    t.datetime "processed_at"
+    t.index ["project_id", "kind", "uuid"], name: "index_apm_inbound_batches_on_project_id_and_kind_and_uuid", unique: true
+    t.index ["received_at"], name: "index_apm_inbound_batches_on_received_at"
+    t.check_constraint "kind::text = ANY (ARRAY['metrics'::character varying, 'traces'::character varying]::text[])", name: "apm_inbound_batches_kind_check"
+  end
+
+  create_table "apm_minute_stats", primary_key: ["apm_transaction_id", "minute"], force: :cascade do |t|
+    t.bigint "apm_transaction_id", null: false
+    t.datetime "minute", null: false
+    t.bigint "requests_count", default: 0, null: false
+    t.bigint "failed_count", default: 0, null: false
+    t.float "duration_ms_sum", default: 0.0, null: false
+    t.bigint "bucket_counts", default: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], null: false, array: true
+    t.float "bucket_db_ms", default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], null: false, array: true
+    t.float "bucket_http_ms", default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], null: false, array: true
+    t.float "bucket_view_ms", default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], null: false, array: true
+    t.float "bucket_ruby_ms", default: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], null: false, array: true
+    t.bigint "queue_wait_counts", default: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], null: false, array: true
+    t.float "queue_wait_ms_sum", default: 0.0, null: false
+    t.index ["minute"], name: "index_apm_minute_stats_on_minute"
+    t.check_constraint "cardinality(bucket_counts) = 31", name: "apm_minute_stats_bucket_counts_size"
+    t.check_constraint "cardinality(bucket_db_ms) = 31", name: "apm_minute_stats_bucket_db_ms_size"
+    t.check_constraint "cardinality(bucket_http_ms) = 31", name: "apm_minute_stats_bucket_http_ms_size"
+    t.check_constraint "cardinality(bucket_ruby_ms) = 31", name: "apm_minute_stats_bucket_ruby_ms_size"
+    t.check_constraint "cardinality(bucket_view_ms) = 31", name: "apm_minute_stats_bucket_view_ms_size"
+    t.check_constraint "cardinality(queue_wait_counts) = 31", name: "apm_minute_stats_queue_wait_counts_size"
+  end
+
+  create_table "apm_traces", force: :cascade do |t|
+    t.bigint "project_id", null: false
+    t.bigint "apm_transaction_id", null: false
+    t.uuid "uuid", null: false
+    t.datetime "minute", null: false
+    t.datetime "hour", null: false
+    t.datetime "started_at", null: false
+    t.float "duration_ms", default: 0.0, null: false
+    t.float "db_ms", default: 0.0, null: false
+    t.float "http_ms", default: 0.0, null: false
+    t.float "view_ms", default: 0.0, null: false
+    t.float "ruby_ms", default: 0.0, null: false
+    t.integer "sql_count", default: 0, null: false
+    t.integer "http_count", default: 0, null: false
+    t.integer "n_plus_one_count", default: 0, null: false
+    t.integer "status"
+    t.boolean "failed", default: false, null: false
+    t.uuid "error_event_uuid"
+    t.text "payload", null: false
+    t.datetime "created_at", null: false
+    t.index ["apm_transaction_id", "minute"], name: "index_apm_traces_on_apm_transaction_id_and_minute", unique: true
+    t.index ["apm_transaction_id", "started_at"], name: "index_apm_traces_on_apm_transaction_id_and_started_at"
+    t.index ["hour"], name: "index_apm_traces_on_hour"
+    t.index ["project_id", "uuid"], name: "index_apm_traces_on_project_id_and_uuid", unique: true
+  end
+
+  create_table "apm_transactions", force: :cascade do |t|
+    t.bigint "project_id", null: false
+    t.string "environment", null: false
+    t.string "kind", null: false
+    t.string "name", limit: 255, null: false
+    t.boolean "total", default: false, null: false
+    t.string "http_method", limit: 16
+    t.string "route", limit: 255
+    t.string "adapter", limit: 32
+    t.string "queue", limit: 128
+    t.string "source_file", limit: 500
+    t.datetime "first_seen_at", null: false
+    t.datetime "last_seen_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["last_seen_at"], name: "index_apm_transactions_on_last_seen_at"
+    t.index ["project_id", "environment", "kind", "last_seen_at"], name: "index_apm_transactions_listing"
+    t.index ["project_id", "environment", "kind", "name"], name: "index_apm_transactions_registry", unique: true
+    t.check_constraint "kind::text = ANY (ARRAY['web'::character varying, 'job'::character varying]::text[])", name: "apm_transactions_kind_check"
   end
 
   create_table "inbound_events", force: :cascade do |t|
@@ -301,6 +405,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_000003) do
   add_foreign_key "alert_rules", "projects", on_delete: :cascade
   add_foreign_key "api_keys", "projects", on_delete: :cascade
   add_foreign_key "api_keys", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "apm_hourly_stats", "apm_transactions", on_delete: :cascade
+  add_foreign_key "apm_inbound_batches", "projects", on_delete: :cascade
+  add_foreign_key "apm_minute_stats", "apm_transactions", on_delete: :cascade
+  add_foreign_key "apm_traces", "apm_transactions", on_delete: :cascade
+  add_foreign_key "apm_traces", "projects", on_delete: :cascade
+  add_foreign_key "apm_transactions", "projects", on_delete: :cascade
   add_foreign_key "inbound_events", "api_keys", on_delete: :cascade
   add_foreign_key "inbound_events", "projects", on_delete: :cascade
   add_foreign_key "issue_activities", "issues", on_delete: :cascade

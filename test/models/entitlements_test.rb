@@ -1,12 +1,12 @@
 require "test_helper"
 
 class EntitlementsTest < ActiveSupport::TestCase
-  HOSTED_DEFAULTS = { uptime_intervals: [ 10, 60 ], max_monitors: 1 }.freeze
+  HOSTED_DEFAULTS = { uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1 }.freeze
 
-  test "the configured hosted defaults are 10 and 60 minute intervals and one monitor" do
+  test "the configured hosted defaults are 10 and 60 minute intervals, one monitor and a day of performance data" do
     defaults = Rails.configuration.x.entitlements.hosted_defaults
 
-    assert_equal({ uptime_intervals: [ 10, 60 ], max_monitors: 1 }, defaults.to_h.symbolize_keys)
+    assert_equal({ uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1 }, defaults.to_h.symbolize_keys)
     assert_empty Entitlements.problems(defaults.to_h)
   end
 
@@ -186,6 +186,41 @@ class EntitlementsTest < ActiveSupport::TestCase
     [ [], [ 10, 10 ], [ "10" ], [ 10.0 ], [ 3 ], "10", nil ].each do |intervals|
       assert_not_empty Entitlements.problems("uptime_intervals" => intervals), intervals.inspect
     end
+  end
+
+  test "apm_retention_days: hosted default 1, a stored value wins, invalid values fall back" do
+    assert_equal 1, hosted({}).apm_retention_days
+    assert_equal 7, hosted("apm_retention_days" => 7).apm_retention_days
+    [ 0, 31, "7", 7.0, nil, [ 7 ] ].each do |value|
+      assert_equal 1, hosted("apm_retention_days" => value).apm_retention_days, value.inspect
+    end
+  end
+
+  test "apm_retention_days self-hosted is the instance setting, clamped to 1..30, whatever is stored" do
+    assert_equal 30, Rails.configuration.x.apm_retention_days
+    assert_equal 30, self_hosted("apm_retention_days" => 1).apm_retention_days
+    assert_equal 14, Entitlements.new({}, hosted: false, self_hosted_apm_retention_days: 14).apm_retention_days
+    assert_equal 30, Entitlements.new({}, hosted: false, self_hosted_apm_retention_days: 400).apm_retention_days
+    assert_equal 1, Entitlements.new({}, hosted: false, self_hosted_apm_retention_days: 0).apm_retention_days
+  end
+
+  test "a hosted apm default missing from the configuration reads the instance setting" do
+    entitlements = Entitlements.new({}, hosted: true, hosted_defaults: {}, self_hosted_apm_retention_days: 12)
+    assert_equal 12, entitlements.apm_retention_days
+  end
+
+  test "allows_apm_range? allows a day always and longer ranges within the retention" do
+    entitlements = hosted("apm_retention_days" => 7)
+    assert entitlements.allows_apm_range?(1)
+    assert entitlements.allows_apm_range?(7)
+    assert_not entitlements.allows_apm_range?(30)
+    assert hosted({}).allows_apm_range?(1)
+    assert_not hosted({}).allows_apm_range?(7)
+  end
+
+  test "problems describes an invalid apm_retention_days" do
+    assert_empty Entitlements.problems("apm_retention_days" => 30)
+    assert_equal [ Entitlements::PROBLEMS["apm_retention_days"] ], Entitlements.problems("apm_retention_days" => 31)
   end
 
   # "free text" is fine; "free" as a plan name (a string, a symbol, "free plan") isn't.

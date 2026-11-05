@@ -1,0 +1,59 @@
+# Payloads are stored encrypted (encrypt_fixtures). checkout_slow's SQL and
+# code context carry apm-fixture-secret: tests assert it never leaves the
+# trace page (job args, logs, cache, other pages) and that the raw column is
+# ciphertext.
+<%
+  now_minute = TimeSeries.align(Time.current, 1.minute)
+  now_hour = TimeSeries.align(Time.current, 1.hour)
+  trace = lambda do |minute:, offset: 8.114, duration:, layers:, transaction:, project: "storefront", **columns|
+    started_at = minute + offset.seconds
+    { "project" => project, "apm_transaction" => transaction, "uuid" => Apm::TraceId.generate(started_at),
+      "minute" => minute.to_fs(:db), "hour" => TimeSeries.align(minute, 1.hour).to_fs(:db),
+      "started_at" => started_at.utc.strftime("%Y-%m-%d %H:%M:%S.%6N"), "duration_ms" => duration,
+      "db_ms" => layers[0], "http_ms" => layers[1], "view_ms" => layers[2], "ruby_ms" => layers[3],
+      "created_at" => minute.to_fs(:db), **columns.transform_keys(&:to_s) }
+  end
+  web_payload = lambda do |path:, spans:, host: "web-2"|
+    { request: { method: "POST", path:, request_id: "7f3a9c1e-55d2-4c1a-9e0b-2d1f0a9b8c7d" }, job: nil,
+      host:, process: "Puma worker 3", runtime: { ruby: "3.4.1", rails: "8.0.2" },
+      gc: { time_ms: 14.0, count: 3 }, allocations: 1_400_000, spans_dropped: 0, spans: }.to_json
+  end
+  user_load = { type: "sql", offset_ms: 12.1, duration_ms: 3.0, name: "User Load", rows: 1,
+                sql: 'SELECT "users".* FROM "users" WHERE "users"."id" = $1 LIMIT $2' }
+  n_plus_one = { type: "sql", offset_ms: 40.1, duration_ms: 1180.0, span_ms: 1215.2, count: 38, rows: 38, name: "Product Load",
+                 sql: 'SELECT "products".*, "products"."apm-fixture-secret" FROM "products" WHERE "products"."id" = $1 LIMIT $2',
+                 call_site: { file: "app/services/cart_total.rb", line: 27, method: "total_cents",
+                              context: { start_line: 25, lines: [ "def total_cents", "  items.sum do |item|",
+                                                                  "    item.product.price_cents * item.quantity # apm-fixture-secret",
+                                                                  "  end", "end" ] } } }
+  tax_call = { type: "http", offset_ms: 1260.0, duration_ms: 550.0, method: "POST", host: "api.taxjar.com", path: "/v2/taxes", status: 200 }
+  render = { type: "view", offset_ms: 2560.3, duration_ms: 320.1, template: "checkouts/create.html.erb" }
+  enqueue = { type: "enqueue", offset_ms: 2900.0, duration_ms: 4.0, job: "Orders::PlaceJob", queue: "critical" }
+%>
+checkout_slow:
+<% trace.(minute: now_minute - 5.minutes, duration: 2940.2, layers: [ 1220.4, 1230.0, 320.1, 169.7 ], transaction: "checkout_create",
+          sql_count: 43, http_count: 2, n_plus_one_count: 1, status: 200, failed: false).each do |column, value| %>
+  <%= column %>: <%= value.to_json %>
+<% end %>
+  payload: <%= web_payload.(path: "/checkout", spans: [ user_load, n_plus_one, tax_call, render, enqueue ]).to_json %>
+
+checkout_failed:
+<% trace.(minute: now_minute - 3.minutes, offset: 41.5, duration: 1800.0, layers: [ 400.0, 1200.0, 0.0, 200.0 ], transaction: "checkout_create",
+          sql_count: 6, http_count: 1, status: 500, failed: true, error_event_uuid: "0192f7a4-6c1e-7b3a-9d21-5f0c8e1b0aa1").each do |column, value| %>
+  <%= column %>: <%= value.to_json %>
+<% end %>
+  payload: <%= web_payload.(path: "/checkout", spans: [ user_load, tax_call ]).to_json %>
+
+checkout_old_hour:
+<% trace.(minute: now_hour - 5.hours + 17.minutes, offset: 3.25, duration: 900.0, layers: [ 300.0, 400.0, 100.0, 100.0 ], transaction: "checkout_create",
+          sql_count: 4, http_count: 1, status: 200, failed: false).each do |column, value| %>
+  <%= column %>: <%= value.to_json %>
+<% end %>
+  payload: <%= web_payload.(path: "/checkout", spans: [ user_load, tax_call, render ]).to_json %>
+
+umbrella_trace:
+<% trace.(minute: now_minute - 10.minutes, duration: 120.0, layers: [ 30.0, 0.0, 60.0, 30.0 ], transaction: "umbrella_home", project: "umbrella_app",
+          sql_count: 1, http_count: 0, status: 200, failed: false).each do |column, value| %>
+  <%= column %>: <%= value.to_json %>
+<% end %>
+  payload: <%= web_payload.(path: "/", host: "umbrella-1", spans: [ user_load ]).to_json %>

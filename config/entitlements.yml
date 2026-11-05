@@ -1,8 +1,10 @@
 # Hosted mode only (GOODSORCERY_HOSTED=1). An account's stored values
 # (accounts.entitlement_values) win; these fill in any key it lacks.
-# Self-hosted instances ignore this file: every entitlement is unlimited.
+# Self-hosted instances ignore this file: every entitlement is unlimited, and
+# performance data is kept GOODSORCERY_APM_RETENTION_DAYS (default 30).
 # After changing these, run `bin/rails goodsorcery:fit_uptime_monitors`.
 shared:
   hosted_defaults:
     uptime_intervals: [10, 60]
     max_monitors: 1
+    apm_retention_days: 1
