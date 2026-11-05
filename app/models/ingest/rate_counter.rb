@@ -2,14 +2,15 @@
 # than one, so a batch of N events uses N of the same allowance a single
 # event uses 1 of. The key format matches Rails' rate_limit
 # ("rate-limit:<scope>:<name>:<id>"). A store without counters (null store)
-# never limits, like Rails' rate_limit.
+# never limits, like Rails' rate_limit. The performance endpoints count in
+# their own scope (Apm::Limits::RATE_SCOPE), apart from the error counters.
 class Ingest::RateCounter
   SCOPE = "api/v1/events".freeze
 
   attr_reader :limit
 
-  def initialize(name, id, limit:, window: Ingest::Limits::RATE_WINDOW)
-    @key = [ "rate-limit", SCOPE, name, id ].join(":")
+  def initialize(name, id, limit:, window: Ingest::Limits::RATE_WINDOW, scope: SCOPE)
+    @key = [ "rate-limit", scope, name, id ].join(":")
     @limit = limit
     @window = window
   end

@@ -1,7 +1,9 @@
 # Stops Rails from parsing the ingest request body into params, so captured
 # error data never reaches `params`, the request log ("Parameters: {}") or any
 # exception page. It covers the single and the batch endpoint
-# (/api/v1/events, /api/v1/events/batch); the controllers read only `request.body`.
+# (/api/v1/events, /api/v1/events/batch) and the performance endpoints
+# (/api/v1/apm/metrics, /api/v1/apm/traces); the controllers read only
+# `request.body`.
 #
 # The path is normalised the same way the router normalises it (duplicate and
 # trailing slashes) and an optional format suffix (".json") is accepted, so no
@@ -10,7 +12,7 @@
 # Rack middleware must define #call; this is the one sanctioned exception to
 # the project's no-`call` rule.
 class IngestBodyShield
-  PATH = %r{\A/api/v1/events(?:/batch)?(?:\.[^/]*)?\z}
+  PATH = %r{\A/api/v1/(?:events(?:/batch)?|apm/(?:metrics|traces))(?:\.[^/]*)?\z}
 
   def initialize(app) = @app = app
 

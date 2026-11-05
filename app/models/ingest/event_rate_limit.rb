@@ -1,11 +1,15 @@
 # The per-key and per-account ingest allowances for one API key, counted in
 # events: the single endpoint takes 1, a batch takes its event count, from the
 # same counters. Admission is all or nothing across both counters.
+#
+# The performance endpoints use it with their own scope and limits
+# (ApmIngestEndpoint), counting one per request.
 class Ingest::EventRateLimit
-  def initialize(credential)
+  def initialize(credential, scope: Ingest::RateCounter::SCOPE, per_key: Ingest::Limits::RATE_PER_KEY,
+                 per_account: Ingest::Limits::RATE_PER_ACCOUNT)
     @counters = [
-      Ingest::RateCounter.new("key", credential.id, limit: Ingest::Limits::RATE_PER_KEY),
-      Ingest::RateCounter.new("account", credential.account_id, limit: Ingest::Limits::RATE_PER_ACCOUNT)
+      Ingest::RateCounter.new("key", credential.id, limit: per_key, scope:),
+      Ingest::RateCounter.new("account", credential.account_id, limit: per_account, scope:)
     ]
   end
 
