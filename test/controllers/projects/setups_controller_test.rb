@@ -72,6 +72,13 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "aside code", text: %(config.endpoint = "http://www.example.com")
   end
 
+  test "rails apps show how to turn on performance monitoring, off by default" do
+    get project_setup_path(projects(:storefront))
+
+    assert_select "#install_manual pre", text: /# Performance monitoring: response times, slow endpoints, traces of slow requests\.\s+# config\.performance_monitoring = true/
+    assert_select "#install_generator p", text: /uncomment\s+config\.performance_monitoring = true/
+  end
+
   test "rails apps number two steps and keep the rails side panel" do
     get project_setup_path(projects(:storefront))
 

@@ -17,6 +17,10 @@
       The generator writes <span class="font-mono text-ink-200">config/initializers/goodsorcery.rb</span> and stores the key in Rails credentials.
       <span class="font-mono text-ink-200">bin/rails goodsorcery:verify</span> then checks the key and endpoint without sending anything.
     </p>
+    <p class="text-[13px] text-ink-400">
+      For response times and slow-request traces under <span class="text-ink-200">Performance</span>, uncomment
+      <span class="font-mono text-ink-200">config.performance_monitoring = true</span> in that initializer (it's off by default).
+    </p>
   </div>
 
   <div id="install_manual" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3" hidden>
@@ -26,6 +30,8 @@
   config.environment  = Rails.env
   config.filter_params += <span class="tok-n">%i[card_token ssn]</span>  <span class="tok-c"># on top of the defaults and Rails' filter_parameters</span>
   <%= endpoint_config_line %>
+
+  <%= performance_config_lines %>
 <span class="tok-k">end</span><% end %>
   </div>
 

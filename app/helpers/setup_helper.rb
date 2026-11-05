@@ -68,6 +68,13 @@ module SetupHelper
     safe_join [ "\nGOODSORCERY_ENDPOINT=", tag.span(instance_endpoint, class: "tok-s") ]
   end
 
+  # The gem's performance monitoring block, as its generator writes it
+  # (goodsorcery-ruby docs/DESIGN.md §8.1): off by default.
+  def performance_config_lines
+    safe_join [ tag.span("# Performance monitoring: response times, slow endpoints, traces of slow requests.", class: "tok-c"),
+                tag.span("# config.performance_monitoring = true", class: "tok-c") ], "\n  "
+  end
+
   def api_key_label(api_key)
     api_key.environment.humanize
   end
