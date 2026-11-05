@@ -1,7 +1,8 @@
 # One page of a transaction's slow traces for the endpoint page
 # (docs/ARCHITECTURE.md §13.9): within the range (already clamped to the
 # retention), sorted "slowest" or "newest", ApmTrace::PER_PAGE per page,
-# with the issues their error events belong to resolved in one query.
+# with the issues their error events belong to resolved in one query (their
+# project set from the transaction's, so short ids and links need no more).
 #
 #   list = Apm::TraceList.new(transaction, range, sort: "slowest", page: 1)
 #   list.traces        # => [ApmTrace, …]
@@ -42,7 +43,13 @@ class Apm::TraceList
     def issues_by_event
       @issues_by_event ||= begin
         uuids = traces.filter_map(&:error_event_uuid).uniq
-        uuids.empty? ? {} : transaction.project.occurrences.where(uuid: uuids).includes(:issue).to_h { [ it.uuid, it.issue ] }
+        uuids.empty? ? {} : issues_of(transaction.project.occurrences.where(uuid: uuids).includes(:issue).to_a)
       end
+    end
+
+    def issues_of(occurrences)
+      issues = occurrences.map(&:issue)
+      ActiveRecord::Associations::Preloader.new(records: issues, associations: :project, available_records: [ transaction.project ]).call
+      occurrences.to_h { [ it.uuid, it.issue ] }
     end
 end

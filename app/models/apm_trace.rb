@@ -57,9 +57,12 @@ class ApmTrace < ApplicationRecord
     siblings(since).where("apm_traces.started_at > ?", started_at).order(started_at: :asc, id: :asc).first
   end
 
-  # The stored error event this request reported, with its issue, or nil.
+  # The stored error event this request reported, with its issue (and the
+  # issue's project, already loaded here), or nil.
   def error_occurrence
-    project.occurrences.includes(:issue).find_by(uuid: error_event_uuid) if error_event_uuid
+    occurrence = project.occurrences.includes(:issue).find_by(uuid: error_event_uuid) if error_event_uuid
+    ActiveRecord::Associations::Preloader.new(records: [ occurrence.issue ], associations: :project, available_records: [ project ]).call if occurrence
+    occurrence
   end
 
   private

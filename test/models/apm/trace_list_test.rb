@@ -20,6 +20,18 @@ class Apm::TraceListTest < ActiveSupport::TestCase
     assert_equal apm_traces(:checkout_failed), newest.traces.first
   end
 
+  test "linked issues come with their project loaded, without querying projects" do
+    list = Apm::TraceList.new(@checkout, @range, sort: "slowest", page: 1)
+    failed = apm_traces(:checkout_failed)
+    list.traces
+    @checkout.project
+    assert_no_queries_match(/FROM "projects"/) do
+      issue = list.issue_for(failed)
+      assert issue.association(:project).loaded?
+      issue.short_id
+    end
+  end
+
   test "pages of 20" do
     transaction = create_apm_transaction(projects(:storefront), "ReportsController#index")
     45.times { |i| create_apm_trace(transaction, minutes_ago: i + 1) }

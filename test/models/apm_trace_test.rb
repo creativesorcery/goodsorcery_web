@@ -65,7 +65,10 @@ class ApmTraceTest < ActiveSupport::TestCase
   end
 
   test "error_occurrence resolves the reported event in the same project" do
-    assert_equal occurrences(:nomethod_latest), apm_traces(:checkout_failed).error_occurrence
+    trace = ApmTrace.includes(:project).find(apm_traces(:checkout_failed).id)
+    occurrence = assert_no_queries_match(/FROM "projects"/) { trace.error_occurrence }
+    assert_equal occurrences(:nomethod_latest), occurrence
+    assert occurrence.issue.association(:project).loaded?
     assert_nil apm_traces(:checkout_slow).error_occurrence
   end
 
