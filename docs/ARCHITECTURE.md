@@ -1918,7 +1918,7 @@ All ids are `bigint`; FKs are real constraints with `on_delete: :cascade`; model
 | last_seen_at | datetime | false | | bumped at most hourly (§13.4) |
 | timestamps | | | | |
 
-Indexes: unique `[project_id, environment, kind, name]` (the registry key), `[project_id, environment, kind, last_seen_at]` (lists, env picker), `[last_seen_at]` (prune). `http_method`, `route`, `adapter`, `queue` and `source_file` keep the latest value sent (updated with `last_seen_at`).
+Indexes: unique `[project_id, environment, kind, name]` (the registry key), `[project_id, environment, kind, last_seen_at]` (lists, env picker), `[last_seen_at]` (prune). `http_method`, `route`, `adapter`, `queue` and `source_file` keep the latest value sent (updated with `last_seen_at`). Model API: scopes `listed` (`total: false`), `web`, `jobs`, `for_environment(env)`, `matching(q)`; `#web?`, `#job?`, `#route_label` ("POST /checkout"); `MAX_TRANSACTIONS = 500`, `OTHER_NAME = "(other)"`, `TOTAL_NAMES`.
 
 **apm_minute_stats** (`create_table …, primary_key: [:apm_transaction_id, :minute]`) and **apm_hourly_stats** (`primary_key: [:apm_transaction_id, :hour]`) have identical columns apart from the time column:
 | column | type | null | default | notes |
