@@ -1,5 +1,5 @@
 namespace :goodsorcery do
-  desc "Delete occurrences past each project's retention period, hourly issue counts older than 31 days, project counts older than 90 days and old uptime history (run daily)"
+  desc "Delete occurrences past each project's retention period, hourly issue counts older than 31 days, project counts older than 90 days, old uptime history and performance data past its retention (run daily)"
   task prune: :environment do
     Ingest::Retention.new.prune
   end

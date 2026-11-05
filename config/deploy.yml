@@ -64,6 +64,10 @@ env:
     # Managed hosting: entitlements come from each account (docs/ARCHITECTURE.md §12.2).
     GOODSORCERY_HOSTED: <%= ENV["GOODSORCERY_HOSTED"].to_json %>
 <% end %>
+<% if ENV["GOODSORCERY_APM_RETENTION_DAYS"].to_s.strip != "" %>
+    # Self-hosted performance data retention in days, 1..30 (default 30).
+    GOODSORCERY_APM_RETENTION_DAYS: <%= ENV["GOODSORCERY_APM_RETENTION_DAYS"].to_json %>
+<% end %>
 <% if ENV["GOODSORCERY_UPGRADE_URL"].to_s.strip != "" %>
     GOODSORCERY_UPGRADE_URL: <%= ENV["GOODSORCERY_UPGRADE_URL"].to_json %>
 <% end %>

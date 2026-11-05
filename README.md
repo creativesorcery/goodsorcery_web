@@ -121,6 +121,19 @@ Script variables: `GOODSORCERY_API_KEY` and `GOODSORCERY_HOST` (default
 `GZIP=1` compresses the body. Test events overwrite the project's runtime label
 with your local Ruby/Rails versions, and they use up issue numbers.
 
+For performance monitoring, `bin/send_test_apm` posts one minute of metrics
+(two endpoints and a job) and a slow checkout trace with an N+1 query:
+
+```sh
+bin/send_test_apm YOUR_API_KEY http://localhost:3000
+GZIP=1 MINUTES=3 bin/send_test_apm YOUR_API_KEY      # gzipped, three closed minutes
+BATCH_ID=0192f7b0-1a2b-7c3d-8e4f-5a6b7c8d9e0f bin/send_test_apm YOUR_API_KEY   # twice: counted once
+SLOW=1 bin/send_test_apm YOUR_API_KEY                # ten times slower (Slower after an hour of normal data)
+```
+
+`TRACES=0` sends metrics only. The demo seeds already hold a week of
+performance data for storefront production.
+
 ## Tests and linters
 
 ```sh
@@ -148,7 +161,7 @@ TEST_DB_SUFFIX=_mine bin/rails db:test:prepare test
 | Process | Command | Notes |
 |---|---|---|
 | Web | `./bin/thrust ./bin/rails server` (the Docker image's default) | Puma behind Thruster. `bin/docker-entrypoint` runs `bin/rails db:prepare` before the server starts. |
-| Jobs | `bundle exec sidekiq -C config/sidekiq.yml` | Required. Ingest is accepted by the web process but **processed** by Sidekiq. Queues, by weight: `ingest` (3), `default` (2), `mailers` (1). Also runs the scheduled jobs. |
+| Jobs | `bundle exec sidekiq -C config/sidekiq.yml` | Required. Ingest is accepted by the web process but **processed** by Sidekiq. Queues, by weight: `ingest` (3), `apm` (2, performance data), `default` (2), `alerts` (2), `uptime` (2), `mailers` (1). Also runs the scheduled jobs. |
 | Redis | Kamal accessory, or external | Sidekiq, the cache store and Action Cable. |
 | Postgres | Kamal accessory, or external | |
 
@@ -190,6 +203,7 @@ Every variable below is read by the app's code or config.
 | `GOODSORCERY_ENABLE_SIGNUPS` | no | sign-up is open only until the first account exists | `1` keeps public sign-up open (hosted service). |
 | `GOODSORCERY_DISABLE_SIGNUPS` | no | none | `1` closes sign-up completely, even before the first account exists. It overrides `ENABLE`. |
 | `GOODSORCERY_HOSTED` | no | `false` | `true` (or `1`) marks this as the managed hosting service. Read once at boot. The sidebar shows "Hosted" instead of "Self-hosted", and the setup page's install snippets drop the `config.endpoint` / `GOODSORCERY_ENDPOINT` line. It also turns on entitlements: each account's stored values (`accounts.entitlement_values`) decide which uptime intervals it can use and how many monitors it can have, and missing values fall back to the hosted defaults in `config/entitlements.yml` (intervals of 10 and 60 minutes, 1 monitor). Self-hosted (unset), every entitlement is unlimited and stored values are ignored. After switching it on or off, run `bin/rails goodsorcery:fit_uptime_monitors` (switching off resumes monitors that hosted limits paused). |
+| `GOODSORCERY_APM_RETENTION_DAYS` | no | `30` | Self-hosted only: how many days of performance data (hourly figures and slow-request traces) to keep, 1–30. Read once at boot; `goodsorcery:prune` deletes older data. Hosted accounts use their `apm_retention_days` entitlement instead (default 1 day in `config/entitlements.yml`). Per-minute figures are always kept 2 days. |
 | `GOODSORCERY_UPGRADE_URL` | no | none | Hosted mode only. Where the "Upgrade to unlock" text next to locked options links to (opens in a new tab). Unset, the text is shown without a link. |
 | `GOODSORCERY_UPTIME_ALLOW_PRIVATE_ADDRESSES` | no | off | `1` lets uptime checks reach loopback and private addresses, for testing monitors against a local server in development. Ignored in production, where checks always refuse private, loopback, link-local and cloud-metadata addresses. |
 | `POSTMARK_API_TOKEN` | to send mail through Postmark | none | A Postmark **server** API token. When set, mail (password resets) is delivered through Postmark's API. Without it, configure SMTP instead (see "Email"). |

@@ -173,7 +173,13 @@ and sign up; sign-up closes after the first account.
 - **Console, logs:** `bin/kamal console`, `bin/kamal logs`, `bin/kamal logs -r job`, `bin/kamal dbc`.
 - **Scheduled jobs:** sidekiq-cron runs `config/schedule.yml` inside the job
   container: the retention sweep daily, the stale-event requeue every 10
-  minutes and the uptime scheduler every minute. The rake tasks still work by hand: `bin/kamal app exec "bin/rails goodsorcery:prune"`.
+  minutes, the uptime scheduler every minute and the performance trace trim
+  hourly. The rake tasks still work by hand: `bin/kamal app exec "bin/rails goodsorcery:prune"`.
+- **Performance data:** batches from the gem (`config.performance_monitoring`)
+  are processed on the `apm` Sidekiq queue (weight 2, after `ingest`). Each job
+  is short and database-bound; a gem process sends at most two batches a
+  minute. `GOODSORCERY_APM_RETENTION_DAYS` (self-hosted, 1–30, default 30)
+  sets how long hourly figures and traces are kept.
 - **Uptime checks:** they run on the `uptime` Sidekiq queue. A check waits on
   the network for up to about 20 seconds (two 10-second attempts), so one
   Sidekiq thread manages roughly 60 / (average check seconds) checks a minute,

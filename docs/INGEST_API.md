@@ -295,9 +295,9 @@ Bucket `i` holds durations `d` with `bound[i-1] <= d < bound[i]` (bucket 0 start
 | `notifier` | object | `name` and `version` of the client library. |
 | `minutes[]` | array | **Required**, 1–5 entries, one per minute (a client sends more than one only after a failed flush). |
 | `minutes[].minute` | ISO 8601 timestamp | **Required**, the UTC start of the minute (seconds and fractions must be 0). The minute in which the requests **finished**. Minutes more than 24 hours old or more than 2 minutes in the future are skipped. |
-| `minutes[].transactions[]` | array | **Required**, 1–1,000 entries. A transaction appears at most once per minute. |
+| `minutes[].transactions[]` | array | **Required**, 1–1,000 entries. A transaction should appear at most once per minute (repeats are added together). |
 | `kind` | string | **Required**, `web` or `job`. |
-| `name` | string | **Required**, 1–255 chars (longer is truncated). |
+| `name` | string | **Required**, 1–255 chars (longer is truncated). `All web requests` and `All background jobs` are reserved for the app-wide totals; data sent under them is counted under `(other)`. |
 | `method`, `route` | strings | Web only; `method` ≤ 16 chars, `route` ≤ 255 chars. Optional. |
 | `adapter`, `queue` | strings | Jobs only; ≤ 32 and ≤ 128 chars. Optional. |
 | `source` | string | Optional, ≤ 500 chars, app-relative. |
@@ -396,7 +396,7 @@ The server keeps at most one trace per transaction per minute while that hour is
 | `401 Unauthorized` | `{"error":"invalid_api_key"}` | |
 | `413 Payload Too Large` | `{"error":"payload_too_large"}` | Metrics over 512 KiB, traces over 2 MiB, compressed or decompressed. |
 | `415 Unsupported Media Type` | `{"error":"unsupported_media_type"}` | |
-| `422 Unprocessable Entity` | `{"error":"invalid_payload","messages":["minutes[0].transactions[3].buckets must add up to count"]}` | The payload is checked as a whole; nothing is stored. Messages name fields, never values. |
+| `422 Unprocessable Entity` | `{"error":"invalid_payload","messages":["minutes[0].transactions[3].buckets must add up to count"]}` | The payload is checked as a whole; nothing is stored. Messages (at most 20) name fields, never values. |
 | `429 Too Many Requests` | `{"error":"rate_limited"}` | With `Retry-After: 60`. |
 
 Checks run in this order: per-IP rate limit, API key (`401`), per-key and per-account rate limits, media type (`415`), body size (`413`), JSON (`400`), shape (`422`). There is no quota check.
@@ -468,6 +468,20 @@ JOB=1 bin/send_test_event gs_test_...                                           
 ```
 
 It prints the status and body and exits non-zero unless the response is `202`. Sending it twice produces one issue with 2 events. `JOB=1` sends the error as raised in an Active Job (`job` section with arguments, no request), so the issue page opens on the Job tab. `BATCH=N` sends N copies (each with its own `event_id` unless `EVENT_ID` is set) in one request to the batch endpoint.
+
+## Sending test performance data
+
+`bin/send_test_apm` posts a metrics payload for the last closed minute (two endpoints and a job) and a traces payload with one slow checkout request (fictional data):
+
+```sh
+bin/send_test_apm gs_test_... http://localhost:3000
+GZIP=1 MINUTES=3 bin/send_test_apm gs_test_...                                   # gzip bodies, three closed minutes
+BATCH_ID=0192f7b0-1a2b-7c3d-8e4f-5a6b7c8d9e0f bin/send_test_apm gs_test_...      # same id twice: counted once
+SLOW=1 bin/send_test_apm gs_test_...                                             # every request ten times slower
+TRACES=0 bin/send_test_apm gs_test_...                                           # metrics only
+```
+
+It prints each status and body and exits non-zero unless both are `202`.
 
 ## Operating (self-hosted)
 

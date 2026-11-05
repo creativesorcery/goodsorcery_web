@@ -1,0 +1,119 @@
+#!/usr/bin/env ruby
+# Posts a realistic sample of performance data (docs/INGEST_API.md ›
+# Performance monitoring) to a Good Sorcery instance: one metrics payload for
+# the last closed minute, then one traces payload with a slow checkout
+# request (an N+1 query, a tax API call, a render and an enqueue).
+#
+#   bin/send_test_apm [API_KEY] [HOST]
+#   GOODSORCERY_API_KEY=gs_test_... GOODSORCERY_HOST=http://localhost:3000 bin/send_test_apm
+#
+# Options (ENV): BATCH_ID (reuse to test idempotency: counted once), GZIP=1
+# (gzip the bodies), MINUTES=N (1-5 closed minutes in one metrics payload),
+# SLOW=1 (every request ten times slower, to trip the Slower flag after an
+# hour of normal data), TRACES=0 (metrics only).
+# Prints each HTTP status and response body; exits non-zero unless both are 202.
+# The sample data below is fictional.
+require "json"
+require "net/http"
+require "securerandom"
+require "time"
+require "uri"
+require "zlib"
+
+begin
+  require "bundler/setup"
+  require "dotenv/load"
+rescue LoadError
+  nil
+end
+
+api_key = ARGV[0] || ENV["GOODSORCERY_API_KEY"]
+host = ARGV[1] || ENV.fetch("GOODSORCERY_HOST", "http://localhost:3000")
+abort "usage: bin/send_test_apm API_KEY [HOST]  (or set GOODSORCERY_API_KEY / GOODSORCERY_HOST)" if api_key.to_s.empty?
+
+slow = ENV["SLOW"] == "1" ? 10 : 1
+now = Time.now.utc
+last_minute = Time.at((now.to_i / 60 * 60) - 60).utc
+minutes = Array.new(ENV.fetch("MINUTES", "1").to_i.clamp(1, 5)) { |ago| last_minute - (ago * 60) }
+
+# gs-v1 bucket index: the number of upper bounds <= ms.
+BOUNDS = [ 1, 1.5, 2, 3, 4.5, 6.5, 9.5, 14, 20, 28, 40, 60, 85, 125, 180, 260, 380, 550, 800, 1_150,
+           1_700, 2_450, 3_550, 5_100, 7_500, 11_000, 16_000, 23_000, 33_000, 48_000 ].freeze
+bucket = ->(ms) { BOUNDS.bsearch_index { it > ms } || 30 }
+
+# [count, ms each, db, http, view shares] per bucket of a transaction.
+web = ->(name, method, route, source, spread) do
+  buckets = spread.map do |count, ms, db, http, view|
+    total = ms * slow * count
+    [ bucket.(ms * slow), count, total * db, total * http, total * view, total * (1 - db - http - view) ]
+  end
+  { kind: "web", name:, method:, route:, source:, count: buckets.sum { it[1] }, failed: 0,
+    duration_ms: buckets.sum { it.drop(2).sum }.round(1), buckets: }
+end
+
+metrics_minute = ->(minute) do
+  checkout = web.("CheckoutsController#create", "POST", "/checkout", "app/controllers/checkouts_controller.rb",
+                  [ [ 30, 220, 0.4, 0.35, 0.15 ], [ 10, 340, 0.4, 0.35, 0.15 ], [ 2, 1_300, 0.6, 0.3, 0.05 ] ])
+  checkout[:failed] = 1
+  products = web.("ProductsController#show", "GET", "/products/:slug", "app/controllers/products_controller.rb",
+                  [ [ 300, 70, 0.35, 0, 0.45 ], [ 80, 120, 0.35, 0, 0.45 ] ])
+  job = { kind: "job", name: "Orders::PlaceJob", adapter: "sidekiq", queue: "critical", source: "app/jobs/orders/place_job.rb",
+          count: 38, failed: 0, duration_ms: 16_012.0 * slow,
+          buckets: [ [ bucket.(430 * slow), 37, 8_020.5 * slow, 4_100.0 * slow, 0, 3_471.5 * slow ], [ bucket.(1_020 * slow), 1, 300.0 * slow, 600.0 * slow, 0, 120.0 * slow ] ],
+          queue_wait_ms: 4_210.0, queue_wait: [ [ 11, 30 ], [ 15, 8 ] ] }
+  { minute: minute.iso8601, transactions: [ checkout, products, job ] }
+end
+
+notifier = { name: "goodsorcery-send-test-apm", version: "0.1.0" }
+metrics = { batch_id: ENV["BATCH_ID"] || SecureRandom.uuid, histogram: "gs-v1", notifier:, minutes: minutes.map(&metrics_minute) }
+
+started_at = last_minute + 8.114
+trace_id = format("%012x", (started_at.to_r * 1000).floor).then do |ms|
+  "#{ms[0, 8]}-#{ms[8, 4]}-7#{SecureRandom.hex(2)[1, 3]}-#{%w[8 9 a b].sample}#{SecureRandom.hex(2)[1, 3]}-#{SecureRandom.hex(6)}"
+end
+traces = {
+  batch_id: ENV["BATCH_ID"] || SecureRandom.uuid, notifier:,
+  traces: [ {
+    id: trace_id, kind: "web", name: "CheckoutsController#create", method: "POST", route: "/checkout",
+    minute: last_minute.iso8601, started_at: started_at.iso8601(3), duration_ms: 2_940.2 * slow,
+    db_ms: 1_220.4 * slow, http_ms: 1_230.0 * slow, view_ms: 320.1 * slow, ruby_ms: 169.7 * slow, status: 200, failed: false, error_event_id: nil,
+    request: { method: "POST", path: "/checkout", request_id: SecureRandom.uuid },
+    host: "web-2", process: "Puma worker 3", runtime: { ruby: RUBY_VERSION, rails: "8.1.4" }, gc: { time_ms: 14.0, count: 3 },
+    allocations: 1_400_000, sql_count: 43, http_count: 2, spans_dropped: 0,
+    spans: [
+      { type: "sql", offset_ms: 12.1, duration_ms: 3.0, name: "User Load", rows: 1,
+        sql: "SELECT \"users\".* FROM \"users\" WHERE \"users\".\"id\" = $1 LIMIT $2" },
+      { type: "sql", offset_ms: 40.1, duration_ms: 1_180.0 * slow, span_ms: 1_215.2 * slow, count: 38, rows: 38, name: "Product Load",
+        sql: "SELECT \"products\".* FROM \"products\" WHERE \"products\".\"id\" = $1 LIMIT $2",
+        call_site: { file: "app/services/cart_total.rb", line: 27, method: "total_cents",
+                     context: { start_line: 25, lines: [ "def total_cents", "  items.sum do |item|",
+                                                         "    item.product.price_cents * item.quantity", "  end", "end" ] } } },
+      { type: "http", offset_ms: 1_260.0 * slow, duration_ms: 550.0 * slow, method: "POST", host: "api.taxjar.example", path: "/v2/taxes", status: 200 },
+      { type: "view", offset_ms: 2_560.3 * slow, duration_ms: 320.1 * slow, template: "checkouts/create.html.erb" },
+      { type: "enqueue", offset_ms: 2_900.0 * slow, duration_ms: 4.0, job: "Orders::PlaceJob", queue: "critical" }
+    ]
+  } ]
+}
+
+post = lambda do |path, payload|
+  uri = URI.join(host, path)
+  request = Net::HTTP::Post.new(uri)
+  request["Authorization"] = "Bearer #{api_key}"
+  request["Content-Type"] = "application/json"
+  request["User-Agent"] = "goodsorcery-send-test-apm/0.1.0"
+  body = JSON.generate(payload)
+  if ENV["GZIP"] == "1"
+    request["Content-Encoding"] = "gzip"
+    body = Zlib.gzip(body)
+  end
+  request.body = body
+  response = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", open_timeout: 5, read_timeout: 10) do |http|
+    http.request(request)
+  end
+  puts "#{path}: #{response.code} #{response.body}"
+  response.code == "202"
+end
+
+ok = post.("/api/v1/apm/metrics", metrics)
+ok = post.("/api/v1/apm/traces", traces) && ok unless ENV["TRACES"] == "0"
+exit(ok ? 0 : 1)
