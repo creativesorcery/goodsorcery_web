@@ -20,6 +20,12 @@ class Apm::StatsUpsert
     Arel.sql((scalars + arrays).join(", "))
   end
 
+  # One minute or hourly row's attributes for a Distribution.
+  def self.row(id, time_column, time, distribution)
+    { apm_transaction_id: id, time_column => time,
+      **SCALARS.transform_values { distribution.public_send(it) }, **ARRAYS.transform_values { distribution.public_send(it) } }
+  end
+
   MINUTE_ADD_SQL = add_sql("apm_minute_stats")
   HOUR_ADD_SQL = add_sql("apm_hourly_stats")
 
@@ -54,11 +60,6 @@ class Apm::StatsUpsert
     end
 
     def rows(sums, time_column)
-      sums.sort_by { |(id, time), _| [ id, time ] }.map { |(id, time), distribution| row(id, time_column, time, distribution) }
-    end
-
-    def row(id, time_column, time, distribution)
-      { apm_transaction_id: id, time_column => time,
-        **SCALARS.transform_values { distribution.public_send(it) }, **ARRAYS.transform_values { distribution.public_send(it) } }
+      sums.sort_by { |(id, time), _| [ id, time ] }.map { |(id, time), distribution| self.class.row(id, time_column, time, distribution) }
     end
 end

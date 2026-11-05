@@ -1,7 +1,8 @@
 # Demo data for local development: the "Acme Labs" account from the approved
 # mockups with five projects, issues, occurrences, rollups, tags, affected users
-# and activity. Everything is created through the models, so captured data is
-# encrypted and identities are stored only as HMAC digests.
+# and activity, uptime monitors and a week of performance data for storefront.
+# Everything is created through the models, so captured data is encrypted and
+# identities are stored only as HMAC digests.
 #
 #   bin/rails db:seed      (skips itself when the demo user already exists)
 
@@ -63,6 +64,7 @@ class DemoSeeds
       create_people
       PROJECTS.each { |spec| seed_project(spec) }
       DemoUptime.new(@account).seed
+      DemoApm.new(@account.projects.find_by!(name: "storefront")).seed
     end
     puts "Seeded Acme Labs. Sign in as #{EMAIL} / #{PASSWORD} (also jo@example.com / #{PASSWORD})"
   end
@@ -359,6 +361,240 @@ class DemoMonitor
 
     def incident_row
       { uptime_monitor_id: @monitor.id, started_at: @outage.begin, resolved_at: @outage.end, error_kind: "timeout" }
+    end
+end
+
+# Performance data for storefront production, written directly through the
+# processing objects (no requests): minute and hourly rows for the last 24
+# hours, hourly rows for the 6 days before, and slow-request traces.
+# CheckoutsController#create has been Slower for the last hour, with an N+1
+# query in its traces. Durations follow a fixed per-transaction profile.
+class DemoApm
+  Entry = Apm::MetricsPayload::Entry
+
+  # [kind, name, labels, requests per minute, median ms, layer shares db/http/view]
+  TRANSACTIONS = [
+    [ "web", "CheckoutsController#create", { http_method: "POST", route: "/checkout", source_file: "app/controllers/checkouts_controller.rb" }, 42, 260, [ 0.45, 0.3, 0.12 ] ],
+    [ "web", "ProductsController#show", { http_method: "GET", route: "/products/:slug", source_file: "app/controllers/products_controller.rb" }, 380, 70, [ 0.35, 0.0, 0.45 ] ],
+    [ "web", "ProductsController#index", { http_method: "GET", route: "/products", source_file: "app/controllers/products_controller.rb" }, 110, 140, [ 0.4, 0.0, 0.42 ] ],
+    [ "web", "CartsController#show", { http_method: "GET", route: "/cart", source_file: "app/controllers/carts_controller.rb" }, 190, 55, [ 0.3, 0.0, 0.5 ] ],
+    [ "web", "CartItemsController#create", { http_method: "POST", route: "/cart/items", source_file: "app/controllers/cart_items_controller.rb" }, 60, 110, [ 0.55, 0.0, 0.1 ] ],
+    [ "web", "PaymentsController#confirm", { http_method: "POST", route: "/payments/confirm", source_file: "app/controllers/payments_controller.rb" }, 18, 820, [ 0.12, 0.78, 0.04 ] ],
+    [ "web", "SearchController#index", { http_method: "GET", route: "/search", source_file: "app/controllers/search_controller.rb" }, 75, 310, [ 0.7, 0.0, 0.15 ] ],
+    [ "web", "Api::V1::InventoryController#show", { http_method: "GET", route: "/api/v1/inventory/:sku", source_file: "app/controllers/api/v1/inventory_controller.rb" }, 140, 35, [ 0.6, 0.0, 0.05 ] ],
+    [ "web", "SessionsController#create", { http_method: "POST", route: "/session", source_file: "app/controllers/sessions_controller.rb" }, 9, 240, [ 0.1, 0.0, 0.1 ] ],
+    [ "job", "Orders::PlaceJob", { adapter: "sidekiq", queue: "critical", source_file: "app/jobs/orders/place_job.rb" }, 30, 520, [ 0.5, 0.3, 0.0 ] ],
+    [ "job", "Shipping::RatesFetcher", { adapter: "sidekiq", queue: "default", source_file: "lib/shipping/rates_fetcher.rb" }, 14, 1150, [ 0.1, 0.82, 0.0 ] ],
+    [ "job", "Emails::ReceiptJob", { adapter: "sidekiq", queue: "mailers", source_file: "app/jobs/emails/receipt_job.rb" }, 30, 180, [ 0.25, 0.4, 0.25 ] ],
+    [ "job", "Search::ReindexJob", { adapter: "sidekiq", queue: "low", source_file: "app/jobs/search/reindex_job.rb" }, 2, 4200, [ 0.75, 0.1, 0.0 ] ]
+  ].freeze
+  SLOWER = "CheckoutsController#create".freeze
+
+  def initialize(project, environment: "production")
+    @project = project
+    @environment = environment
+    @now = Time.current
+    @registry = Apm::TransactionRegistry.new(project_id: project.id, environment:, now: @now)
+  end
+
+  def seed
+    recent = recent_entries
+    ids = @registry.ids_for(recent, totals: true)
+    total_ids = %w[web job].index_with { @registry.total_id(it) }
+    recent.each_slice(2_000) { Apm::StatsUpsert.new(ids:, total_ids:).upsert(it) }
+    ApmHourlyStat.insert_all(older_hour_rows(ids, total_ids))
+    DemoApmTraces.new(@project, @environment, ids, @now).seed
+  end
+
+  private
+    def minute_now = TimeSeries.align(@now, 1.minute)
+
+    # Every minute of the last 24 hours.
+    def recent_entries
+      (0...(24 * 60)).flat_map do |ago|
+        minute = minute_now - ago.minutes
+        TRANSACTIONS.map { |spec| entry(spec, minute, slow: spec[1] == SLOWER && ago < 60) }
+      end
+    end
+
+    def entry((kind, name, labels, rate, median, shares), minute, slow: false)
+      count = [ (rate * daily_curve(minute)).round, 1 ].max
+      Entry.new(kind:, name:, labels:, minute:,
+                distribution: DemoApmProfile.new(median * (slow ? 3.2 : 1), shares, slow:).distribution(count, failed: failures(count, minute, slow), job: kind == "job"))
+    end
+
+    def daily_curve(time) = 0.65 + (0.35 * Math.sin((time.hour - 9) * Math::PI / 12))
+
+    def failures(count, minute, slow) = (slow || (minute.to_i / 60) % 17 == 0) ? (count * 0.03).ceil : 0
+
+    # Hourly rows only for the 6 days before the last 24 hours.
+    def older_hour_rows(ids, total_ids)
+      first_hour = TimeSeries.align(minute_now - 24.hours, 1.hour)
+      (1..(6 * 24)).flat_map { |ago| hour_rows(first_hour - ago.hours, ids, total_ids) }
+    end
+
+    def hour_rows(hour, ids, total_ids)
+      by_id = Hash.new { Apm::Distribution.empty }
+      TRANSACTIONS.each do |spec|
+        distribution = DemoApmProfile.new(spec[4], spec[5]).distribution((spec[3] * daily_curve(hour) * 60).round, failed: 1, job: spec[0] == "job")
+        by_id[ids.fetch([ spec[0], spec[1] ])] += distribution
+        by_id[total_ids.fetch(spec[0])] += distribution
+      end
+      by_id.map { |id, distribution| Apm::StatsUpsert.row(id, :hour, hour, distribution) }
+    end
+end
+
+# A fixed, log-normal-ish spread of durations around a median, as shares of
+# the gs-v1 buckets, with each bucket's time split by layer shares.
+class DemoApmProfile
+  SPREAD = { -2 => 0.04, -1 => 0.18, 0 => 0.4, 1 => 0.22, 2 => 0.1, 3 => 0.04, 4 => 0.02 }.freeze
+
+  def initialize(median_ms, shares, slow: false)
+    @median = median_ms
+    @shares = slow ? [ 0.62, 0.22, 0.06 ] : shares
+  end
+
+  def distribution(count, failed:, job:)
+    buckets = bucket_counts(count).map { |index, n| bucket(index, n) }
+    Apm::Distribution.from_buckets(count:, failed: [ failed, count ].min, duration_ms: buckets.sum { it.drop(2).sum },
+                                   buckets:, queue_wait: job ? [ [ 11, count ] ] : [], queue_wait_ms: job ? count * 48.0 : 0.0)
+  end
+
+  private
+    def bucket_counts(count)
+      center = Apm::Histogram.index(@median)
+      counts = SPREAD.to_h { |offset, share| [ (center + offset).clamp(0, Apm::Histogram::LAST), (count * share).floor ] }
+      counts[center] += count - counts.values.sum
+      counts.select { |_, n| n.positive? }
+    end
+
+    def bucket(index, count)
+      bounds = Apm::Histogram::BOUNDS_MS
+      mean = index.zero? ? 0.5 : Math.sqrt(bounds[index - 1] * (bounds[index] || bounds.last * 1.4))
+      total = mean * count
+      db, http, view = @shares.map { total * it }
+      [ index, count, db, http, view, [ total - db - http - view, 0.0 ].max ]
+    end
+end
+
+# Slow-request traces: one per minute for the slowest transactions in the
+# last 30 minutes, and the 3 slowest per earlier hour of the last day.
+class DemoApmTraces
+  TRACED = [ "CheckoutsController#create", "SearchController#index", "PaymentsController#confirm", "Orders::PlaceJob" ].freeze
+
+  def initialize(project, environment, ids, now)
+    @project = project
+    @ids = ids
+    @now = now
+    @normalizer = Apm::TraceNormalizer.new
+    @error_uuid = project.occurrences.joins(:issue).where(issues: { transaction_name: "CheckoutsController#create" })
+      .order(:received_at).last&.uuid
+  end
+
+  def seed
+    traces = TRACED.flat_map { |name| minutes.map { trace(name, it) } }
+    Apm::TraceUpsert.new(project_id: @project.id, ids: @ids, now: @now).upsert(traces)
+  end
+
+  private
+    def minutes
+      current = TimeSeries.align(@now, 1.minute) - 1.minute
+      (0...30).map { current - it.minutes } + (1..23).flat_map { |ago| [ 7, 23, 41 ].map { TimeSeries.align(@now, 1.hour) - ago.hours + it.minutes } }
+    end
+
+    def trace(name, minute)
+      spec = DemoApm::TRANSACTIONS.find { it[1] == name }
+      slow = name == DemoApm::SLOWER && minute > @now - 1.hour
+      duration = spec[4] * (slow ? 9.5 : 3.4) * (1 + ((minute.to_i / 60) % 7) / 10.0)
+      @normalizer.normalize(DemoApmTrace.new(spec, minute, duration, slow:, error_uuid: (@error_uuid if slow && minute.min % 9 == 0)).to_h)
+    end
+end
+
+# One trace in the traces payload shape (docs/INGEST_API.md), fictional data.
+class DemoApmTrace
+  def initialize(spec, minute, duration, slow:, error_uuid:)
+    @kind, @name, @labels, _, _, @shares = spec
+    @minute = minute
+    @duration = duration.round(1)
+    @slow = slow
+    @error_uuid = error_uuid
+  end
+
+  def to_h
+    started_at = @minute + 8.114.seconds
+    { "id" => Apm::TraceId.generate(started_at), "kind" => @kind, "name" => @name, "method" => @labels[:http_method],
+      "route" => @labels[:route], "queue" => @labels[:queue], "adapter" => @labels[:adapter],
+      "minute" => @minute.utc.iso8601, "started_at" => started_at.utc.iso8601(3), "duration_ms" => @duration,
+      **layers, "status" => status, "failed" => @error_uuid.present?, "error_event_id" => @error_uuid,
+      "request" => (web? ? { "method" => @labels[:http_method], "path" => @labels[:route].sub(":slug", "linen-shirt").sub(":sku", "SKU-4410"),
+                             "request_id" => SecureRandom.uuid } : nil),
+      "job" => (web? ? nil : { "adapter" => @labels[:adapter], "queue" => @labels[:queue], "queue_wait_ms" => 48.0, "executions" => 1 }),
+      "host" => "web-#{@minute.min % 3 + 1}", "process" => web? ? "Puma worker #{@minute.min % 4}" : "Sidekiq",
+      "runtime" => { "ruby" => "3.4.1", "rails" => "8.0.2" }, "gc" => { "time_ms" => 14.0, "count" => 3 },
+      "allocations" => 1_400_000, "spans_dropped" => 0, "spans" => DemoApmSpans.new(@name, @duration, layers, slow: @slow).spans }
+  end
+
+  private
+    def web? = @kind == "web"
+
+    def status
+      return unless web?
+
+      @error_uuid ? 500 : 200
+    end
+
+    def shares = @slow ? [ 0.62, 0.22, 0.06 ] : @shares
+
+    def layers
+      db, http, view = shares.map { (@duration * it).round(1) }
+      { "db_ms" => db, "http_ms" => http, "view_ms" => view, "ruby_ms" => (@duration - db - http - view).round(1) }
+    end
+end
+
+# The spans of a demo trace: a user lookup, the checkout N+1 (when slow), a
+# tax API call, a render and an enqueue, laid out along the request.
+class DemoApmSpans
+  N_PLUS_ONE_CONTEXT = [ "def total_cents", "  items.sum do |item|", "    item.product.price_cents * item.quantity",
+                         "  end", "end" ].freeze
+
+  def initialize(name, duration, layers, slow:)
+    @name = name
+    @duration = duration
+    @layers = layers
+    @slow = slow
+  end
+
+  def spans
+    [ user_load, (n_plus_one if @slow), (http_call if @layers["http_ms"].positive?),
+      (render if @layers["view_ms"].positive?), enqueue ].compact
+  end
+
+  private
+    def user_load
+      { "type" => "sql", "offset_ms" => 12.1, "duration_ms" => 1.4, "name" => "User Load", "rows" => 1,
+        "sql" => %(SELECT "users".* FROM "users" WHERE "users"."id" = $1 LIMIT $2) }
+    end
+
+    def n_plus_one
+      total = (@layers["db_ms"] * 0.9).round(1)
+      { "type" => "sql", "offset_ms" => 40.1, "duration_ms" => total, "span_ms" => (total * 1.03).round(1), "count" => 38,
+        "rows" => 38, "name" => "Product Load", "sql" => %(SELECT "products".* FROM "products" WHERE "products"."id" = $1 LIMIT $2),
+        "call_site" => { "file" => "app/services/cart_total.rb", "line" => 27, "method" => "total_cents",
+                         "context" => { "start_line" => 25, "lines" => N_PLUS_ONE_CONTEXT } } }
+    end
+
+    def http_call
+      { "type" => "http", "offset_ms" => (@duration * 0.45).round(1), "duration_ms" => @layers["http_ms"], "method" => "POST",
+        "host" => "api.taxjar.example", "path" => "/v2/taxes", "status" => 200 }
+    end
+
+    def render
+      { "type" => "view", "offset_ms" => (@duration * 0.86).round(1), "duration_ms" => @layers["view_ms"],
+        "template" => "#{@name.split("#").first.delete_suffix("Controller").underscore}/#{@name.split("#").last}.html.erb" }
+    end
+
+    def enqueue
+      { "type" => "enqueue", "offset_ms" => (@duration * 0.98).round(1), "duration_ms" => 1.2, "job" => "Emails::ReceiptJob", "queue" => "mailers" }
     end
 end
 
