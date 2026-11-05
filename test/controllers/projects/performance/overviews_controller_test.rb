@@ -176,7 +176,7 @@ class Projects::Performance::OverviewsControllerTest < ActionDispatch::Integrati
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
     get project_performance_path(@project)
 
-    key = [ "apm_overview", @project.id, "production", "web", Apm::Range.pick("1d", entitlements: accounts(:acme).entitlements).cache_key ]
+    key = [ "apm_overview", @project.id, "production", *Apm::Range.pick("1d", entitlements: accounts(:acme).entitlements).cache_key ]
     cached = Rails.cache.read(key)
     assert_kind_of Hash, cached
     assert_includes cached.keys, apm_transactions(:checkout_create).id
