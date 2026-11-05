@@ -14,6 +14,19 @@ class Apm::SqlScrubTest < ActiveSupport::TestCase
     assert_equal "SELECT ?", scrub("SELECT 'cut off here")
   end
 
+  test "a backslash read either way never leaves a value behind" do
+    assert_equal "SELECT * FROM f WHERE dir = ?", scrub(%q(SELECT * FROM f WHERE dir = 'C:\' AND token = 'hunter2secret'))
+    assert_equal "SELECT ?", scrub(%q(SELECT 'it\'s' FROM t))
+    assert_equal "SELECT * FROM t WHERE a = ?", scrub(%q(SELECT * FROM t WHERE a = 'it\'s' AND b = 'don\'t'))
+    assert_equal "SELECT * FROM t WHERE name LIKE ? AND id = ?", scrub(%q(SELECT * FROM t WHERE name LIKE '%foo\_bar%' AND id = 5))
+  end
+
+  test "hex numbers and nested dollar quotes become ?" do
+    assert_equal "SELECT * FROM t WHERE id = ?", scrub("SELECT * FROM t WHERE id = 0xCAFEBABE")
+    assert_equal "SELECT ?", scrub("SELECT $foo$ x $$ hidden $foo$")
+    assert_equal "SELECT ?, a1, abc$1", scrub("SELECT $$x$$, a1, abc$1")
+  end
+
   test "comments are removed, including query-log tags" do
     assert_equal "SELECT ? FROM t", scrub("SELECT 1 /* request_id:abc-123, user:mara */ FROM t -- trailing\n")
   end

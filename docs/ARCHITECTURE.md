@@ -2034,7 +2034,7 @@ DELETE FROM apm_traces WHERE id IN (
 
 `Apm::TraceNormalizer#normalize(trace_json)` → `{ columns:, payload: }`. It **allow-lists** keys (anything else in the JSON is dropped), caps every string (`Apm::Limits`), and applies a second layer of scrubbing:
 
-- SQL: `Apm::SqlScrub#scrub` repeats the gem's rules (string and dollar-quoted literals and numbers → `?`, `IN (…)` lists collapsed, comments removed, whitespace collapsed; `$1` placeholders kept), then `Ingest::Scrubber`'s string scrubbing (tokens, card numbers, JWTs, `password=…`).
+- SQL: `Apm::SqlScrub#scrub` repeats the gem's rules (string and dollar-quoted literals and numbers, including `0x` hex, → `?`; the server doesn't know the client's database, so the SQL is read with a backslash as ordinary (except in `E'…'` strings) and as an escape, and when the readings disagree everything from the first string holding a backslash on becomes one `?`; `IN (…)` lists collapsed, comments removed, whitespace collapsed; `$1` placeholders kept), then `Ingest::Scrubber`'s string scrubbing (tokens, card numbers, JWTs, `password=…`).
 - Paths (request path, HTTP span path): the query string and fragment are dropped, then string-scrubbed. HTTP span hosts drop any `user:pass@` part.
 - Call-site files go through `Ingest::PathNormalizer`; code-context lines through the string scrubber.
 - Spans are capped at `Apm::Limits::SPANS` (300); excess spans are dropped and added to `spans_dropped`.
