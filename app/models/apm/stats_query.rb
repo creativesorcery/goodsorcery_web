@@ -10,6 +10,7 @@
 #   stats.past_day(ids)              # => { id => Apm::Distribution } (hourly rows, last 24 hours)
 #   stats.series(id)                 # => [[bin_start, Apm::Distribution], …] zero-filled
 #   stats.hourly_p95(ids, hours: 24) # => { id => [Float | nil] * hours }, oldest first
+#   stats.ranked(ids, sort: "time")  # => ids with data in the range, largest first
 #
 # Ids without data are absent from the hashes (fetch with a default of
 # Apm::Distribution.empty).
@@ -18,6 +19,16 @@ class Apm::StatsQuery
            "queue_wait_counts) WITH ORDINALITY AS b(c, db, http, view, ruby, qw, i)".freeze
   BUCKET_SUMS = [ "b.i", "SUM(b.c)", "SUM(b.db)", "SUM(b.http)", "SUM(b.view)", "SUM(b.ruby)", "SUM(b.qw)" ].freeze
   SCALAR_SUMS = [ "SUM(requests_count)", "SUM(failed_count)", "SUM(duration_ms_sum)", "SUM(queue_wait_ms_sum)" ].freeze
+
+  # The overview table's sorts, largest first: time consumed (the summed
+  # duration), p95, request count, failed count.
+  SORTS = {
+    "time" => :duration_ms.to_proc,
+    "p95" => ->(distribution) { distribution.percentile(95).to_f },
+    "rate" => :count.to_proc,
+    "failed" => :failed.to_proc
+  }.freeze
+  DEFAULT_SORT = "time".freeze
 
   attr_reader :range
 
@@ -51,6 +62,13 @@ class Apm::StatsQuery
       by_hour = bucket_rows(scoped(ApmHourlyStat, ids, from), [ :apm_transaction_id, bin_sql(ApmHourlyStat, 1.hour) ])
       ids.index_with { |id| hourly_values(by_hour, id, from, hours) }
     end
+  end
+
+  # The ids that have data in the range, sorted by SORTS[sort] descending
+  # (ties by id). Unknown sorts use DEFAULT_SORT. Reuses #by_transaction.
+  def ranked(ids, sort: DEFAULT_SORT)
+    key = SORTS.fetch(sort.to_s) { SORTS.fetch(DEFAULT_SORT) }
+    by_transaction(ids).sort_by { |id, distribution| [ -key.call(distribution), id ] }.map(&:first)
   end
 
   private

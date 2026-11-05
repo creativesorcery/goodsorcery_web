@@ -8,6 +8,7 @@
 class ApmTrace < ApplicationRecord
   KEPT_PER_CLOSED_HOUR = 3
   SORTS = %w[slowest newest].freeze
+  PER_PAGE = 20
 
   belongs_to :project, inverse_of: :apm_traces
   belongs_to :apm_transaction, inverse_of: :apm_traces
@@ -20,6 +21,15 @@ class ApmTrace < ApplicationRecord
   # "slowest" (the default) or "newest".
   scope :sorted, ->(sort) { sort.to_s == "newest" ? newest_first : slowest_first }
   scope :with_n_plus_one, -> { where(n_plus_one_count: 1..) }
+  # Page n (1-based) of PER_PAGE; out-of-range numbers read as 1.
+  scope :page_of, ->(number) { offset(([ number.to_i, 1 ].max - 1) * PER_PAGE).limit(PER_PAGE) }
+
+  # A transaction's traces within a range (its start is already clamped to
+  # the retention), sorted "slowest" (default) or "newest". Chain page_of(n)
+  # for a page and count for the total.
+  def self.listing(transaction, range, sort: "slowest")
+    where(apm_transaction_id: transaction.id).since(range.start).sorted(sort)
+  end
 
   # The transactions among ids with an N+1 trace since a time, as a Set (one query).
   def self.transaction_ids_with_n_plus_one(ids, since:)

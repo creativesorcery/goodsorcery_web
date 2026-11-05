@@ -68,3 +68,18 @@ class Apm::StatsQueryTest < ActiveSupport::TestCase
     assert_no_queries { query.by_transaction(ids.reverse) }
   end
 end
+
+class Apm::StatsQueryRankedTest < ActiveSupport::TestCase
+  test "ranked sorts transactions with data by time consumed, p95, rate or failed" do
+    ids = ApmTransaction.listed.where(project: projects(:storefront)).ids
+    stats = Apm::StatsQuery.new(Apm::Range.new("1h"))
+    checkout, products, job = %i[checkout_create products_show place_order_job].map { apm_transactions(it).id }
+
+    assert_equal [ checkout, job, products ], stats.ranked(ids)
+    assert_equal [ checkout, job, products ], stats.ranked(ids, sort: "p95")
+    assert_equal [ products, checkout, job ], stats.ranked(ids, sort: "rate")
+    assert_equal checkout, stats.ranked(ids, sort: "failed").first
+    assert_equal stats.ranked(ids), stats.ranked(ids, sort: "bogus")
+    assert_equal [], stats.ranked([ apm_transactions(:billing_invoices).id - 1_000_000 ])
+  end
+end

@@ -34,6 +34,25 @@ class ApmTraceTest < ActiveSupport::TestCase
     assert_equal Set[apm_transactions(:checkout_create).id], ids
   end
 
+  test "listing: a transaction's traces in a range, sorted and paged by 20" do
+    checkout = apm_transactions(:checkout_create)
+    assert_equal [ apm_traces(:checkout_slow), apm_traces(:checkout_failed), apm_traces(:checkout_old_hour) ],
+                 ApmTrace.listing(checkout, Apm::Range.new("1d")).to_a
+    assert_equal [ apm_traces(:checkout_failed), apm_traces(:checkout_slow) ], ApmTrace.listing(checkout, Apm::Range.new("1h"), sort: "newest").to_a
+    assert_equal 3, ApmTrace.listing(checkout, Apm::Range.new("1d")).count
+
+    minute = TimeSeries.align(30.minutes.ago, 1.minute)
+    ApmTrace.insert_all(Array.new(25) do |index|
+      at = minute - index.minutes - 10.minutes
+      { project_id: checkout.project_id, apm_transaction_id: checkout.id, uuid: Apm::TraceId.generate(at), minute: at,
+        hour: TimeSeries.align(at, 1.hour), started_at: at, duration_ms: 1, payload: "{}", created_at: at }
+    end)
+    listing = ApmTrace.listing(checkout, Apm::Range.new("1d"))
+    assert_equal 20, listing.page_of(1).to_a.size
+    assert_equal 8, listing.page_of(2).to_a.size
+    assert_equal listing.page_of(1).to_a, listing.page_of(-3).to_a
+  end
+
   test "short id, older and newer" do
     slow, failed, old = apm_traces(:checkout_slow), apm_traces(:checkout_failed), apm_traces(:checkout_old_hour)
     assert_equal slow.uuid.delete("-").last(8), slow.short_id
