@@ -102,6 +102,12 @@ class Projects::Performance::TransactionsControllerTest < ActionDispatch::Integr
     assert_select "a", text: "Next 20 →", count: 0
   end
 
+  test "a huge page number shows an empty page instead of failing" do
+    get project_performance_transaction_path(@project, @checkout, page: "99999999999999999999")
+    assert_response :success
+    assert_select "a[aria-label^='Trace of']", 0
+  end
+
   test "the page costs the same number of statements with 3 or 25 traces" do
     few = count_request_queries { get project_performance_transaction_path(@project, @checkout) }
     22.times { |i| create_apm_trace(@checkout, minutes_ago: 30 + i) }

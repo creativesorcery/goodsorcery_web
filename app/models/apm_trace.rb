@@ -8,6 +8,7 @@
 class ApmTrace < ApplicationRecord
   KEPT_PER_CLOSED_HOUR = 3
   SORTS = %w[slowest newest].freeze
+  MAX_PAGE = 10_000
   PER_PAGE = 20
 
   belongs_to :project, inverse_of: :apm_traces
@@ -21,8 +22,9 @@ class ApmTrace < ApplicationRecord
   # "slowest" (the default) or "newest".
   scope :sorted, ->(sort) { sort.to_s == "newest" ? newest_first : slowest_first }
   scope :with_n_plus_one, -> { where(n_plus_one_count: 1..) }
-  # Page n (1-based) of PER_PAGE; out-of-range numbers read as 1.
-  scope :page_of, ->(number) { offset(([ number.to_i, 1 ].max - 1) * PER_PAGE).limit(PER_PAGE) }
+  # Page n (1-based) of PER_PAGE; numbers below 1 read as 1, numbers past
+  # MAX_PAGE (no listing is that long) as MAX_PAGE, so the offset fits.
+  scope :page_of, ->(number) { offset((number.to_i.clamp(1, MAX_PAGE) - 1) * PER_PAGE).limit(PER_PAGE) }
 
   # A transaction's traces within a range (its start is already clamped to
   # the retention), sorted "slowest" (default) or "newest". Chain page_of(n)

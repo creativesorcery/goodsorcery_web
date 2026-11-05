@@ -51,6 +51,7 @@ class ApmTraceTest < ActiveSupport::TestCase
     assert_equal 20, listing.page_of(1).to_a.size
     assert_equal 8, listing.page_of(2).to_a.size
     assert_equal listing.page_of(1).to_a, listing.page_of(-3).to_a
+    assert_empty listing.page_of("99999999999999999999").to_a
   end
 
   test "short id, older and newer" do

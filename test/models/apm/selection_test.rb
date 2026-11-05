@@ -6,6 +6,10 @@ class Apm::SelectionTest < ActiveSupport::TestCase
 
   setup { @project = projects(:storefront) }
 
+  test "the trace page is capped so a huge number can't overflow the offset" do
+    assert_equal ApmTrace::MAX_PAGE, select_with(page: "99999999999999999999").page
+  end
+
   test "defaults: the app's default environment, 1d, time sort, slowest traces, page 1" do
     selection = select_with({})
 

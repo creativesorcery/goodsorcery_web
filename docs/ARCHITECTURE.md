@@ -2132,7 +2132,7 @@ end
 ```
 Helpers: `project_performance_path`, `project_performance_transaction_path(project, transaction)`, `project_performance_trace_path(project, trace.uuid)`.
 
-**Shared query params** (parsed by `Apm::Selection`, UI): `env` (an environment with APM data; default the project's `default_environment` when it has data, else the environment with the most requests in the past day, else the first with any), `range` (§13.6 keys; locked or unknown → `1d`), overview `tab` (`web` | `jobs`; default `web`, or `jobs` when the environment has no web data), `sort` (`time` default | `p95` | `rate` | `failed`), `q` (filter, ≤ 100 chars, `ILIKE` on name and route with `sanitize_sql_like`), `all` (`1` lifts the 25-row limit); endpoint `traces` (`slowest` default | `newest`) and `page` (1..). Every link on these pages carries `env` and `range`.
+**Shared query params** (parsed by `Apm::Selection`, UI): `env` (an environment with APM data; default the project's `default_environment` when it has data, else the environment with the most requests in the past day, else the first with any), `range` (§13.6 keys; locked or unknown → `1d`), overview `tab` (`web` | `jobs`; default `web`, or `jobs` when the environment has no web data), `sort` (`time` default | `p95` | `rate` | `failed`), `q` (filter, ≤ 100 chars, `ILIKE` on name and route with `sanitize_sql_like`), `all` (`1` lifts the 25-row limit); endpoint `traces` (`slowest` default | `newest`) and `page` (1..10,000, `ApmTrace::MAX_PAGE`; clamped so a crafted number cannot overflow the offset). Every link on these pages carries `env` and `range`.
 
 | Controller | Actions | Notes |
 |---|---|---|

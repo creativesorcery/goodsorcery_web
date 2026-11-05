@@ -53,7 +53,8 @@ class Apm::Selection
 
   def trace_sort = TRACE_SORTS.include?(param(:traces)) ? param(:traces) : TRACE_SORTS.first
 
-  def page = [ param(:page).to_i, 1 ].max
+  # 1..ApmTrace::MAX_PAGE, so a crafted number can't overflow the offset.
+  def page = param(:page).to_i.clamp(1, ApmTrace::MAX_PAGE)
 
   # env and range plus the overrides, without blank values.
   def link_params(**overrides)
