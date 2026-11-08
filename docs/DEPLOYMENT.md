@@ -170,8 +170,9 @@ bin/kamal accessory boot all     # Postgres, Redis and the tunnel
 
 Then push to `main` (or re-run the latest CI run). The deploy job starts
 kamal-proxy, boots the web and job containers and runs migrations
-(`bin/docker-entrypoint` runs `db:prepare`). Open `https://GOODSORCERY_HOST`
-and sign up; sign-up closes after the first account.
+(`bin/docker-entrypoint` runs `db:prepare`; it never loads the development
+demo data in `db/seeds.rb`). Open `https://GOODSORCERY_HOST` and sign up;
+sign-up closes after the first account.
 
 ## Day to day
 

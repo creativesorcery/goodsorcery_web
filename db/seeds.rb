@@ -5,6 +5,11 @@
 # identities are stored only as HMAC digests.
 #
 #   bin/rails db:seed      (skips itself when the demo user already exists)
+#
+# The demo owner's credentials are public (README), so this file never runs in
+# production: config/database.yml turns seeding off there for db:prepare, and
+# a manual db:seed stops here.
+abort "db/seeds.rb is demo data for development only; it never runs in production." if Rails.env.production?
 
 class DemoSeeds
   EMAIL = "philip@example.com".freeze

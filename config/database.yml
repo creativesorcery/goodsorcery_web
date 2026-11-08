@@ -84,3 +84,6 @@ production:
   host: <%= ENV["DB_HOST"] %>
   username: goodsorcery_web
   password: <%= ENV["GOODSORCERY_WEB_DATABASE_PASSWORD"] %>
+  # db/seeds.rb is development demo data with public credentials. The Docker
+  # entrypoint runs db:prepare, which would otherwise seed a fresh database.
+  seeds: false
