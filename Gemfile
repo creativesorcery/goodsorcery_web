@@ -71,3 +71,6 @@ group :test do
 end
 
 gem "goodsorcery"
+
+# Model Context Protocol server (POST /mcp, docs/MCP.md): the official Ruby SDK
+gem "mcp", "1.8.1"
