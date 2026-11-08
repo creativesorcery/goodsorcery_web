@@ -40,9 +40,9 @@ module ProjectsHelper
   end
 
   def project_locked_retention_hint
-    return "Longer retention is coming soon." unless upgrade_offered?
+    return "Some retention periods are coming soon." unless upgrade_offered?
 
-    safe_join([ "Longer retention isn't available on this account.", upgrade_to_unlock ], " ")
+    safe_join([ "Some retention periods aren't available on this account.", upgrade_to_unlock ], " ")
   end
 
   def project_health_chip(health)

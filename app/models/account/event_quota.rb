@@ -5,9 +5,11 @@
 #
 # Ingest checks it on every request through Account.over_quota?(id), which
 # costs nothing self-hosted and one cache read hosted: a boolean per account
-# id, kept for OVER_QUOTA_TTL and deleted after a commit that changes
-# entitlement_values. A change to the hosted defaults (which needs a restart)
-# shows within OVER_QUOTA_TTL.
+# id, kept for OVER_QUOTA_TTL and rewritten after a commit that changes
+# entitlement_values. A cache miss writes only when the key is still empty,
+# so a miss that read the account just before such a commit can't put its
+# stale answer over the fresh one. A change to the hosted defaults (which
+# needs a restart) shows within OVER_QUOTA_TTL.
 module Account::EventQuota
   extend ActiveSupport::Concern
 
@@ -15,7 +17,7 @@ module Account::EventQuota
   EVENTS_THIS_MONTH_TTL = 5.minutes
 
   included do
-    after_update_commit :expire_over_quota, if: :saved_change_to_entitlement_values?
+    after_update_commit :refresh_over_quota, if: :saved_change_to_entitlement_values?
   end
 
   class_methods do
@@ -23,7 +25,16 @@ module Account::EventQuota
     def over_quota?(id)
       return false unless Rails.configuration.x.hosted
 
-      Rails.cache.fetch(over_quota_key(id), expires_in: OVER_QUOTA_TTL) { find_by(id:)&.over_quota? || false }
+      cached = Rails.cache.read(over_quota_key(id))
+      return cached unless cached.nil?
+
+      remember_over_quota(id, find_by(id:)&.over_quota? || false, unless_exist: true)
+    end
+
+    # Returns the value. unless_exist: true leaves an answer already there.
+    def remember_over_quota(id, value, unless_exist: false)
+      Rails.cache.write(over_quota_key(id), value, expires_in: OVER_QUOTA_TTL, unless_exist:)
+      value
     end
 
     def over_quota_key(id) = [ "account_over_quota", id ]
@@ -52,7 +63,10 @@ module Account::EventQuota
   end
 
   private
-    def expire_over_quota
-      Rails.cache.delete(self.class.over_quota_key(id))
+    # Self-hosted the key is never read; it is only cleared.
+    def refresh_over_quota
+      return Rails.cache.delete(self.class.over_quota_key(id)) unless Rails.configuration.x.hosted
+
+      self.class.remember_over_quota(id, over_quota?)
     end
 end

@@ -11,10 +11,10 @@ class FitProjectRetentionToChoicesTest < ActiveSupport::TestCase
     assert_equal expected.values, projects.map { it.reload.retention_days }
   end
 
-  test "down changes nothing" do
-    project = add_project(30)
+  test "down clamps 60 and 90 days to 30, the most the previous release accepts" do
+    projects = [ 30, 60, 90 ].map { |days| add_project(days) }
     ActiveRecord::Migration.suppress_messages { FitProjectRetentionToChoices.new.migrate(:down) }
-    assert_equal 30, project.reload.retention_days
+    assert_equal [ 30, 30, 30 ], projects.map { it.reload.retention_days }
   end
 
   private

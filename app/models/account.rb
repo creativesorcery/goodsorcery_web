@@ -1,4 +1,9 @@
 class Account < ApplicationRecord
+  # Replaced by the monthly_event_quota entitlement (docs/ARCHITECTURE.md
+  # §12.2.2). Kept in the table for one release so the previous one still
+  # runs during a deploy and after a rollback; a later release drops it.
+  self.ignored_columns += [ "monthly_event_quota" ]
+
   has_many :memberships, dependent: :delete_all, inverse_of: :account
   has_many :users, through: :memberships
   has_many :projects, inverse_of: :account # rows cascade in the database

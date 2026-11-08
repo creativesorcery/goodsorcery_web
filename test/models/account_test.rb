@@ -61,7 +61,7 @@ class AccountTest < ActiveSupport::TestCase
     assert_no_queries { assert_not Account.over_quota?(account.id) }
   end
 
-  test "Account.over_quota? caches the answer per id and forgets it when entitlement_values change" do
+  test "Account.over_quota? caches the answer per id and rewrites it when entitlement_values change" do
     account = accounts(:acme)
     add_events_this_month(projects(:storefront), 3_000)
     with_memory_cache do
@@ -70,11 +70,40 @@ class AccountTest < ActiveSupport::TestCase
         assert_no_queries { assert Account.over_quota?(account.id) }
 
         account.update_entitlements!("monthly_event_quota" => 10_000_000)
-        assert_not Account.over_quota?(account.id), "expired on commit"
-        assert_no_queries { assert_not Account.over_quota?(account.id) }
+        assert_no_queries { assert_not Account.over_quota?(account.id), "rewritten on commit" }
+
+        account.update_entitlements!({})
+        assert_no_queries { assert Account.over_quota?(account.id), "back on the 3,000 default" }
+        account.update_entitlements!("monthly_event_quota" => 10_000_000)
 
         account.update!(name: "Acme Renamed")
         assert_equal false, Rails.cache.read(Account.over_quota_key(account.id)), "other changes keep it"
+      end
+    end
+  end
+
+  test "a cache miss that read the account before a quota change can't overwrite the fresh answer" do
+    account = accounts(:acme)
+    add_events_this_month(projects(:storefront), 3_000)
+    with_memory_cache do
+      with_hosted_mode do
+        stale = Account.find(account.id).over_quota? # an ingest miss, mid-flight
+        account.update_entitlements!("monthly_event_quota" => 10_000_000)
+
+        assert Account.remember_over_quota(account.id, stale, unless_exist: true), "the miss answers its own request"
+        assert_no_queries { assert_not Account.over_quota?(account.id), "the next request sees the new quota" }
+      end
+    end
+  end
+
+  test "Account.over_quota? fills an empty cache on a miss" do
+    account = accounts(:acme)
+    add_events_this_month(projects(:storefront), 3_000)
+    with_memory_cache do
+      with_hosted_mode do
+        Rails.cache.delete(Account.over_quota_key(account.id))
+        assert Account.over_quota?(account.id)
+        assert_equal true, Rails.cache.read(Account.over_quota_key(account.id))
       end
     end
   end

@@ -20,6 +20,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "entitlement_values", default: {}, null: false
+    t.bigint "monthly_event_quota"
   end
 
   create_table "alert_deliveries", force: :cascade do |t|

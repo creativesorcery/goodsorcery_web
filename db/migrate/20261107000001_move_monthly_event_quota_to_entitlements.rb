@@ -1,11 +1,16 @@
 # The monthly event quota becomes the monthly_event_quota entitlement
 # (docs/ARCHITECTURE.md §12.2.2). Every quota set in the old column is copied
-# into entitlement_values, unless the account already stores that key, and
-# the column goes. A null column (no quota) copies nothing: hosted accounts
-# then get the hosted default, and self-hosted ones stay unlimited.
+# into entitlement_values, unless the account already stores that key. A null
+# column (no quota) copies nothing: hosted accounts then get the hosted
+# default, and self-hosted ones stay unlimited.
 #
-# Rolling back restores the column, copies the stored values back and
-# removes the key again.
+# The column stays for this release: Account ignores it (ignored_columns) and
+# a later release drops it. The previous release still selects and inserts it
+# while this one boots (db:prepare runs before the switch), and again after
+# `bin/kamal rollback` or a revert on main, neither of which runs down.
+#
+# Rolling back copies the stored values back into the column and removes the
+# key again.
 class MoveMonthlyEventQuotaToEntitlements < ActiveRecord::Migration[8.1]
   COPY_TO_ENTITLEMENTS = <<~SQL.squish.freeze
     UPDATE accounts
@@ -27,11 +32,9 @@ class MoveMonthlyEventQuotaToEntitlements < ActiveRecord::Migration[8.1]
 
   def up
     execute COPY_TO_ENTITLEMENTS
-    remove_column :accounts, :monthly_event_quota
   end
 
   def down
-    add_column :accounts, :monthly_event_quota, :bigint
     execute COPY_TO_COLUMN
   end
 end

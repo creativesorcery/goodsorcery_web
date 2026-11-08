@@ -315,7 +315,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_select "option[value='60'][disabled][title='Upgrade to unlock']", "60 days · Upgrade to unlock"
     assert_select "option[value='90'][disabled][title='Upgrade to unlock']", "90 days · Upgrade to unlock"
     assert_select "select#project_retention_days[aria-describedby='project_retention_days_locked_hint project_retention_days_hint']"
-    assert_select "p#project_retention_days_locked_hint", /Longer retention isn't available on this account\.\s*Upgrade to unlock/
+    assert_select "p#project_retention_days_locked_hint", /Some retention periods aren't available on this account\.\s*Upgrade to unlock/
     assert_select "p#project_retention_days_locked_hint[title]", 0
     assert_select "p#project_retention_days_locked_hint a[href='https://billing.example/upgrade'][target=_blank]", "Upgrade to unlock"
   end
@@ -325,8 +325,30 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "option[value='60'][disabled][title='Coming soon']", "60 days · Coming soon"
     assert_select "option[value='90'][disabled][title='Coming soon']", "90 days · Coming soon"
-    assert_select "p#project_retention_days_locked_hint[title='Coming soon']", "Longer retention is coming soon."
+    assert_select "p#project_retention_days_locked_hint[title='Coming soon']", "Some retention periods are coming soon."
     assert_select "form", text: /Upgrade/, count: 0
+  end
+
+  test "hosted with a non-contiguous allowed list, only the missing choice is locked and the hint stays neutral" do
+    accounts(:acme).update_entitlements!("retention_days" => [ 30, 90 ])
+
+    with_hosted_mode { with_upgrade_url { get edit_project_path(projects(:storefront)) } }
+
+    assert_select "option[value='30']:not([disabled])", "30 days"
+    assert_select "option[value='60'][disabled]", "60 days · Upgrade to unlock"
+    assert_select "option[value='90']:not([disabled])", "90 days"
+    assert_select "p#project_retention_days_locked_hint", /\ASome retention periods aren't available on this account\.\s*Upgrade to unlock\z/
+    assert_select "form", text: /Longer/, count: 0
+  end
+
+  test "hosted with only longer choices allowed, the locked shorter one gets the same neutral hint" do
+    accounts(:acme).update_entitlements!("retention_days" => [ 60, 90 ])
+
+    with_hosted_mode { with_upgrade_url(nil) { get edit_project_path(projects(:storefront)) } }
+
+    assert_select "option[value='30'][disabled][title='Coming soon']", "30 days · Coming soon"
+    assert_select "option[disabled]", 1
+    assert_select "p#project_retention_days_locked_hint[title='Coming soon']", "Some retention periods are coming soon."
   end
 
   test "hosted, the account's stored retention_days unlocks those choices" do
