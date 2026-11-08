@@ -26,11 +26,11 @@ v1 is built and committed on `main`. It was built in three workflows: foundation
 
 v1 scope:
 - **Accounts:** sign-up, sign-in, password reset and session expiry. Optional `GOODSORCERY_TERMS_URL` / `GOODSORCERY_PRIVACY_URL` (read once at boot into `config.x.terms_url` / `privacy_url`, http(s) only via `HttpUrl.parse`) add an agreement sentence under the sign-up button (`RegistrationsHelper#signup_agreement`); with neither set there is no sentence. Accounts, users and memberships; every dashboard query is scoped through `Current.account`.
-- **Projects ("apps"):** created via "Add a new app", with ingest-only API keys per environment that can be revealed, copied and rotated, plus the General settings page.
+- **Projects ("apps"):** created via "Add a new app" (platform Ruby on Rails, Ruby or Rust: it picks the setup snippets and wording only), with ingest-only API keys per environment that can be revealed, copied and rotated, plus the General settings page.
 - **Ingest:** `POST /api/v1/events` and `POST /api/v1/events/batch` (up to 100 events; Bearer key) return 202; `GET /api/v1/verify` checks a key. The raw body is stored encrypted and its id goes to a Sidekiq job. Processing scrubs and redacts the data, fingerprints it into an issue and updates the hourly rollups, tag counts and affected users.
 - **Projects overview:** sparklines and the "Listening…" state.
 - **Issue list:** triage tabs, filters, query-chip search, 24h histograms and bulk resolve/ignore.
-- **Issue detail:** chart, app-first backtrace, breadcrumbs, the six data tabs (Request, Params, Headers, Session, Job, Environment), tag bars, affected user, occurrence navigator and notes.
+- **Issue detail:** chart, app-first backtrace (trusting each frame's `in_app`; optional column, module and package), breadcrumbs, the six data tabs (Request, Params, Headers, Session, Job, Environment), tag bars, affected user, occurrence navigator and notes.
 - **Setup/onboarding page.**
 - **Live updates:** pointer broadcasts over Action Cable. They carry ids and paths only; the browser re-fetches with its own session.
 - **Email alerts** (approved 2026-10-11, `docs/ARCHITECTURE.md` §11): per-app rules (new issue, regression, reached production, still happening, daily digest) and environment scope in Settings › Alerts; each member's per-app switches on the Notifications page (user menu); signed one-click mute links; the `alert_deliveries` throttle table. Delivery (§11.4): ingest flags new issue, regression and reached production after commit; a 5-minute still-happening sweep; an hourly digest run (09:00 local per recipient); a cap of 20 alert emails per user per hour, with the rest folded into one "and N more alerts" summary; `AlertsMailer` with List-Unsubscribe headers.
@@ -38,13 +38,17 @@ v1 scope:
 - **Uptime** (approved 2026-11-03, §12): per-app `UptimeMonitor`s (1/5/10/60-minute intervals) behind the sidebar's Uptime link (a coral dot when one is down): list with status, uptime 24h/7d/30d and status bars; detail page with history and incidents; form; delete; rate-limited Check now. An every-minute cron (`ScheduleUptimeChecksJob`, queue `default`) claims due monitors by `next_check_at` and enqueues one `UptimeCheckJob` each (queue `uptime`); `UptimeProbe` is the SSRF-safe client (10 s budget, one immediate retry). Checks, hourly rollups and incidents are pruned by `goodsorcery:prune`. Down and recovered emails join the alert system: app rules in Settings › Alerts, an Uptime switch per member, mute links, one email per incident and kind, exempt from the hourly cap.
 - **Slack alerts** (approved 2026-11-08, `docs/ARCHITECTURE.md` §11.5): one Slack channel per app via a pasted incoming-webhook URL (`SlackConnection`, encrypted) in Settings › Alerts, with a status chip, a masked URL, an on/off switch, a rate-limited "Send test message", Disconnect, and webhook how-to help. Slack follows the same rules and environment scope as email, with no digest and one post per event. `IssueAlertJob` / `UptimeAlertJob` also run `SlackIssueAlert` / `SlackUptimeAlert`, which claim a `slack_deliveries` row (keys `slack:` + AlertDelivery's; a cap of 30 issue posts per app per hour, the rest folded into a `SlackSummary` post at :02) and enqueue `SlackPostJob`. That job posts through `SlackWebhook` (Net::HTTP, 5 s/10 s timeouts, TLS verify, no redirects, capped read). 429 retries after Retry-After, 5xx retries with backoff, and a webhook Slack rejects (404/410, `invalid_token`, `channel_not_found`, …) is turned off and the owners are emailed at most once a day per app (`AlertsMailer.slack_disabled`, throttled through `alert_deliveries`). The page shows who connected the webhook and when.
 
-## Ruby client gem
+## Client libraries
 
-The `goodsorcery` gem (module `GoodSorcery`) lives in a sibling checkout, `../goodsorcery-ruby`. Its `docs/DESIGN.md` is the blueprint for the gem and for the server endpoints it uses (§7: batch and verify). Keep the setup page snippets (`app/views/projects/setups/*`, `SetupHelper`) in step with its configuration API.
+- **The protocol is language-neutral** (approved 2026-11-08). `docs/INGEST_API.md` (revision 1.1) is the contract every client follows: clients send display-ready names and labels, and the server stores, groups and renders them without knowing the language. Don't add language-specific behaviour to ingest, grouping, APM or display; the few Ruby fallbacks (in_app and package guesses from `gems/` paths when a client sends no flag, the `{ruby, rails}` runtime object, `ruby_ms` in traces) exist for older Ruby clients only. Revisions are additive: never make a valid older payload invalid.
+- **Ruby gem:** the `goodsorcery` gem (module `GoodSorcery`) lives in a sibling checkout, `../goodsorcery-ruby`. Its `docs/DESIGN.md` is the blueprint for the gem and for the server endpoints it uses (§7: batch and verify).
+- **Rust crate:** the `goodsorcery` crate lives in `../goodsorcery-rust` (private repo `creativesorcery/goodsorcery-rust`, never published to crates.io). Its setup snippet uses `goodsorcery::init(goodsorcery::Config::from_env())` (returns a guard; installs a panic hook), `.performance_monitoring(true)`, `goodsorcery::axum::layer()` and `goodsorcery::capture_error(&err)`.
+- Keep the setup page snippets (`app/views/projects/setups/{rails,ruby,rust}/*`, `SetupHelper`) and the performance empty state in step with each client's configuration API.
 
 ## Not built yet (each needs the user's go-ahead)
 
 - Postgres backups (see `docs/DEPLOYMENT.md`).
+- A Sentry-compatible ingest endpoint (deferred by the user on 2026-11-08).
 - Merge/unmerge, Assign and mute rules.
 - The billing app and the entitlements push endpoint (contract in `docs/ARCHITECTURE.md` §12.3).
 - Team invites, project deletion and GitHub links.
@@ -63,7 +67,7 @@ Read `docs/ARCHITECTURE.md` (the binding blueprint: schema, encryption, ingest p
   - `lib/middleware/ingest_body_shield.rb` keeps Rails from parsing or logging the body (single and batch paths).
   - `Api::V1::EventsController` (one event) and `Api::V1::Events::BatchesController` (`/api/v1/events/batch`, 1–100 events, partial accept by index) share the `IngestEndpoint` concern: IP limit, key check through `ApiKeyAuthentication` (digest lookup, cached), key/account limits counted in events (`Ingest::EventRateLimit`, a batch of N takes N), quota, media type, size, JSON.
   - Each event is stored as its own encrypted `InboundEvent` (`InboundEvent.store_for`, one INSERT per request) and enqueued with `ActiveJob.perform_all_later`; `ProcessInboundEventJob` (queue `ingest`) calls `Ingest::Processor#process`.
-  - `Api::V1::VerificationsController` (`GET /api/v1/verify`) answers the gem's install check: key valid → `{"ok":true,"environment":…}`, nothing stored, own rate limits.
+  - `Api::V1::VerificationsController` (`GET /api/v1/verify`) answers a client's install check: key valid → `{"ok":true,"environment":…}`, nothing stored, own rate limits.
 - **`app/models/ingest/`:** plain Ruby objects such as `Scrubber`, `MessageRedactor`, `Fingerprint`, `IssueTally`, `Rollups`, `TagRows`, `Retention` and `StaleEvents`. Their method names are descriptive, never `call`.
 - **Dashboard models:** query and presentation objects such as `IssueQuery` (chip parsing), `IssueList`, `IssueSummary`, `IssueChart`, `OccurrenceNavigator`, `ProjectOverview`, `ProjectHealth`, `SetupProgress` and `LiveFrames`.
 - **Model concerns:** `Issue::Searchable`, `Issue::Triage` and `Issue::Broadcasting`, plus `Project::Broadcasting` and `Project::Alerting`.
@@ -139,6 +143,8 @@ bin/bundler-audit && bin/importmap audit
 - **Uptime claim SQL:** `UptimeSchedule::CLAIM_SQL` casts its binds (`CAST(:now AS timestamp)`) because Postgres can't infer them inside `extract`/`make_interval`, runs `uncached`, and steps `next_check_at` from the monitor's own minute so late claims don't bunch monitors together. `UptimeCheckJob` drops jobs whose monitor was checked since `enqueued_at`; checks are recorded at their start time for that comparison.
 - **Check now gate:** `check_now_gap` is 30 seconds self-hosted and the shortest entitled interval hosted, so Check now can't beat the entitlements.
 - **Debug logs:** SQL logs in dev and test include redacted issue titles. Keep production at `info`.
+- **Runtime labels:** `RuntimeList` reads `context.runtime` (and a trace's `runtime`) as a list of `{name, version}` or the older name → version object. Names are restricted to `RuntimeList::NAME` because `projects.runtime_label` is plaintext; keep that restriction.
+- **APM column names:** `apm_*_stats.bucket_ruby_ms` and `apm_traces.ruby_ms` hold the app-code layer (`app_ms` everywhere in Ruby; `ApmTrace` aliases `app_ms`, `Apm::StatsUpsert` maps the column). They kept their names to avoid a rename during deploys.
 - **Dev data:** test events overwrite a project's runtime label and use up issue numbers; deleting issues doesn't rewind the sequence. Seeds don't run again once the demo user exists (`bin/rails db:reset` to start over).
 - **Port 3917:** something else on this machine has used it. Don't kill processes you didn't start; give dev servers you start their own pid file (`-P tmp/pids/server_PORT.pid`).
 - **Bash tool:** in this environment, compound commands starting with `cd dir; …` have returned empty output. Use absolute paths instead.

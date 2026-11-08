@@ -1,6 +1,10 @@
 # Good Sorcery Ingest API (v1)
 
-Client libraries such as the `goodsorcery` Ruby gem use this API to report errors. It is the same on the hosted service and on self-hosted instances: point your client's `endpoint` at your own host.
+Client libraries (SDKs), such as the `goodsorcery` Ruby gem and the `goodsorcery` Rust crate, use this API to report errors and performance data. It is the same on the hosted service and on self-hosted instances: point your client's endpoint at your own host.
+
+**The API is language-neutral.** Clients send display-ready names and labels (exception classes, transaction names, file paths, runtimes, packages); the server stores, groups and renders them as sent and never needs to know which language or framework produced them. Anything a client can't fill in is optional. A few fallbacks exist for older Ruby clients and are marked as such.
+
+**Revision 1.1** (2026-11-08, additive: every 1.0 payload is still valid). See [Revisions](#revisions).
 
 - **Endpoint:** `POST {endpoint}/api/v1/events` (one event), or `POST {endpoint}/api/v1/events/batch` (up to 100 events, see [Batches](#batches))
 - **Auth:** `Authorization: Bearer <api key>`
@@ -21,7 +25,7 @@ Host: app.goodsorcery.com
 Authorization: Bearer gs_live_9f2c...e81a
 Content-Type: application/json
 Content-Encoding: gzip              (optional)
-User-Agent: goodsorcery-ruby/0.1.0  (recommended)
+User-Agent: goodsorcery-rust/0.1.0  (recommended)
 ```
 
 | Header | Required | Notes |
@@ -35,7 +39,7 @@ The event's **environment always comes from the API key**. Any environment field
 
 ## Body
 
-Only `exception.class` is required. Every other field is optional, but the more you send, the more useful the issue page becomes.
+Only `exception.class` is required. Every other field is optional, but the more you send, the more useful the issue page becomes. The first example comes from a Ruby on Rails app; [a Rust example](#example-a-rust-service) follows the field table.
 
 ```json
 {
@@ -88,7 +92,7 @@ Only `exception.class` is required. Every other field is optional, but the more 
     { "timestamp": "2026-10-04T09:14:03.091Z", "category": "log", "level": "warning", "message": "Cart 88123 contains discontinued variant 4410" }
   ],
   "context": {
-    "runtime": { "ruby": "3.4.1 (YJIT on)", "rails": "8.0.1" },
+    "runtime": [ { "name": "Rails", "version": "8.0.1" }, { "name": "Ruby", "version": "3.4.1 (YJIT on)" } ],
     "host": "web-7f9c-2",
     "process": "puma · pid 4412 · thread 23",
     "env": { "RAILS_ENV": "production" }
@@ -107,22 +111,87 @@ Only `exception.class` is required. Every other field is optional, but the more 
 | `occurred_at` | ISO 8601 timestamp | When the error happened. Defaults to the receive time. Values more than 30 days in the past or 5 minutes in the future are replaced by the receive time. |
 | `level` | string | One of `fatal`, `error`, `warning`, `info`. Defaults to `error`. |
 | `release` | string | Version or commit SHA, up to 64 chars. |
-| `transaction` | string | What was running: `Controller#action`, a job class, or a rake task name. The issue list shows a redacted copy (emails, ids, query strings and tokens replaced, as for the title); the original is kept only in the encrypted event. |
-| `exception.class` | string | **Required**, 1–255 chars. |
+| `transaction` | string | What was running, as the client names it: a handler (`CheckoutsController#create`, `POST /checkout`), a job or task name. The issue list shows a redacted copy (emails, ids, query strings and tokens replaced, as for the title); the original is kept only in the encrypted event. |
+| `exception.class` | string | **Required**, 1–255 chars: the error's type name as the language writes it (`NoMethodError`, `std::io::Error`, `shop::cart::CartError`, `ValueError`). |
 | `exception.message` | string | Up to 10,000 chars. |
-| `exception.backtrace[]` | array of frames | Innermost first. `file` (string, app-relative paths preferred), `line` (integer), `method` (string), `in_app` (boolean, optional: the server infers it from `app/`, `lib/` and `config/` paths outside `gems/` and `vendor/bundle`), `context` (`start_line` plus up to 11 `lines`), and `locals` (string to string, up to 25). Absolute paths are normalised server-side: deploy roots (`/…/releases/<x>/`, `/…/current/`, `/rails/`, `/app/`) are stripped to app-relative paths, gem paths become `gems/<name>-<version>/…`, Ruby stdlib paths become `ruby/<version>/…` and home directories become `~/`. |
+| `exception.backtrace[]` | array of frames | Innermost first. See [Frames](#frames). |
 | `request` | object | `url`, `method`, `format`, `request_id`, `remote_ip`, and the nested objects `params`, `headers` and `session`. Other request keys are dropped. |
-| `job` | object | The background job the error happened in, instead of (or as well as) `request`. Known keys: `framework` (`active_job`, `sidekiq`), `class`, `mailer` and `action` (Action Mailer `deliver_later`), `id`, `provider_job_id`, `queue`, `priority`, `executions`, `retry_count` (Sidekiq), `enqueued_at`, `scheduled_at` (strings or numbers, stored as strings of up to 255 chars), and `arguments` (an array, or an object for mailer params). Other job keys are dropped. Arguments are bounded like `request.params` and scrubbed by key at any depth; key filtering cannot protect a secret passed as a bare positional argument, so clients should let apps turn arguments off. Shown on the issue page's Job tab. See [Background jobs](#background-jobs). |
+| `job` | object | The background job the error happened in, instead of (or as well as) `request`. Known keys: `framework` (a short name of the job system, shown as sent except `active_job` and `sidekiq`, which display as Active Job and Sidekiq; e.g. `apalis`, `celery`), `class`, `mailer` and `action` (Action Mailer `deliver_later`), `id`, `provider_job_id`, `queue`, `priority`, `executions`, `retry_count` (Sidekiq), `enqueued_at`, `scheduled_at` (strings or numbers, stored as strings of up to 255 chars), and `arguments` (an array, or an object for mailer params). Other job keys are dropped. Arguments are bounded like `request.params` and scrubbed by key at any depth; key filtering cannot protect a secret passed as a bare positional argument, so clients should let apps turn arguments off. Shown on the issue page's Job tab. See [Background jobs](#background-jobs). |
 | `user` | object | `id`, `email`, `username`, `name` (strings or numbers). Other user keys are dropped. The server stores identifiers only as keyed hashes for counting and search. The values themselves are kept encrypted with the event. |
 | `breadcrumbs[]` | array | `timestamp` (ISO 8601), `category` (`request`, `controller`, `sql`, `http`, `cache`, `log`, `job`, `custom`; other values become `custom`), `level` (`debug`, `info`, `warning`, `error`), `message`, and `data` (object). The most recent 100 are kept. |
-| `context` | object | Free-form runtime details shown on the Environment tab. Use `runtime.ruby` and `runtime.rails` to label the project, and `host` to add a `host` tag automatically. |
+| `context` | object | Free-form runtime details shown on the Environment tab. `context.runtime` labels the project (see [Runtimes](#runtimes)); `context.host` adds a `host` tag automatically; `context.process` is a free-form process label. |
 | `tags` | object | String keys matching `/\A[a-z0-9_.\-]{1,32}\z/i` mapped to scalar values (strings, numbers, booleans; stored as strings). Up to 25 pairs; invalid keys and nested values are dropped. Shown as distribution bars on the issue page. The server adds `environment` (always from the key, overriding any client value), `release` and `host` (from `context.host`) unless the client sent those keys. |
 | `fingerprint` | array of strings | Optional custom grouping. Events with the same fingerprint array are grouped into one issue. Up to 10 strings (or numbers), 200 chars each; other values are ignored. |
-| `notifier` | object | `name` and `version` of the client library. |
+| `notifier` | object | `name` and `version` of the client library (`goodsorcery-rust`, `0.1.0`). |
+
+### Frames
+
+| Field | Type | Notes |
+|---|---|---|
+| `file` | string | The source file, **app-relative** when the client can (`src/cart.rs`, `app/models/order.rb`, `shop/views.py`). Up to 1,024 chars. |
+| `line` | integer | 1-based line number. |
+| `column` | integer | *Revision 1.1.* Optional 1-based column. Shown after the line (`src/cart.rs:42:17`); grouping and the culprit ignore it. |
+| `method` | string | The function or method name as the language writes it (`line_total`, `shop::cart::line_total`, `CartTotal#line_total`). Up to 255 chars. |
+| `module` | string | *Revision 1.1.* Optional module, namespace or class path (`shop::cart`, `shop.views`). Shown muted before the method unless the method name already starts with it. Up to 255 chars. |
+| `in_app` | boolean | **Send it.** `true` for the app's own code, `false` for the language runtime and libraries. The issue page shows app frames first and folds the rest, and grouping uses the top in-app frame. The server trusts it as sent; only when it is missing does it fall back to a Ruby-layout guess (`app/`, `lib/` and `config/` paths outside `gems/` and `vendor/bundle`), which marks most other layouts as not in-app. |
+| `package` | string | *Revision 1.1.* Optional name of the library or crate the frame belongs to (`tokio`, `activerecord`, `django`). Folded framework frames are summarised by package ("3 framework frames hidden (tokio, hyper)"). When missing, the server reads it from a `gems/<name>-<version>/` or `crates/<name>-<version>/` path. Up to 255 chars. |
+| `context` | object | `start_line` plus up to 11 `lines` of source around `line`. |
+| `locals` | object | Variable name to string, up to 25. |
+
+Absolute paths are normalised server-side as a fallback, for stability across hosts and to keep personal directory names out: deploy and container roots (`/…/releases/<x>/`, `/…/current/`, `/rails/`, `/app/`) are stripped to app-relative paths, RubyGems paths become `gems/<name>-<version>/…`, Cargo registry paths (`…/registry/src/<index>/<crate>-<version>/…`) become `crates/<name>-<version>/…`, Ruby stdlib paths become `ruby/<version>/…` and home directories become `~/`. Any other path is kept as sent.
+
+### Runtimes
+
+`context.runtime` (and a trace's `runtime`) lists the language, framework and other runtimes, in display order. *Revision 1.1:*
+
+```json
+"runtime": [ { "name": "Rust", "version": "1.82.0" }, { "name": "axum", "version": "0.8.1" } ]
+```
+
+- `name`: 1–32 characters, letters, digits, spaces and `. _ + # - /` (`Rust`, `Node.js`, `C#`, `Erlang/OTP`). Entries with other names are dropped, because the label is stored as plaintext.
+- `version`: a string (or number), up to 64 chars.
+- Up to 10 entries; a repeated name is kept once (the first).
+
+The app's subtitle shows up to three entries with a numeric version, as name plus major.minor: "Rust 1.82 · axum 0.8". The Environment tab and the trace page show the full versions.
+
+*Revision 1.0 form, still accepted:* an object of name → version. The Ruby gem 0.3.x sends `{ "ruby": "3.4.1", "rails": "8.0.1" }`; its `ruby` and `rails` keys display as "Ruby" and "Rails", with Rails first ("Rails 8.0 · Ruby 3.4"). Other keys are used as names as sent, in the order sent. Prefer the list: JSON objects have no guaranteed order.
+
+### Example: a Rust service
+
+```json
+{
+  "event_id": "0192f7a4-6c1e-7b3a-9d21-5f0c8e1b0bb2",
+  "occurred_at": "2026-11-08T10:02:44.518Z",
+  "level": "error",
+  "release": "4f9e2c1",
+  "transaction": "POST /checkout",
+  "exception": {
+    "class": "shop::cart::CartError",
+    "message": "variant 4410 is discontinued",
+    "backtrace": [
+      { "file": "src/cart.rs", "line": 42, "column": 17, "method": "line_total", "module": "shop::cart", "in_app": true,
+        "context": { "start_line": 40, "lines": ["fn line_total(item: &Item) -> Result<u64, CartError> {", "    let variant = item.variant()?;", "    variant.price_cents.checked_mul(item.quantity).ok_or(CartError::Overflow)", "}"] } },
+      { "file": "src/handlers/checkout.rs", "line": 18, "column": 5, "method": "create", "module": "shop::handlers::checkout", "in_app": true },
+      { "file": "crates/axum-0.8.1/src/routing/route.rs", "line": 140, "method": "call", "module": "axum::routing::route", "in_app": false, "package": "axum" },
+      { "file": "crates/tokio-1.41.0/src/runtime/task/harness.rs", "line": 485, "method": "poll", "in_app": false, "package": "tokio" }
+    ]
+  },
+  "request": { "url": "https://shop.acme.dev/checkout", "method": "POST", "request_id": "1b7e0c55-8a4d-4f3e-9c21-0d9e8f7a6b5c" },
+  "context": {
+    "runtime": [ { "name": "Rust", "version": "1.82.0" }, { "name": "axum", "version": "0.8.1" } ],
+    "host": "api-3",
+    "process": "shop-api · pid 812"
+  },
+  "tags": { "region": "eu-west-1" },
+  "notifier": { "name": "goodsorcery-rust", "version": "0.1.0" }
+}
+```
+
+A panic is an error event like any other: send the panic's type (or `panic`) as `exception.class`, its payload as `message` and the panicking thread's backtrace.
 
 ### Background jobs
 
-An error raised in a background job sends a `job` section in place of `request`, with the job class as `transaction`:
+An error raised in a background job sends a `job` section in place of `request`, with the job's name as `transaction`. This example comes from Active Job:
 
 ```json
 {
@@ -143,7 +212,7 @@ An error raised in a background job sends a `job` section in place of `request`,
 }
 ```
 
-A mailer delivered with `deliver_later` adds `"mailer": "UserMailer", "action": "welcome"` and sends the mailer method's args or params as `arguments`. A Sidekiq job not wrapped by Active Job sends `"framework": "sidekiq"`, its `jid` as `id` and `retry_count`. Records are sent as their GlobalID strings, never loaded or dumped.
+Ruby specifics: a mailer delivered with `deliver_later` adds `"mailer": "UserMailer", "action": "welcome"` and sends the mailer method's args or params as `arguments`. A Sidekiq job not wrapped by Active Job sends `"framework": "sidekiq"`, its `jid` as `id` and `retry_count`. Records are sent as their GlobalID strings, never loaded or dumped.
 
 ### Grouping
 
@@ -156,7 +225,7 @@ A resolved issue that receives a new event becomes **unresolved and regressed**.
 
 ## Privacy and scrubbing
 
-Scrub as much as you can **in the client**. The Ruby gem applies `Rails.application.config.filter_parameters` before sending. The server scrubs again as a second layer of defence:
+Scrub as much as you can **in the client** (the Ruby gem, for example, applies Rails' `filter_parameters` before sending). The server scrubs again as a second layer of defence:
 
 - Values under keys that match `password`, `secret`, `token`, `api_key`, `access_key`, `private_key`, `authorization`, `cookie`, `csrf`, `xsrf`, `credit_card`, `card_number`, `cvv`, `cvc`, `ssn`, `otp` or `session_id` (plus each project's extra scrub keys) become `"[FILTERED]"`.
 - Card-shaped numbers that pass the Luhn check (identifiers are left whole: UUIDs such as job and request ids, and words of 20 or more hex characters such as Sidekiq job ids and git SHAs), `Bearer …`/`Basic …`/`Digest …`/`ApiKey …` credentials (and `Token …` with a token-like value), JWT-like strings, sensitive URL query parameters, passwords in URLs (`postgres://user:[FILTERED]@host`, `redis://:[FILTERED]@host`) and sensitive keys written as text (`password=…`, `api_key: …`, `"token"=>"…"`, `"secret": "…"`) are replaced with `[FILTERED]` inside any string, including the exception message, code context, locals and breadcrumbs.
@@ -213,16 +282,16 @@ Retry the whole batch on `429` and `5xx`, reusing every `event_id` (events that 
 | `401 Unauthorized` | `{"error":"invalid_api_key"}` |
 | `429 Too Many Requests` | `{"error":"rate_limited"}` with `Retry-After` (60 checks a minute per key) |
 
-The Ruby gem uses it for its install check (`bin/rails goodsorcery:verify`).
+Clients use it for an install check (for example the Ruby gem's `bin/rails goodsorcery:verify`).
 
 ## Performance monitoring (APM)
 
-Two endpoints receive performance data. Clients aggregate in process and send **once a minute per process**: one metrics payload, and one traces payload when there are traces. The Ruby gem does this when `config.performance_monitoring = true`.
+Two endpoints receive performance data. Clients aggregate in process and send **once a minute per process**: one metrics payload, and one traces payload when there are traces. Performance monitoring is opt-in in every client (`config.performance_monitoring = true` in the Ruby gem, `.performance_monitoring(true)` in the Rust crate).
 
 - `POST {endpoint}/api/v1/apm/metrics`: per-transaction, per-minute counts and histograms.
 - `POST {endpoint}/api/v1/apm/traces`: timelines of the slowest request per transaction per minute.
 
-Both use the same `Authorization`, `Content-Type: application/json` and optional `Content-Encoding: gzip` headers as error events (gzip is recommended; the gem always compresses bodies of 1 KiB or more). The **environment comes from the API key**. Performance data **does not count toward the monthly event quota** and is accepted when the quota is used up; it has its own rate limits (below).
+Both use the same `Authorization`, `Content-Type: application/json` and optional `Content-Encoding: gzip` headers as error events (gzip is recommended; the clients compress bodies of 1 KiB or more). The **environment comes from the API key**. Performance data **does not count toward the monthly event quota** and is accepted when the quota is used up; it has its own rate limits (below).
 
 ### Transactions
 
@@ -230,10 +299,10 @@ A transaction is what ran:
 
 | `kind` | `name` | Labels |
 |---|---|---|
-| `web` | `Controller#action`, e.g. `CheckoutsController#create` | `method` (`POST`) and `route`, the route **pattern** (`/products/:slug`), never the real path |
-| `job` | the job class, e.g. `Orders::PlaceJob` | `adapter` (`sidekiq`, `async`, …) and `queue` |
+| `web` | the handler as the client names it, e.g. `CheckoutsController#create`, or the route itself, `POST /checkout` | `method` (`POST`) and `route`, the route **pattern** (`/products/:slug`, `/products/{slug}`), never the real path |
+| `job` | the job's name, e.g. `Orders::PlaceJob` | `adapter` (`sidekiq`, `apalis`, …) and `queue` |
 
-Both kinds may send `source`, the app-relative file of the controller or job class (`app/controllers/checkouts_controller.rb`). The server keeps at most 500 names per app, environment and kind; data for further names is counted under the name `(other)`. Clients should fold names past their own cap into `(other)` too.
+Both kinds may send `source`, the app-relative file of the handler or job (`app/controllers/checkouts_controller.rb`, `src/handlers/checkout.rs`). The server keeps at most 500 names per app, environment and kind; data for further names is counted under the name `(other)`. Clients should fold names past their own cap into `(other)` too.
 
 ### Histogram buckets (scheme `gs-v1`)
 
@@ -304,11 +373,22 @@ Bucket `i` holds durations `d` with `bound[i-1] <= d < bound[i]` (bucket 0 start
 | `count` | integer | **Required**, ≥ 1: requests (or job runs) that finished in this minute. |
 | `failed` | integer | **Required**, 0..`count`. Web: status ≥ 500 or an exception escaped. Job: an exception escaped (each attempt counts). |
 | `duration_ms` | number | **Required**, ≥ 0: the sum of the total durations. |
-| `buckets[]` | array of arrays | **Required**, 1–31 entries `[index, count, db_ms, http_ms, view_ms, ruby_ms]`, one per bucket that has requests, in any order: `index` 0..30 (each at most once), `count` ≥ 1, and the summed time per layer of the requests in that bucket (numbers ≥ 0). The counts must add up to `count`. Layers: `db_ms` is SQL time (not schema or cached queries), `http_ms` outgoing HTTP calls, `view_ms` template rendering (without double-counting nested renders or the queries inside them), `ruby_ms` the rest (per request: total − the other three, floored at 0). |
+| `buckets[]` | array of arrays | **Required**, 1–31 entries `[index, count, db_ms, http_ms, view_ms, app_ms]`, one per bucket that has requests, in any order: `index` 0..30 (each at most once), `count` ≥ 1, and the summed time per layer of the requests in that bucket (numbers ≥ 0). The counts must add up to `count`. See [Layers](#layers). The tuple is positional; the fourth layer was called `ruby_ms` in revision 1.0 and means the same. |
 | `queue_wait_ms` | number | Jobs only, optional: the summed queue wait (start − `enqueued_at`, or − `scheduled_at` for scheduled jobs). |
 | `queue_wait[]` | array of arrays | Jobs only, optional, ≤ 31 entries `[index, count]`; the counts add up to at most `count` (jobs without an enqueue time have no wait). |
 
 Numbers are JSON numbers (integers or decimals; `NaN`/`Infinity` are invalid). Unknown fields are ignored. The server merges metrics by **addition**: any number of processes may report the same transaction and minute.
+
+### Layers
+
+Each request's time is split into four layers. The dashboard shows them as Database, External HTTP, Rendering and App code.
+
+| Layer | Meaning |
+|---|---|
+| `db_ms` | Time in database queries (not schema or cached queries). |
+| `http_ms` | Time in outgoing HTTP calls. |
+| `view_ms` | Rendering: templates or views, without double-counting nested renders or the queries inside them. Optional in spirit: an API that renders nothing sends 0. |
+| `app_ms` | App code: time in the app itself, the remainder (per request: total − the other three, floored at 0). Called `ruby_ms` in revision 1.0. |
 
 ### Traces payload
 
@@ -326,14 +406,14 @@ Numbers are JSON numbers (integers or decimals; `NaN`/`Infinity` are invalid). U
       "minute": "2026-11-04T14:32:00Z",
       "started_at": "2026-11-04T14:32:08.114Z",
       "duration_ms": 2940.2,
-      "db_ms": 1220.4, "http_ms": 1230.0, "view_ms": 320.1, "ruby_ms": 169.7,
+      "db_ms": 1220.4, "http_ms": 1230.0, "view_ms": 320.1, "app_ms": 169.7,
       "status": 200,
       "failed": false,
       "error_event_id": null,
       "request": { "method": "POST", "path": "/checkout", "request_id": "7f3a9c1e-55d2-4c1a-9e0b-2d1f0a9b8c7d" },
       "host": "web-2",
       "process": "Puma worker 3",
-      "runtime": { "ruby": "3.4.1", "rails": "8.0.2" },
+      "runtime": [ { "name": "Rails", "version": "8.0.2" }, { "name": "Ruby", "version": "3.4.1" } ],
       "gc": { "time_ms": 14.0, "count": 3 },
       "allocations": 1400000,
       "sql_count": 43,
@@ -365,25 +445,25 @@ Numbers are JSON numbers (integers or decimals; `NaN`/`Infinity` are invalid). U
 | `minute` | ISO 8601 timestamp | **Required**, the UTC start of the minute in which the request finished (the metrics minute). Traces more than 2 hours old or more than 2 minutes in the future are skipped. |
 | `started_at` | ISO 8601 timestamp | **Required**, with milliseconds. |
 | `duration_ms` | number | **Required**, ≥ 0. |
-| `db_ms`, `http_ms`, `view_ms`, `ruby_ms` | numbers | The request's time per layer (as in metrics buckets). |
+| `db_ms`, `http_ms`, `view_ms`, `app_ms` | numbers | The request's time per [layer](#layers). Revision 1.0 clients send `ruby_ms` for `app_ms`; it is still accepted, and `app_ms` wins when both are sent. |
 | `status` | integer | Web: the HTTP status (500 when an exception escaped). Omit for jobs. |
 | `failed` | boolean | As for metrics. |
 | `error_event_id` | UUID string or null | The `event_id` of the error event reported for this request, if any. The trace page links to its issue. |
 | `request` | object | Web only: `method`, `path` (≤ 1,024 chars, **no query string**) and `request_id` (≤ 128 chars). Nothing else: no params, headers, cookies or bodies. |
 | `job` | object | Jobs only: `adapter`, `queue`, `queue_wait_ms`, `executions` (integer). |
 | `host`, `process` | strings | ≤ 255 chars each: server host name and a process label. |
-| `runtime` | object | `ruby` and `rails` version strings (≤ 64 chars). |
-| `gc` | object | `time_ms` (number) and `count` (integer) during the request. |
-| `allocations` | integer | Objects allocated during the request. |
+| `runtime` | array | The runtimes, as in [Runtimes](#runtimes) (the revision 1.0 object is still accepted). |
+| `gc` | object | Optional, for garbage-collected runtimes: `time_ms` (number) and `count` (integer) during the request. |
+| `allocations` | integer | Optional: objects allocated during the request, when the runtime counts them. |
 | `sql_count`, `http_count` | integers | Calls made, counting every call in a grouped span. |
 | `spans_dropped` | integer | Spans not sent because of the client's cap. |
 | `spans[]` | array | ≤ 300 spans (more are dropped and counted in `spans_dropped`), in start order. Common fields: `type` (`sql`, `http`, `view`, `enqueue`; others are dropped), `offset_ms` (from the request start), `duration_ms`. A **grouped** span (the same normalised SQL repeated, or the same template rendered repeatedly) adds `count` (≥ 2), `span_ms` (first start to last end) and has `duration_ms` = the total of its calls. |
-| `sql` spans | | `sql` (≤ 2,000 chars, **normalised**: no literal values, see below), `name` (≤ 255, e.g. `Product Load`), `rows` (integer, optional), and for a group `call_site`: `file` (app-relative), `line`, `method`, and optional `context` (`start_line` plus ≤ 5 `lines` of ≤ 200 chars). |
+| `sql` spans | | `sql` (≤ 2,000 chars, **normalised**: no literal values, see below), `name` (≤ 255, optional, e.g. `Product Load`), `rows` (integer, optional), and for a group `call_site`: `file` (app-relative), `line`, `method`, and optional `context` (`start_line` plus ≤ 5 `lines` of ≤ 200 chars). |
 | `http` spans | | `method`, `host` (≤ 255, never `user:pass@`), `path` (≤ 1,024, **no query string**), `status` (integer, absent when no response). |
-| `view` spans | | `template` (≤ 255, relative to `app/views`). |
-| `enqueue` spans | | `job` (class name) and `queue`. |
+| `view` spans | | `template` (≤ 255): the template or view name, relative to the app's template root (`checkouts/create.html.erb`). |
+| `enqueue` spans | | `job` (the job's name) and `queue`. |
 
-**SQL must be normalised by the client.** String and dollar-quoted literals and numbers become `?`, `IN (…)` lists of placeholders collapse to `IN (…)`, comments are removed and whitespace is collapsed; bind placeholders such as `$1` stay. The server repeats this and scrubs secrets from every string as a second layer, and drops any key not listed above. Repeated identical SQL in one trace counts as an **N+1 query** when it ran 10 or more times.
+**SQL must be normalised by the client.** String and dollar-quoted literals and numbers become `?`, `IN (…)` lists of placeholders collapse to `IN (…)`, comments are removed and whitespace is collapsed; bind placeholders such as `$1` stay. The server repeats this and scrubs secrets from every string as a second layer, and drops any key not listed above. Repeated identical SQL in one trace counts as an **N+1 query** when it ran 10 or more times; the trace page then suggests loading the rows in one query, in words that fit any language.
 
 The server keeps at most one trace per transaction per minute while that hour is open (a slower trace for the same minute replaces the stored one) and the 3 slowest per transaction for each earlier hour. Traces are stored encrypted.
 
@@ -401,7 +481,7 @@ The server keeps at most one trace per transaction per minute while that hour is
 
 Checks run in this order: per-IP rate limit, API key (`401`), per-key and per-account rate limits, media type (`415`), body size (`413`), JSON (`400`), shape (`422`). There is no quota check.
 
-Clients should keep a payload and retry it (same `batch_id`) on `429` (after `Retry-After`) and `5xx`, for a few minutes at most, and drop it on `400`, `401`, `413`, `415` and `422`. A `404` means the server has no performance endpoints (an older version); the gem then turns performance monitoring off for the process.
+Clients should keep a payload and retry it (same `batch_id`) on `429` (after `Retry-After`) and `5xx`, for a few minutes at most, and drop it on `400`, `401`, `413`, `415` and `422`. A `404` means the server has no performance endpoints (an older version); clients should then turn performance monitoring off for the process.
 
 ## Limits
 
@@ -426,6 +506,15 @@ Clients should keep a payload and retry it (same `batch_id`) on `429` (after `Re
 
 Oversized values are truncated rather than rejected (deeper nesting becomes `"[truncated]"`). Only an oversized request body is rejected (413).
 
+## Revisions
+
+The API version stays `v1`. Revisions only add fields or accepted forms; a payload valid under an earlier revision stays valid, and older servers ignore fields they don't know (so a client may send new fields to any server).
+
+| Revision | Date | Changes |
+|---|---|---|
+| 1.1 | 2026-11-08 | Language-neutral contract. `context.runtime` and a trace's `runtime` take a list of `{ "name", "version" }` ([Runtimes](#runtimes)); the object form stays accepted. Frames gain optional `column`, `module` and `package` ([Frames](#frames)), and `in_app` should always be sent. The fourth performance layer is `app_ms` (app code); traces still accept `ruby_ms`, and the metrics tuple is unchanged. `view_ms` is documented as rendering, 0 when there is none. |
+| 1.0 | 2026-10-04 | First release (performance endpoints added 2026-11-04). |
+
 ## Example with curl
 
 ```sh
@@ -434,11 +523,11 @@ curl -sS https://app.goodsorcery.com/api/v1/events \
   -H "Content-Type: application/json" \
   -d '{
         "exception": {
-          "class": "RuntimeError",
+          "class": "SmokeTestError",
           "message": "Cast a test error",
-          "backtrace": [{ "file": "lib/tasks/goodsorcery.rake", "line": 3, "method": "block in <main>", "in_app": true }]
+          "backtrace": [{ "file": "scripts/smoke_test.sh", "line": 3, "method": "main", "in_app": true }]
         },
-        "transaction": "rake goodsorcery:test",
+        "transaction": "smoke test",
         "tags": { "source": "curl" }
       }'
 # => {"id":"0192f7a4-6c1e-7b3a-9d21-5f0c8e1b0aa1"}

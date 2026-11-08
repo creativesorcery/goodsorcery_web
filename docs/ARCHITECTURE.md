@@ -98,8 +98,8 @@ Indexes: unique `[account_id, user_id]`, `[user_id]`.
 | account_id | references → accounts, cascade | false | | |
 | name | string | false | | 1..60 chars |
 | slug | string | false | | `name.parameterize`. Unique per account; `-2`, `-3` suffix on collision; immutable |
-| platform | string | false | `"rails"` | enum: `rails` ("Ruby on Rails"), `ruby` ("Ruby"); picks the Setup page snippets. Older `rails_api`/`sidekiq` rows were migrated to `rails` |
-| runtime_label | string | true | | e.g. "Rails 8.0 · Ruby 3.4". Set when a new issue is created (§2.5) |
+| platform | string | false | `"rails"` | enum: `rails` ("Ruby on Rails"), `ruby` ("Ruby"), `rust` ("Rust"); picks the Setup page snippets, the performance empty state and the client's package noun (`Project#client_package`: "gem", or "crate" for Rust). It never changes how events are read: ingest is the same for every platform. Older `rails_api`/`sidekiq` rows were migrated to `rails` |
+| runtime_label | string | true | | the client's runtimes, e.g. "Rust 1.82 · axum 0.8" or "Rails 8.0 · Ruby 3.4" (`RuntimeList#label`). Set when a new issue is created (§2.5) |
 | issue_prefix | string | false | | `/\A[A-Z]{1,6}\z/`, unique per account. Default: initials of the slug words, or the first 3 letters when there is one word, with a letter swapped in when taken ("STOB") |
 | issues_sequence | integer | false | 0 | per-project short-number counter |
 | color | string | false | `"iris"` | enum `iris coral lilac mint`. Rotated by `account.projects.count % 4` on create |
@@ -273,7 +273,7 @@ Search (`class`, `message`, `culprit`) needs substring and trigram matching, whi
 |---|---|
 | `exception_class` | A code identifier, not user data. |
 | `transaction_name` | Controller#action or job class: code identifiers. |
-| `culprit` | Code location. Paths are normalised by `Ingest::PathNormalizer`: absolute prefixes are stripped to app-relative, home dirs (`/Users/x/`, `/home/x/`) become `~/`, and gem paths become `gems/<name>-<ver>/…`. |
+| `culprit` | Code location. Paths are normalised by `Ingest::PathNormalizer`: absolute deploy and container prefixes are stripped to app-relative, home dirs (`/Users/x/`, `/home/x/`) become `~/`, gem paths become `gems/<name>-<ver>/…` and Cargo registry paths `crates/<name>-<ver>/…`. Paths it doesn't recognise are kept as sent. |
 | `message` | **Redacted** by `Ingest::MessageRedactor`: emails → `[email]`, UUIDs → `[uuid]`, IPv4 → `[ip]`, URL query strings → `?[query]`, hex/base64-like tokens of 16+ chars → `[token]`, `\b\d{2,}\b` → `[n]`. Capped at 1,024 chars. The full original message lives only in the encrypted occurrence payload. Residual risk (for example a bare first name in a message) is accepted and documented. |
 | `environment`, `release`, `level` | Deployment metadata. |
 | tag **keys** | Schema-like names. Tag **values** are encrypted. |
@@ -421,7 +421,7 @@ The two ingest controllers include the `IngestEndpoint` concern, which holds eve
 | `Ingest::EventRateLimit` | per-key and per-account event allowances | `#admit?(events)`, `#give_back(events)` |
 | `Ingest::Limits` | constants (§3.4) | — |
 | `Ingest::Event` | normalised, scrubbed, truncated event (value object) | `.from_json(json, project:, environment:, received_at:)` (raises `Ingest::MalformedPayload`). Readers: `exception_class`, `message`, `redacted_message`, `frames`, `top_app_frame`, `culprit`, `transaction_name`, `level`, `occurred_at`, `release`, `user_identity`, `tags`, `runtime_label`, `fingerprint`, `request` (`Ingest::RequestSection`), `job` (`Ingest::JobSection#to_h`), `#to_payload_json` |
-| `Ingest::Frame` | backtrace frame value (`Data.define`) | `file`, `line`, `method_name`, `in_app?`, `gem_name`, `location` |
+| `Ingest::Frame` | backtrace frame value (`Data.define`) | `file`, `line`, `column`, `method_name`, `module_name`, `in_app?`, `package`, `location` |
 | `Ingest::PathNormalizer` | path redaction | `#normalize(path)` |
 | `Ingest::MessageRedactor` | §1.5 rules | `#redact(message)` |
 | `Ingest::Scrubber` | server-side scrubbing (§2.4) | `#scrub(value)` (deep) |
@@ -441,8 +441,9 @@ The two ingest controllers include the `IngestEndpoint` concern, which holds eve
   - Apply the limits in §3.4: truncate strings, cap arrays and nesting depth, and coerce scalars to strings in tags.
   - Clamp `occurred_at` to `[received_at − 30.days, received_at + 5.minutes]`, falling back to `received_at`.
   - Use `level` if valid, otherwise `error`.
-  - Mark frames `in_app` when the client says so. Otherwise a path is in-app when it starts with `app/`, `lib/` or `config/` and contains neither `/gems/` nor `vendor/bundle`.
-  - Take `gem_name` from `gems/<name>-<version>/` or a `<name>-<version>/lib/` path segment.
+  - The protocol is language-neutral (docs/INGEST_API.md): clients send display-ready names, and the server stores, groups and renders them without knowing the language.
+  - Mark frames `in_app` when the client says so (every client should). Only when the flag is absent does the server fall back to a Ruby-layout guess: a path is in-app when it starts with `app/`, `lib/` or `config/` and contains neither `/gems/` nor `vendor/bundle`.
+  - Take `package` from the frame's `package` when sent; otherwise from a `gems/<name>-<version>/`, `crates/<name>-<version>/` or `<name>-<version>/lib/` path segment. `column` (a non-negative integer) and `module` (a string, ≤ 255) are kept when sent.
   - Server-added tags: `environment` (from the key), `release` when present and `host` when `context.host` is present. Client tags win on key conflicts except `environment`.
 - **Scrubbing** (`Ingest::Scrubber.new(extra_keys: project.scrub_fields)`) runs over request, params, headers, session, job (fields and arguments), user (except `id`, `email`, `username` and `name`, which are needed and stored encrypted), breadcrumbs, frame locals, context and tags:
   - A hash key matching `/passw|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|authorization|cookie|csrf|xsrf|credit[_-]?card|card[_-]?number|\bcvv\b|\bcvc\b|\bssn\b|\botp\b|session[_-]?id/i`, or listed in `extra_keys` (case-insensitive substring), gets the value `"[FILTERED]"`.
@@ -455,7 +456,7 @@ The two ingest controllers include the `IngestEndpoint` concern, which holds eve
   1. A client `fingerprint` array (≤ 10 strings, each ≤ 200 chars) gives `["custom", *parts]`.
   2. Otherwise, with a top app frame: `["v1", exception_class, frame.file, frame.method_name]`. Line numbers are excluded so edits don't split issues.
   3. Otherwise: `["v1", exception_class, redacted_message]`.
-- **Culprit:** the top app frame as `"#{file}:#{line} in #{method}"`, or the first frame, or nil. **runtime_label** is `"Rails 8.0 · Ruby 3.4"`, built from `context.runtime` (major.minor).
+- **Culprit:** the top app frame as `"#{file}:#{line} in #{method}"` (no column), or the first frame, or nil. **runtime_label** is built by `RuntimeList#label` from `context.runtime`: up to three runtimes, in the client's order, as name plus major.minor (`"Rust 1.82 · axum 0.8"`). `context.runtime` is a list `[{ "name", "version" }]`; the older object form (`{ "ruby": "3.4.1", "rails": "8.0.1" }`, gem 0.3.x) is read as name → version with `ruby`/`rails` shown as "Ruby"/"Rails", Rails first (`"Rails 8.0 · Ruby 3.4"`). Names must match `RuntimeList::NAME` (1–32 letters, digits, space and `. _ + # - /`), since the label is plaintext; other entries are dropped.
 
 ### 2.5 `Ingest::Processor#process`: one transaction, short locks
 
@@ -589,7 +590,7 @@ User-Agent: goodsorcery-ruby/0.1.0
     { "timestamp": "2026-10-04T09:14:03.091Z", "category": "log", "level": "warning", "message": "Cart 88123 contains discontinued variant 4410" }
   ],
   "context": {
-    "runtime": { "ruby": "3.4.1 (YJIT on)", "rails": "8.0.1" },
+    "runtime": [ { "name": "Rails", "version": "8.0.1" }, { "name": "Ruby", "version": "3.4.1 (YJIT on)" } ],
     "host": "web-7f9c-2",
     "process": "puma · pid 4412 · thread 23",
     "env": { "RAILS_ENV": "production" }
@@ -606,7 +607,7 @@ The environment always comes from the API key, so environment keys in the payloa
 
 ```json
 { "exception": { "class": "...", "message": "...(scrubbed, ≤10k)",
-                 "backtrace": [{ "file","line","method","in_app","gem","context":{"start_line","lines"},"locals":{} }] },
+                 "backtrace": [{ "file","line","column"?,"method","module"?,"in_app","package","context":{"start_line","lines"},"locals":{} }] },
   "transaction": "...", "request": { "url","method","format","request_id","remote_ip" },
   "params": {}, "headers": {}, "session": {},
   "job": { "framework","class","mailer","action","id","provider_job_id","queue","priority","executions","retry_count",
@@ -615,6 +616,8 @@ The environment always comes from the API key, so environment keys in the payloa
   "breadcrumbs": [{ "offset_ms": -412, "category","level","message","data":{} }],
   "context": {}, "tags": {}, "notifier": {} }
 ```
+
+`column` and `module` are present only when the client sent them. Payloads stored before protocol revision 1.1 name the package `"gem"`; `Backtrace::Frame` reads `package`, then `gem`, then the path.
 `offset_ms` is computed server-side relative to `occurred_at`. Slice F reads only this shape, through the `Occurrence` readers.
 
 ### 3.4 Limits (`Ingest::Limits`)
@@ -1003,7 +1006,7 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
 
 - **Projects overview (D)**:
   - Header: eyebrow with the account name, then "Projects — N" and an "Add a new app" `btn-primary`.
-  - A 3-column grid of `_card` partials, followed by the dashed "Add a new app" tile ("One gem, one key, two minutes.").
+  - A 3-column grid of `_card` partials, followed by the dashed "Add a new app" tile ("One library, one key, two minutes.").
   - Each card shows the tile, name, `runtime_label || platform label`, a status chip, the unresolved count, "unresolved · N new" (coral when > 0), the per-environment split, a 14-day sparkline, environment chips (`project.environments`) and "last error X ago".
   - **Per-environment split:** under the caption, "● 9 production  ● 3 staging" (no separator, so nothing dangles when the line wraps) (`ProjectsHelper#project_environment_breakdown`), each entry with its `environment_dot` and in its tone's text colour, from `Card#unresolved_by_environment` (environments with unresolved issues only). An issue seen in several environments counts in each, so the parts can add up to more than the total. Hidden when nothing is unresolved.
   - **Sparkline:** `stacked_sparkline_svg` of `Card#series_by_environment` (events per UTC day per environment), each layer in `environment_color`. Order, for the split and the stack alike (`Card#in_display_order`): production-tone environments first (so production is the bottom layer), then the project's key order, then other names alphabetically. A project with no events in the 14 days falls back to the flat `sparkline_svg` in the health colour.
@@ -1063,7 +1066,7 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
   - **Stat ribbon frame:** Events, Users, First seen (`clock_label` · ago), Last seen, Fingerprint (`fingerprint_label`).
   - **Occurrences chart frame:** fluid `histogram_svg` 860×120, with dashed grid lines and 5 axis labels from `IssueChart` (F).
   - **Backtrace:** `Backtrace` (F PORO).
-    - It splits `occurrence.frames` into segments: individual app frames, and runs of consecutive non-app frames folded into "N framework frames hidden (gem names…)".
+    - It splits `occurrence.frames` into segments: individual app frames, and runs of consecutive non-app frames folded into "N framework frames hidden (package names…)". Locations read `file:line:column` when a column was sent; a frame's `module` shows muted before the method unless the method name already starts with it. The Raw view lists `  file:line in method` per frame.
     - The first app frame is expanded with code context (the error line highlighted coral) and locals.
     - Other app frames are rows that expand with a native `<details>`.
     - "Show framework frames" uses `toggle`. "Raw" uses `<details>` with the plaintext trace, the first line being `"#{class}: #{occurrence.exception_message}"`. "Copy" copies the raw text.
@@ -1079,6 +1082,7 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
   - The hero runs the stepper from `SetupProgress` (D). Step 1 is always done. Step 2 is current while listening. Step 3 is done once `first_event_at` is set, and the hero then becomes "✦ <name> is connected", with a link to issues.
   - The install steps and right rail depend on `project.platform`: `show` renders `projects/setups/<platform>/_steps` and `projects/setups/<platform>/_rail`. Shared pieces: `_snippet` (copyable code pane), `_install_env` (the "ENV only" tab), `_test_error` (a layout around the platform's test command, with the listening frame) and `_self_hosting`. Step numbers come from `SetupHelper#setup_step_heading` and stay sequential per platform.
   - **Ruby on Rails** (`rails/`): i. "Add the gem" tabs Generator / Manual / ENV only; ii. "Cast a test error" with `bin/rails goodsorcery:test`. The rail mentions `filter_parameters`, ActiveSupport breadcrumbs and `current_user`.
+  - **Rust** (`rust/`): i. "Add the crate" tabs Cargo (`cargo add goodsorcery`, `export GOODSORCERY_API_KEY`, `export GOODSORCERY_ENDPOINT` when self-hosted via `SetupHelper#rust_endpoint_export`, and a `src/main.rs` snippet: `let _guard = goodsorcery::init(goodsorcery::Config::from_env() …)` with `// .performance_monitoring(true)` commented out, `SetupHelper#rust_performance_lines`) / ENV only; ii. "Hook it in" tabs axum (`.layer(goodsorcery::axum::layer())`) and Anywhere (`goodsorcery::capture_error(&err)`); iii. "Cast a test error" with `goodsorcery::capture_error(&std::io::Error::other("Good Sorcery test error"))`. The rail lists panics (the panic hook `init` installs), `capture_error`, the axum layer and performance monitoring; the Self-hosting card shows `GOODSORCERY_ENDPOINT=…`. The snippets follow the crate's API (`goodsorcery-rust`); keep them in step.
   - **Ruby** (`ruby/`): i. "Add the gem" tabs Manual (`bundle add goodsorcery`, `export GOODSORCERY_API_KEY`, a `config/goodsorcery.rb` boot file reading ENV, leaving `config.environment` to the gem's lookup and showing it only as a comment) / ENV only (with a note to `require "goodsorcery"` at boot, since nothing else loads it outside Rails); ii. "Hook it in" tabs Rack / Sinatra (`GoodSorcery::Rack::Middleware`), Sidekiq (automatic when Sidekiq is required first, else `GoodSorcery::Integrations::Sidekiq.install`), Rake (`require "goodsorcery/tasks"`) and Anywhere (`GoodSorcery.notify`); iii. "Cast a test error" with `bundle exec rake goodsorcery:test`. The rail makes no Rails-only claims.
   - Snippets show the **masked** default key with the note "Reveal your key under API keys below". Copy copies the snippet text, with a `YOUR_<ENV>_KEY` placeholder instead of the masked key.
   - API keys panel:
@@ -1086,7 +1090,8 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
     - "Created X ago by Name · last used X ago" or "· never used", and Rotate….
     - "+ New key" opens an inline form (environment name).
   - Right rail: "What gets captured", "Scrubbed by default" (per platform) and the Self-hosting card.
-  - `projects/new` shows the "Add a new app" form panel (name, platform select: "Ruby on Rails" or "Ruby"; Settings › General can switch it).
+  - `projects/new` shows the "Add a new app" form panel (name, platform select: "Ruby on Rails", "Ruby" or "Rust"; Settings › General can switch it).
+  - The hero ("Add the gem, drop in your key…") and the stepper's "Install the gem" use `project.client_package`, so a Rust app reads "crate".
 
 ---
 
@@ -1974,12 +1979,12 @@ Never edit a file you don't own; report the need instead. Use your own test data
 
 ## 13. Performance (APM) (approved 2026-11-04)
 
-This section is the binding blueprint for the performance-monitoring build. The approved UI is a canvas of three screens (overview, endpoint detail, slow request trace); the build matches its layout, copy and states with the existing Tailwind tokens, component classes and server-rendered SVG helpers (§7). Everything in §0 (ground rules), §6 (authorization) and the §9/§10 checklists applies. **Traces are captured data** (§0.4): they hold normalised SQL, request paths, host names and code context, so they are encrypted at rest and never leave Postgres except to render the trace page. The client side (the `goodsorcery` gem) is specified in `goodsorcery-ruby/docs/DESIGN.md` §8; the wire format is in `docs/INGEST_API.md` › Performance monitoring.
+This section is the binding blueprint for the performance-monitoring build. The approved UI is a canvas of three screens (overview, endpoint detail, slow request trace); the build matches its layout, copy and states with the existing Tailwind tokens, component classes and server-rendered SVG helpers (§7). Everything in §0 (ground rules), §6 (authorization) and the §9/§10 checklists applies. **Traces are captured data** (§0.4): they hold normalised SQL, request paths, host names and code context, so they are encrypted at rest and never leave Postgres except to render the trace page. The client side is specified per client (the Ruby gem in `goodsorcery-ruby/docs/DESIGN.md` §8; the Rust crate in `goodsorcery-rust`); the wire format, the neutral contract every client follows, is in `docs/INGEST_API.md` › Performance monitoring.
 
 ### 13.0 Decisions (binding)
 
 - **Scope.** A simple APM for Rails apps: metrics from every web request and background job, and full timelines (traces) for a few slow requests only. Not built: logs, distributed tracing, a custom instrumentation API, latency alerts, live updates on the APM pages (they are static: no Action Cable, no broadcasts).
-- **Transactions.** Web: `Controller#action`, plus the HTTP verb and route pattern (`POST /checkout`). Jobs: the job class, plus adapter, queue and queue wait (job start − `enqueued_at`; for a job scheduled with `wait:`/`wait_until:` the gem measures from `scheduled_at`, so a deliberate delay is not counted as waiting). Each app keeps at most `Apm::MAX_TRANSACTIONS` (500) distinct names **per environment and kind**; further names are folded into the transaction `(other)`.
+- **Transactions.** Web: the handler as the client names it (`CheckoutsController#create`, or the route itself, `POST /checkout`), plus the HTTP verb and route pattern (`POST /checkout`). Jobs: the job class, plus adapter, queue and queue wait (job start − `enqueued_at`; for a job scheduled with `wait:`/`wait_until:` the gem measures from `scheduled_at`, so a deliberate delay is not counted as waiting). Each app keeps at most `Apm::MAX_TRANSACTIONS` (500) distinct names **per environment and kind**; further names are folded into the transaction `(other)`.
 - **Metrics** are aggregated in the gem per transaction per minute and flushed once a minute per process. The server merges them **by addition** (upsert), so any number of processes, retries of other batches and late minutes combine correctly. Percentiles come from the merged histogram; Average comes from `duration_ms_sum / requests_count`.
 - **Response-time statistics everywhere are Average, p75, p90, p95 and p99. p50 is not shown anywhere**: the overview KPI tiles, the endpoint stat ribbon and the endpoint response-time chart use all five; the overview endpoint table shows **p75 / p90 / p95 / p99** (changed from the canvas's p50 / p95 / p99 on 2026-11-07).
 - **Traces.** The gem records a timeline for every transaction cheaply and keeps only the slowest per transaction per minute per process (no duration floor). The server keeps at most one trace per transaction per minute while its hour is open (a slower one replaces it) and trims each closed hour to the 3 slowest per transaction. Trace ids are UUIDv7.
@@ -2050,8 +2055,8 @@ Indexes: unique `[project_id, environment, kind, name]` (the registry key), `[pr
 | bucket_counts | bigint[] | false | 31 zeros | requests per §13.1 bucket |
 | bucket_db_ms | double precision[] | false | 31 zeros | summed database time of the requests in each bucket |
 | bucket_http_ms | double precision[] | false | 31 zeros | external HTTP |
-| bucket_view_ms | double precision[] | false | 31 zeros | views |
-| bucket_ruby_ms | double precision[] | false | 31 zeros | Ruby (per request: total − the others, floored at 0) |
+| bucket_view_ms | double precision[] | false | 31 zeros | rendering (templates or views; 0 when the app renders nothing) |
+| bucket_ruby_ms | double precision[] | false | 31 zeros | app code (payload `app_ms`, per request: total − the others, floored at 0). The column keeps the name it had before the protocol went language-neutral; `Apm::StatsUpsert` maps it to `Distribution#app_ms` |
 | queue_wait_counts | bigint[] | false | 31 zeros | jobs only (zeros for web) |
 | queue_wait_ms_sum | double precision | false | 0 | jobs only |
 
@@ -2066,7 +2071,7 @@ Check constraints: `cardinality(<each array>) = 31`. Extra index: `[minute]` / `
 | minute | datetime | false | | the minute the request finished (the metrics minute) |
 | hour | datetime | false | | `minute` truncated to the hour |
 | started_at | datetime(6) | false | | |
-| duration_ms, db_ms, http_ms, view_ms, ruby_ms | double precision | false | 0 | layer totals (list columns, layer bar) |
+| duration_ms, db_ms, http_ms, view_ms, ruby_ms | double precision | false | 0 | layer totals (list columns, layer bar). `ruby_ms` holds the app-code layer (payload `app_ms`, or `ruby_ms` from older clients); `ApmTrace` aliases it as `app_ms` |
 | sql_count, http_count, n_plus_one_count | integer | false | 0 | |
 | status | integer | true | | HTTP status (web); nil for jobs |
 | failed | boolean | false | false | |
@@ -2129,7 +2134,7 @@ Both are `ActionController::API` controllers that include **`ApmIngestEndpoint`*
    queue_wait_ms_sum = <table>.queue_wait_ms_sum + EXCLUDED.queue_wait_ms_sum,
    bucket_counts = ARRAY(SELECT a + b FROM unnest(<table>.bucket_counts, EXCLUDED.bucket_counts)
                          WITH ORDINALITY AS t(a, b, i) ORDER BY i),
-   -- the same element-wise sum for bucket_db_ms, bucket_http_ms, bucket_view_ms, bucket_ruby_ms, queue_wait_counts
+   -- the same element-wise sum for bucket_db_ms, bucket_http_ms, bucket_view_ms, bucket_ruby_ms (app code), queue_wait_counts
    ```
    **Minute → hour rollup happens at write time:** every metrics batch is added to its minute row and to its hour row in the same transaction. There is no rollup job, no watermark and no "late minute" problem: a minute that arrives late (a retried flush) lands in both tables like any other. Minute rows exist only for the short ranges and the last hour; they are pruned after 2 days.
 5. **Traces** (`Apm::TraceUpsert`): each trace is normalised by `Apm::TraceNormalizer` (§13.5), then the batch keeps the slowest per `[transaction_id, minute]` in Ruby, then one `ApmTrace.upsert_all(rows, unique_by: [:apm_transaction_id, :minute], on_duplicate: Arel.sql("<every column> = EXCLUDED.<column> … WHERE EXCLUDED.duration_ms > apm_traces.duration_ms"))`, rows sorted by `[apm_transaction_id, minute]`. A slower trace for the same minute replaces the stored one (new uuid, payload and numbers); a faster or equal one changes nothing. `upsert_all` casts `payload` through the encrypted type (§1.4). If the trailing `WHERE` cannot be expressed through `on_duplicate`, write each SET as `CASE WHEN EXCLUDED.duration_ms > apm_traces.duration_ms THEN EXCLUDED.<col> ELSE apm_traces.<col> END`; the semantics are binding, not the spelling.
@@ -2164,7 +2169,7 @@ Stored payload (encrypted JSON; `ApmTrace#details` parses it into `Apm::TraceDet
 { "request": { "method": "POST", "path": "/checkout", "request_id": "7f3a9c1e-…" },
   "job": null,
   "host": "web-2", "process": "Puma worker 3",
-  "runtime": { "ruby": "3.4.1", "rails": "8.0.2" },
+  "runtime": [ { "name": "Rails", "version": "8.0.2" }, { "name": "Ruby", "version": "3.4.1" } ],
   "gc": { "time_ms": 14.0, "count": 3 }, "allocations": 1400000,
   "spans_dropped": 0,
   "spans": [ { "type": "sql", "offset_ms": 40.1, "duration_ms": 1180.0, "span_ms": 1215.2, "count": 38, "rows": 38,
@@ -2172,20 +2177,22 @@ Stored payload (encrypted JSON; `ApmTrace#details` parses it into `Apm::TraceDet
                "call_site": { "file": "app/services/cart_total.rb", "line": 27, "method": "total_cents",
                               "context": { "start_line": 25, "lines": ["…"] } } } ] }
 ```
+
+`runtime` is stored as a list (`RuntimeList#to_a`, from the client's list or the older `{ "ruby", "rails" }` object). Traces stored before protocol revision 1.1 hold the object; `Apm::TraceDetails#runtime` reads both.
 Span types: `sql`, `http`, `view`, `enqueue` (the root "Action"/"Job" row is drawn from the trace itself).
 
 ### 13.6 Statistics math (`Apm::Distribution`, backend)
 
-`Apm::Distribution` is a value object over one merged histogram: `count`, `failed`, `duration_ms`, `counts[31]`, `db_ms[31]`, `http_ms[31]`, `view_ms[31]`, `ruby_ms[31]`, `queue_wait_counts[31]`, `queue_wait_ms`. `#+` adds element-wise; `Apm::Distribution.empty`.
+`Apm::Distribution` is a value object over one merged histogram: `count`, `failed`, `duration_ms`, `counts[31]`, `db_ms[31]`, `http_ms[31]`, `view_ms[31]`, `app_ms[31]`, `queue_wait_counts[31]`, `queue_wait_ms`. `#+` adds element-wise; `Apm::Distribution.empty`.
 
 - **Average** `#average_ms` = `duration_ms / count` (nil when `count` is 0).
 - **Percentile** `#percentile(p)` for p ∈ {50, 75, 90, 95, 99}: `rank = ceil(p / 100.0 × count)`; `b` = the first bucket whose cumulative count reaches `rank`; `f = (rank − cumulative_before_b − 0.5) / counts[b]` (0 < f < 1).
   - `b = 0`: `f × BOUNDS_MS[0]` (linear between 0 and 1 ms).
   - `1 ≤ b ≤ 29`: `L × (U / L) ** f` with `L = BOUNDS_MS[b − 1]`, `U = BOUNDS_MS[b]` (geometric interpolation; monotone in p).
-  - `b = 30` (≥ 48 s): the bucket's own mean, `(db + http + view + ruby)[30] / counts[30]`, at least 48,000.
-- **Layer split** `#layer_split(:average | p)` → `{ db:, http:, view:, ruby: }` in ms, summing exactly to the bar's value:
-  - Average: `average_ms` split in the proportions of `Σ db_ms : Σ http_ms : Σ view_ms : Σ ruby_ms` over all buckets.
-  - Percentile p: `percentile(p)` split in the proportions of the four layer sums **of the bucket p falls in**. A bucket whose layer sums are all 0 puts everything in `ruby`.
+  - `b = 30` (≥ 48 s): the bucket's own mean, `(db + http + view + app)[30] / counts[30]`, at least 48,000.
+- **Layer split** `#layer_split(:average | p)` → `{ db:, http:, view:, app: }` in ms, summing exactly to the bar's value:
+  - Average: `average_ms` split in the proportions of `Σ db_ms : Σ http_ms : Σ view_ms : Σ app_ms` over all buckets.
+  - Percentile p: `percentile(p)` split in the proportions of the four layer sums **of the bucket p falls in**. A bucket whose layer sums are all 0 puts everything in `app`.
 - `#failed_rate` = `failed / count`; `#queue_wait_percentile(p)` uses the same interpolation on `queue_wait_counts` (no overflow mean: bucket 30 reports 48,000 ms); `#rate_per_minute(minutes)`.
 
 **Queries** (`Apm::StatsQuery`, backend; every method is one or two grouped statements whatever the number of transactions):
@@ -2198,7 +2205,7 @@ stats.past_day(ids)                  # => { id => Apm::Distribution } hourly row
 stats.series(id)                     # => [[bin_start, Apm::Distribution], …] zero-filled bins of range.bin
 stats.hourly_p95(ids, hours: 24)     # => { id => [Float | nil] * 24 } (overview sparklines)
 ```
-Bucket arrays are summed with `unnest(bucket_counts, bucket_db_ms, …) WITH ORDINALITY AS b(c, db, http, view, ruby, qw, i)` grouped by `apm_transaction_id, i` (plus `date_bin` for series); scalars in a second grouped SELECT. Hosted ranges are clamped to the retention (`Apm::Range#start`).
+Bucket arrays are summed with `unnest(bucket_counts, bucket_db_ms, …) WITH ORDINALITY AS b(c, db, http, view, app, qw, i)` grouped by `apm_transaction_id, i` (plus `date_bin` for series); scalars in a second grouped SELECT. Hosted ranges are clamped to the retention (`Apm::Range#start`).
 
 **`Apm::Range`** (backend): `KEYS = %w[15m 1h 1d 7d 30d]`, default `1d`.
 | key | rows | start | chart bin | bins |
@@ -2272,39 +2279,39 @@ Each page sets `provide :nav, "performance"` and the breadcrumbs `Acme Labs / st
 
 Flat pastel theme, existing tokens and component classes (`.panel`, `.chip-*`, `.btn*`, `.segmented`, `.tab`), server-rendered SVG, no inline styles or scripts, no new JavaScript beyond the existing Stimulus controllers (`dropdown`, `tabs`). Numbers: `apm_duration(ms)` gives "0.4 ms", "412 ms", "1.24 s", "3.2 s", "12.4 s" (3 significant digits, insignificant zeros stripped; tiles split value and unit), rates `delimited`, percentages one decimal ("1.9%", "0.24%" below 1%).
 
-**Colours** (`PerformanceChartHelper` constants): Database `LILAC` `#b39cf2`, External HTTP `IRIS` `#8f94ee`, Views `MINT_400` `#6fcca6`, Ruby `RUBY` `#d2cec4`. Lines: Average `INK` `#34374d` dashed (5 4), p75 `IRIS`, p90 `IRIS_300` `#5a5fd6`, p95 `CORAL` (2.4px), p99 `IRIS_SOFT` `#b7baf3`. Legend order: Database, External HTTP, Views, Ruby; stack order bottom-up: Ruby, Database, External HTTP, Views.
+**Colours** (`PerformanceChartHelper` constants): Database `LILAC` `#b39cf2`, External HTTP `IRIS` `#8f94ee`, Rendering `MINT_400` `#6fcca6`, App code `APP_CODE` `#d2cec4`. Lines: Average `INK` `#34374d` dashed (5 4), p75 `IRIS`, p90 `IRIS_300` `#5a5fd6`, p95 `CORAL` (2.4px), p99 `IRIS_SOFT` `#b7baf3`. Legend order: Database, External HTTP, Rendering, App code; stack order bottom-up: App code, Database, External HTTP, Rendering. (The approved canvas said "Views" and "Ruby"; they were renamed when the server went language-neutral.)
 
 **Sidebar:** "Performance" (`nav_link_to "Performance", project_performance_path(project), key: "performance", icon: :performance`) in Grimoire **after Issues**, before Uptime; `nav_placeholder "Performance", icon: :performance` without a project. `IconHelper` gains `:performance` (a gauge).
 
 **1 · Performance overview**
 - Header: eyebrow "storefront · production", title "Performance — last 24 hours" (`range.label`), the environment dropdown ("production ▾", environments with APM data) and the range `.segmented` 15m · 1h · 1d · 7d · 30d. Locked ranges render as disabled segments; when hosted, they are titled "Upgrade to unlock" and `upgrade_to_unlock` follows them, or, without an upgrade URL, they are greyed out with no lock icon, titled "Coming soon", and no upgrade text follows. Self-hosted never shows upgrade copy; a self-hosted range beyond the setting is disabled with the title "This instance keeps N days".
 - KPI tiles, one row of seven: **Requests per minute**, **Average**, **p75**, **p90**, **p95**, **p99**, **Failed requests** (jobs tab: "Runs per minute", "Failed runs"). Each shows the range value and a **"Last hour X"** subline: "Last hour 1,310 per minute", "Last hour 164 ms", …, "Last hour 0.31% · see issues" (link to the issue list for `env`). The p95 subline turns coral with "· ▲ 49%" (`(last_hour_p95 / past_day_p95 − 1)`, rounded) when the total row is Slower. "—" when there is no data.
-- "Where request time goes" ("Where job time goes" on the jobs tab) panel: "Average time per request by layer, every 15 minutes. The line is p95." (the bin wording follows the range). Stacked layer bars per bin (`apm_layer_bars_svg`) with the p95 line on top, y-axis ticks, x labels "−24h … now" (relative to the range), legend Database · External HTTP · Views · Ruby · p95. The tiles and the chart follow the tab: web shows the web total row, jobs the job total row.
+- "Where request time goes" ("Where job time goes" on the jobs tab) panel: "Average time per request by layer, every 15 minutes. The line is p95." (the bin wording follows the range). Stacked layer bars per bin (`apm_layer_bars_svg`) with the p95 line on top, y-axis ticks, x labels "−24h … now" (relative to the range), legend Database · External HTTP · Rendering · App code · p95. The tiles and the chart follow the tab: web shows the web total row, jobs the job total row.
 - Tabs "Web requests 23" / "Background jobs 14" (transactions with data in the range), the filter input ("Filter endpoints" / "Filter jobs", GET form) and "Sort: Time consumed ▾" (dropdown: Time consumed, Slowest p95, Most requests, Most failed).
 - Table columns: **Endpoint** / **Job** (name, link to the endpoint page; below it the route "POST /checkout", or for jobs "sidekiq · critical · waits 0.8 s (p95)"), **Req/min** / **Runs/min**, **p75**, **p90**, **p95**, **p99**, **Failed**, **Time share** (bar of the row's `duration_ms` over the tab total, and the %), **p95 · 24h** (sparkline of `hourly_p95`, coral when Slower, iris otherwise). Chips after the name: "Slower" (coral with dot) and "N+1 queries" (lilac; any trace of the transaction in the range with `n_plus_one_count > 0`). Default sort: time consumed (`duration_ms` sum) descending. Footer "Showing 7 of 23 endpoints · show all".
-- **Empty state** (no APM data for the app): title "See where request time goes", body "Turn on performance monitoring in the goodsorcery gem to see response times, slow endpoints and traces of the slowest requests.", the snippet `config.performance_monitoring = true` and a link to Settings & setup. An environment with no data in the range shows "No requests in the last 24 hours."
+- **Empty state** (no APM data for the app): title "See where request time goes", body "Turn on performance monitoring in the goodsorcery gem to see response times, slow endpoints and traces of the slowest requests." ("crate" for a Rust app), the platform's snippet (`config.performance_monitoring = true` in `config/initializers/goodsorcery.rb` for Rails or `config/goodsorcery.rb` for Ruby; `goodsorcery::Config::from_env().performance_monitoring(true)` in `src/main.rs` plus a note to add `goodsorcery::axum::layer()` for Rust) and a link to Settings & setup. An environment with no data in the range shows "No requests in the last 24 hours."
 
 **2 · Endpoint detail**
 - Same range picker. Eyebrow "Web request · production" / "Background job · production"; title the name (`font-display`); below it "POST /checkout • app/controllers/checkouts_controller.rb" (jobs: "sidekiq · critical • app/jobs/orders/place_job.rb"; the file only when known). When Slower, a coral chip line: "p95 in the last hour is 1.8× the day's, climbing since about 14:00" (the clause after the comma only when `climbing_since` finds a start: the earliest of the last 6 hours from which every hourly p95 is ≥ 1.25× the day's; the time in the viewer's zone).
 - Ribbon: **Requests · 24h** (the label follows the range; "60,480", subline "42 per minute · last hour 51"), **Average**, **p75**, **p90**, **p95**, **p99** (each with "Last hour X"; p95 coral "· ▲ 1.8×" when Slower), **Failed** ("1.9%", subline "Last hour 2.4% · 2 issues", where "2 issues" links to the issue list filtered by the transaction name: `project_issues_path(project, q: name, env:)`; "· no issues" when none).
 - "Response time" chart: five lines over the range bins (`apm_lines_svg`): Average dashed ink, p75, p90, p95 coral, p99 light; legend in that order.
-- "Where time goes": "Requests around each percentile, split by layer. Last day." (range wording). Five horizontal stacked bars: Average, p75, p90, p95, p99, each labelled with its value; then the summary sentence: "Around p95 and p99, <layer> takes the most time (49% and 56%)." followed by "Typical requests mostly wait on <layer>." when the Average bar's largest layer differs, or "Typical requests spend most of their time there too." when it is the same. Layer names: "the database", "external HTTP", "views", "Ruby"; "wait on" for database/HTTP, "spend most of their time in" for views/Ruby.
+- "Where time goes": "Requests around each percentile, split by layer. Last day." (range wording). Five horizontal stacked bars: Average, p75, p90, p95, p99, each labelled with its value; then the summary sentence: "Around p95 and p99, <layer> takes the most time (49% and 56%)." followed by "Typical requests mostly wait on <layer>." when the Average bar's largest layer differs, or "Typical requests spend most of their time there too." when it is the same. Layer names: "the database", "external HTTP", "rendering", "app code"; "wait on" for database/HTTP, "spend most of their time in" for rendering/app code.
 - "Errors on this endpoint" ("Unresolved issues raised by this endpoint."): rows with class, the redacted title, "GS-1042 · 1,284 events · 2 min ago" and a "New" chip, linking to the issue. Empty: "No unresolved issues from this endpoint."
 - "Slow traces · last day" ("We keep the slowest request each minute this hour, and the 3 slowest of each earlier hour."), segmented Slowest | Newest, 20 per page. Columns: Time (`clock_label` with seconds), Duration, Database, Queries, External HTTP ("1.23 s · 2"), Status (HTTP code; jobs "OK" or "Failed"; plus a coral chip with the issue short id linking to the issue when `error_event_uuid` resolves), "Trace →". Footer "8 of 131 traces in the last day" and "Next 20 →" / "← Previous 20". The panel is a `turbo_frame_tag dom_id(transaction, :traces)` so sorting and paging replace only it (`turbo_action: "advance"`).
 
 **3 · Slow request trace**
 - "← Older trace" / "Newer trace →" (disabled at the ends). Eyebrow "Slow trace · the slowest request in its minute" (open hour) or "Slow trace · one of the 3 slowest in its hour" (closed hour). Title: method + path ("POST /checkout"; jobs: the job class). Subline: "CheckoutsController#create · Nov 4, 14:32:08 · web-2 · request 7f3a9c1e" (request id: first 8 characters; jobs: queue instead).
 - Chips: duration, status ("200 OK"; coral for ≥ 500 or failed), "43 SQL queries", "2 HTTP calls", "1 N+1 pattern" (only when > 0).
-- Layer summary: one stacked bar plus four figures (Database 1.22 s 41%, External HTTP, Views, Ruby).
+- Layer summary: one stacked bar plus four figures (Database 1.22 s 41%, External HTTP, Rendering, App code).
 - "Timeline" ("Repeated queries are grouped into one row."): axis ticks (0, 0.5 s … total), a root row ("Action CheckoutsController#create" / "Job Orders::PlaceJob") spanning the trace, then one row per span: type label (SQL / HTTP / View / Job), a short label (`apm_sql_label`: `SELECT "users" WHERE "id" = $1`; HTTP "POST api.taxjar.com/v2/taxes"; view "checkouts/create.html.erb"; enqueue "enqueue Orders::PlaceJob"), an SVG bar from `offset_ms` over `span_ms` (grouped) or `duration_ms`, in the layer colour, and the time. Grouped rows show "×4", or the lilac chip "N+1 ×38" at `count >= 10`. "N spans not shown" when `spans_dropped > 0`.
-- N+1 detail (when any): "One query, run 38 times" with the N+1 chip; the full normalised SQL formatted one clause per line (`formatted_sql`: keywords `tok-k`, placeholders `tok-n`); "Values become $1, $2 inside your app, before anything is sent."; Calls / Total / Average / Rows each; "Called from app/services/cart_total.rb:27 in total_cents" with the code context (mono, the call line highlighted, plain text); the hint "Load the products in one query instead:" with `….includes(:product)` (table from the first `FROM "x"`, singularised; without a table: "Preload the association with includes so it loads in one query.").
-- Request panel: Status, Host ("web-2 · Puma worker 3"), Started ("14:32:08.114"), Runtime ("Ruby 3.4.1 · Rails 8.0.2"), GC ("14 ms · 3 runs"), Allocations ("1.4M objects"); jobs add Queue and Queue wait. Footnote "Traces carry no params, headers, cookies or bodies."
+- N+1 detail (when any): "One query, run 38 times" with the N+1 chip; the full normalised SQL formatted one clause per line (`formatted_sql`: keywords `tok-k`, placeholders `tok-n`); "Values become placeholders inside your app, before anything is sent."; Calls / Total / Average / Rows each; "Called from app/services/cart_total.rb:27 in total_cents" with the code context (mono, the call line highlighted, plain text); the advice `PerformanceHelper#apm_n_plus_one_advice`: "This query ran 38 times in one request. Load the rows in one query (a join, an IN list or a batch load) instead of one per item." ("job run" for jobs). It names no language, ORM or method: the server doesn't know which one the app uses. (The approved canvas suggested `….includes(:product)`; that Rails-only hint was removed.)
+- Request panel: Status, Host ("web-2 · Puma worker 3"), Started ("14:32:08.114"), Runtime (the trace's runtimes in the client's order with full versions, "Rust 1.82.0 · axum 0.8.1"; "Rails 8.0.2 · Ruby 3.4.1" for the older object), GC ("14 ms · 3 runs"), Allocations ("1.4M objects"); jobs add Queue and Queue wait. Footnote "Traces carry no params, headers, cookies or bodies."
 - "Errors in this request": the linked issue row (class, title, short id) when `error_event_uuid` resolves; "Error reported, but its event is no longer stored." when it doesn't; otherwise "None. Requests that raise link straight to their issue."
 - **Expired page** (`traces/expired`, 410): title "This trace is no longer kept"; body by reason: `:retention`/`:plan` "Good Sorcery keeps performance data for N day(s) on this account." (self-hosted: "This instance keeps performance data for N days.") and, for `:plan` only when hosted with an upgrade URL, `upgrade_to_unlock("Upgrade to keep more days")`; `:trimmed` "We keep the slowest request each minute this hour, and the 3 slowest of each earlier hour. A slower request replaced this one." A "Back to Performance" link.
 
 **SVG helpers** (`PerformanceChartHelper`, pure `tag`-built SVG like `ChartHelper`, numbers to 1 dp, a `<title>` per bar/point): `apm_layer_bars_svg(bins, line:)` (stacked bars + p95 line), `apm_lines_svg(series)` (five lines), `apm_split_bar_svg(split, scale_ms:)` (one horizontal stacked bar), `apm_timeline_bar_svg(offset_ms, width_ms, total_ms, color:)`, and the overview sparkline through the existing `sparkline_svg`. `PerformanceHelper`: `apm_duration`, `apm_rate`, `apm_percent`, `apm_tile`, `apm_slower_chip`, `apm_n_plus_one_chip`, `apm_sql_label`, `formatted_sql`, `apm_route_line`, `apm_status_label`.
 
-**Setup page:** the Rails and Ruby initializer snippets (`app/views/projects/setups/*`, `SetupHelper`) gain a commented block, in step with the gem's generator: `# Performance monitoring: response times, slow endpoints, traces of slow requests.` / `# config.performance_monitoring = true`.
+**Setup page:** the Rails and Ruby initializer snippets (`app/views/projects/setups/*`, `SetupHelper`) gain a commented block, in step with the gem's generator: `# Performance monitoring: response times, slow endpoints, traces of slow requests.` / `# config.performance_monitoring = true`. The Rust snippet carries the same comment above `// .performance_monitoring(true)`.
 
 ### 13.10 Authorization
 
@@ -2326,7 +2333,7 @@ Nothing else is cached. Transaction names, routes and anything from a trace payl
 - **Encrypted at rest:** `apm_traces.payload` (normalised SQL, call sites, code context, request method/path/request id, job details, host, process, runtime, HTTP hosts/paths, templates) and `apm_inbound_batches.body`.
 - **Plaintext, by design:** transaction `name`, `kind`, `http_method`, `route` (a pattern), `adapter`, `queue`, `source_file`, all numbers and timestamps, `status`, `failed`, `uuid`, `error_event_uuid`. These are code identifiers, as `issues.transaction_name` and `culprit` are (§1.5).
 - **Never** in job arguments (`ProcessApmBatchJob` takes the integer batch id; `TrimApmTracesJob` none), Redis, the cache, logs, exception or validation messages, or broadcasts (there are none). Processing and trim errors are logged by class name and ids only. Error responses never echo payload content.
-- **Traces carry no params, headers, cookies, bodies, query strings or userinfo.** The gem never collects them; the server allow-lists trace keys and strips query strings and userinfo again (§13.5).
+- **Traces carry no params, headers, cookies, bodies, query strings or userinfo.** Clients never collect them; the server allow-lists trace keys and strips query strings and userinfo again (§13.5).
 - Views render SQL, paths and code through ERB escaping (`formatted_sql` builds with `tag`/`safe_join`); never `raw`/`html_safe`/`sanitize` on trace data.
 - Test fixture: the `checkout_slow` trace's code context and SQL carry `apm-fixture-secret`; tests assert it is absent from job args, captured logs, the cache store and every non-trace page, and that the raw `payload` column is ciphertext.
 
@@ -2351,6 +2358,6 @@ Two slices in this repo plus the gem build in its own repo (`goodsorcery-ruby/do
 - `app/views/projects/performance/**` (`overviews/show`, `_header`, `_range_picker`, `_environment_menu`, `_tiles`, `_tile`, `_layer_chart`, `_tabs`, `_table`, `_row`, `_empty`; `transactions/show`, `_hero`, `_ribbon`, `_response_chart`, `_where_time_goes`, `_issues`, `_traces`; `traces/show`, `_hero`, `_chips`, `_layers`, `_timeline`, `_n_plus_one`, `_request`, `_errors`, `expired`)
 - `app/helpers/performance_helper.rb`, `app/helpers/performance_chart_helper.rb`, `app/helpers/icon_helper.rb` (`:performance`), `app/views/layouts/_sidebar.html.erb` (the link), `app/helpers/setup_helper.rb` and `app/views/projects/setups/**` (the snippet)
 - Tests: `test/controllers/projects/performance/**`, `test/models/apm/{selection,overview,endpoint_report,trace_list,trace_page,n_plus_one_hint}_test.rb`, `test/helpers/{performance,performance_chart}_helper_test.rb`, `test/integration/shell_test.rb` (the sidebar link), `test/system/performance_test.rb` (tabs, range and trace sort through the DOM, `press`/`type_into`)
-- **Required tests:** §13.10 authorization on every action; the overview tiles are Requests per minute, Average, p75, p90, p95, p99, Failed (no p50) each with a "Last hour" subline, and the p95 subline is coral with the % change only when Slower; the table shows p75/p90/p95/p99 and no p50; tabs, filter, sort, "show all"; Slower and N+1 chips; the empty state with the snippet; the environment menu; locked ranges with "Upgrade to unlock" hosted, none self-hosted, a crafted locked range falls back to 1d; the endpoint ribbon (Requests, Average, p75, p90, p95, p99, Failed with the issues link), the five-line legend, five bars and the summary sentence; "Errors on this endpoint" lists only unresolved issues of that transaction and environment; traces sorted Slowest/Newest, 20 per page, error chip linking to the issue; trace chips, grouped timeline rows and N+1 detail copy ("Values become $1, $2 inside your app, before anything is sent."), "Traces carry no params, headers, cookies or bodies.", errors in the request; older/newer; the expired page (410) with "Upgrade to keep more days" hosted only; SQL containing `<script>` renders escaped; `no-store`; fixed query counts (overview 1 vs 5 transactions; endpoint and trace pages constant); the overview cache holds numbers only; the setup snippet shows `config.performance_monitoring`.
+- **Required tests:** §13.10 authorization on every action; the overview tiles are Requests per minute, Average, p75, p90, p95, p99, Failed (no p50) each with a "Last hour" subline, and the p95 subline is coral with the % change only when Slower; the table shows p75/p90/p95/p99 and no p50; tabs, filter, sort, "show all"; Slower and N+1 chips; the empty state with the snippet; the environment menu; locked ranges with "Upgrade to unlock" hosted, none self-hosted, a crafted locked range falls back to 1d; the endpoint ribbon (Requests, Average, p75, p90, p95, p99, Failed with the issues link), the five-line legend, five bars and the summary sentence; "Errors on this endpoint" lists only unresolved issues of that transaction and environment; traces sorted Slowest/Newest, 20 per page, error chip linking to the issue; trace chips, grouped timeline rows and N+1 detail copy ("Values become $1, $2 inside your app, before anything is sent."), "Traces carry no params, headers, cookies or bodies.", errors in the request; older/newer; the expired page (410) with "Upgrade to keep more days" hosted only; SQL containing `<script>` renders escaped; `no-store`; fixed query counts (overview 1 vs 5 transactions; endpoint and trace pages constant); the overview cache holds numbers only; the setup snippet shows `config.performance_monitoring` (and `.performance_monitoring(true)` for Rust); the trace page's N+1 advice names no language.
 
 **Integration (lead, after the slices):** check the gem and server agree (an end-to-end run: a dummy Rails app with the gem against `bin/dev`, data visible on all three pages), update `CLAUDE.md` ("Current state", gotchas: `Apm` naming, write-time rollup, the trace upsert, encrypted traces), then run the full test, system, lint, Brakeman and audit pass.

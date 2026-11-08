@@ -1,8 +1,10 @@
 # Good Sorcery Error Tracker
 
-A self-hostable error tracker for Rails apps. Client libraries (such as the
-upcoming `goodsorcery` Ruby gem) post errors to an ingest API. The dashboard
-groups them into issues and updates live over Action Cable.
+A self-hostable error tracker and performance monitor. Client libraries (the
+`goodsorcery` Ruby gem and Rust crate) post errors and performance data to a
+language-neutral ingest API (`docs/INGEST_API.md`): clients send display-ready
+names, and the server stores, groups and renders them for any language. The
+dashboard groups errors into issues and updates live over Action Cable.
 
 Built with Rails 8.1, Hotwire (Turbo and Stimulus), Action Cable, Postgres and
 Tailwind. No single-page JavaScript framework, and no Solid Queue, Solid Cache
@@ -124,7 +126,7 @@ JOB=1 bin/send_test_event YOUR_API_KEY                           # an error from
 ```
 
 Script variables: `GOODSORCERY_API_KEY` and `GOODSORCERY_ENDPOINT` (the same
-variable the gem reads; `GOODSORCERY_HOST` is still accepted as a fallback;
+variable the clients read; `GOODSORCERY_HOST` is still accepted as a fallback;
 default `http://localhost:3000`) replace the arguments. `bin/send_test_apm`
 reads the same variables. `EVENT_ID` sets the event id
 (the same id twice is counted once), `EXCEPTION_CLASS` sets the class, and
