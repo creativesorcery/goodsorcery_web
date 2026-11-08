@@ -174,6 +174,11 @@ kamal-proxy, boots the web and job containers and runs migrations
 demo data in `db/seeds.rb`). Open `https://GOODSORCERY_HOST` and sign up;
 sign-up closes after the first account.
 
+Request bodies over 4 MiB get a 413 before they are read: Puma enforces
+`http_content_length_limit` (`config/puma.rb`) and Thruster `MAX_REQUEST_BODY`
+(set in the `Dockerfile`). The largest ingest body is 2 MiB, so a server
+without Cloudflare in front still refuses oversized uploads.
+
 ## Day to day
 
 - **Deploy:** merge to `main`. Deploys queue rather than overlap.

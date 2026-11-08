@@ -21,11 +21,13 @@ RUN apt-get update -qq && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Set production environment variables and enable jemalloc for reduced memory usage and latency.
+# MAX_REQUEST_BODY makes Thruster refuse bodies over 4 MiB, matching Puma's cap in config/puma.rb.
 ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
     BUNDLE_WITHOUT="development" \
-    LD_PRELOAD="/usr/local/lib/libjemalloc.so"
+    LD_PRELOAD="/usr/local/lib/libjemalloc.so" \
+    MAX_REQUEST_BODY="4194304"
 
 # Throw-away build stage to reduce size of final image
 FROM base AS build

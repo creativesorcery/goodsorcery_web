@@ -37,3 +37,9 @@ plugin :tmp_restart
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.
 # In other environments, only set the PID file if requested.
 pidfile ENV["PIDFILE"] if ENV["PIDFILE"]
+
+# Refuse request bodies over 4 MiB with a 413 before reading them (declared or
+# chunked). The largest ingest body is 2 MiB (Ingest::Limits::BATCH_BODY_BYTES,
+# Apm::Limits::TRACES_BODY_BYTES); without this cap Puma would buffer any body
+# to disk before authentication, the rate limits or the app's own size checks.
+http_content_length_limit 4 * 1024 * 1024
