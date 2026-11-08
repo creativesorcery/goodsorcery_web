@@ -186,7 +186,7 @@ Every variable below is read by the app's code or config.
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `SECRET_KEY_BASE` | **yes** | none (**production refuses to boot without it**) | Signs and encrypts cookies and derives the `PrivateDigest` HMAC key. See "Secrets". |
-| `GOODSORCERY_PUBLIC_URL` | **yes** | none (**production refuses to boot without it**) | This instance's public URL, e.g. `https://errors.example.com`. Sets the host and protocol of email links (password resets) and the allowed hosts (`config.hosts`). The setup page's install snippet also shows it as the endpoint. |
+| `GOODSORCERY_PUBLIC_URL` | **yes** | none (**production refuses to boot without it**) | This instance's public URL, e.g. `https://errors.example.com`. Sets the host and protocol of email links (password resets) and the allowed hosts (`config.hosts`). The setup page's install snippet also shows it as the endpoint, the Access tokens page builds the MCP client snippets from it (`<URL>/mcp`), and the MCP endpoint accepts browser `Origin`s of it only. |
 | `GOODSORCERY_EXTRA_HOSTS` | no | none | Comma-separated extra hostnames to accept besides the public URL's host. `/up` answers on any host. |
 | `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY` | **yes** | none | Encrypts captured error data, raw inbound events, API key tokens, tag values and notes. |
 | `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | **yes** | none | Deterministic encryption key. |
@@ -281,6 +281,27 @@ Plain Docker works too:
 `docker run -e SECRET_KEY_BASE=... -e ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY=... -e ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY=... -e ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT=... -e GOODSORCERY_PUBLIC_URL=... -e REDIS_URL=... -e DATABASE_URL=... goodsorcery_web`.
 Run a second container from the same image with `bundle exec sidekiq -C config/sidekiq.yml`.
 
+## MCP server (AI clients)
+
+`POST /mcp` is a [Model Context Protocol](https://modelcontextprotocol.io)
+server, so AI clients (Claude Code, Codex, Cursor, VS Code) can search and read
+issues, occurrences, uptime and performance data and, with the triage scope,
+resolve, ignore or reopen issues and add notes. Each member creates personal
+access tokens under user menu › **Access tokens**; a token covers one account
+and is shown once, with ready-to-paste client configuration. There is no OAuth
+yet, so claude.ai and Claude Desktop connectors can't connect. Nothing needs
+configuring on the server beyond `GOODSORCERY_PUBLIC_URL`. See `docs/MCP.md`
+(public: tokens, client snippets, tools, privacy and limits) and
+`docs/ARCHITECTURE.md` §14 (design).
+
+To try it locally, create a token at http://localhost:3000/access_tokens and run:
+
+```sh
+curl -s http://localhost:3000/mcp -H "Authorization: Bearer gs_pat_..." \
+  -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_apps","arguments":{}}}'
+```
+
 ## Privacy
 
 Everything captured with an error may contain personal data: backtraces, code
@@ -289,7 +310,9 @@ environment. It is encrypted at rest. The server scrubs secrets again on
 ingest, and user identities are stored only as HMAC digests. Only an id goes
 through Redis/Sidekiq, never the payload, and dashboard pages send
 `Cache-Control: no-store`. See `docs/ARCHITECTURE.md` and the privacy section
-of `docs/INGEST_API.md`.
+of `docs/INGEST_API.md`. The MCP endpoint returns captured data to the member's
+AI client only as the dashboard shows it; request data, user details and
+unredacted messages need a token with the request data scope (`docs/MCP.md`).
 
 ## Troubleshooting
 

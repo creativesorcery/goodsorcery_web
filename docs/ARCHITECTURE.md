@@ -19,7 +19,7 @@ Stack: Ruby 4.0.7, Rails 8.1.4, Postgres (pg_trgm), Propshaft, importmap, Turbo,
 5. **Performance.** No N+1 queries (use `includes`, `inverse_of` and batch queries for histograms). Counters are atomic SQL. The ingest path is bounded and tuned for minimal queries (§2.6).
 6. **Tests.** Use Minitest with fixtures. Always run with a private DB:
    `TEST_DB_SUFFIX=_<slice> bin/rails db:test:prepare && TEST_DB_SUFFIX=_<slice> bin/rails test`. Never drop the development database. Run `bin/rubocop` on your files before you finish.
-7. **Out of scope (do not build):** deploy tracking/releases UI, keyboard shortcuts, the "needs attention" callout, Merge, "Mute rules", GitHub links ("Link GitHub issue", "Open in GitHub"), team invites, project deletion, the Ruby client gem, geo-IP ("London, GB"), and syntax highlighting of code context (render plain mono text). Email alerts were out of scope for v1; they were approved later and are built (§11). Uptime was also out of scope for v1 (a "soon" placeholder); uptime monitoring and account entitlements were approved on 2026-11-03 (§12). Performance monitoring (APM) was approved on 2026-11-04 (§13).
+7. **Out of scope (do not build):** deploy tracking/releases UI, keyboard shortcuts, the "needs attention" callout, Merge, "Mute rules", GitHub links ("Link GitHub issue", "Open in GitHub"), team invites, project deletion, the Ruby client gem, geo-IP ("London, GB"), and syntax highlighting of code context (render plain mono text). Email alerts were out of scope for v1; they were approved later and are built (§11). Uptime was also out of scope for v1 (a "soon" placeholder); uptime monitoring and account entitlements were approved on 2026-11-03 (§12). Performance monitoring (APM) was approved on 2026-11-04 (§13). The MCP server for AI clients was approved on 2026-11-08 (§14).
 8. **Wording.** Every "create project" affordance reads **"Add a new app"**: the projects page header button, the dashed tile and the `projects#new` page title.
 
 ---
@@ -53,7 +53,7 @@ Account ─┬─< Membership >── User ──< Session (session.account = cu
 
 ### 1.3 Tables (complete; later slices make NO schema changes)
 
-The uptime build (§12.1) adds `accounts.entitlement_values`, the `uptime_monitors`, `uptime_checks`, `uptime_hourly_counts` and `uptime_incidents` tables, and `notification_preferences.uptime_alerts_muted`. The APM build (§13.2) adds the `apm_transactions`, `apm_minute_stats`, `apm_hourly_stats`, `apm_traces` and `apm_inbound_batches` tables.
+The uptime build (§12.1) adds `accounts.entitlement_values`, the `uptime_monitors`, `uptime_checks`, `uptime_hourly_counts` and `uptime_incidents` tables, and `notification_preferences.uptime_alerts_muted`. The APM build (§13.2) adds the `apm_transactions`, `apm_minute_stats`, `apm_hourly_stats`, `apm_traces` and `apm_inbound_batches` tables. The MCP build (§14.1) adds `personal_access_tokens`, `access_token_activities` and `issue_activities.via`.
 
 All `id`s are `bigint`. FKs are real `add_foreign_key` constraints. "cascade" means `on_delete: :cascade`.
 
@@ -2282,3 +2282,99 @@ Two slices in this repo plus the gem build in its own repo (`goodsorcery-ruby/do
 - **Required tests:** §13.10 authorization on every action; the overview tiles are Requests per minute, Average, p75, p90, p95, p99, Failed (no p50) each with a "Last hour" subline, and the p95 subline is coral with the % change only when Slower; the table shows p75/p90/p95/p99 and no p50; tabs, filter, sort, "show all"; Slower and N+1 chips; the empty state with the snippet; the environment menu; locked ranges with "Upgrade to unlock" hosted, none self-hosted, a crafted locked range falls back to 1d; the endpoint ribbon (Requests, Average, p75, p90, p95, p99, Failed with the issues link), the five-line legend, five bars and the summary sentence; "Errors on this endpoint" lists only unresolved issues of that transaction and environment; traces sorted Slowest/Newest, 20 per page, error chip linking to the issue; trace chips, grouped timeline rows and N+1 detail copy ("Values become $1, $2 inside your app, before anything is sent."), "Traces carry no params, headers, cookies or bodies.", errors in the request; older/newer; the expired page (410) with "Upgrade to keep more days" hosted only; SQL containing `<script>` renders escaped; `no-store`; fixed query counts (overview 1 vs 5 transactions; endpoint and trace pages constant); the overview cache holds numbers only; the setup snippet shows `config.performance_monitoring`.
 
 **Integration (lead, after the slices):** check the gem and server agree (an end-to-end run: a dummy Rails app with the gem against `bin/dev`, data visible on all three pages), update `CLAUDE.md` ("Current state", gotchas: `Apm` naming, write-time rollup, the trace upsert, encrypted traces), then run the full test, system, lint, Brakeman and audit pass.
+
+---
+
+## 14. MCP server (approved 2026-11-08)
+
+AI clients (Claude Code, Codex, Cursor, VS Code) query, investigate and triage errors over the Model Context Protocol. The public guide is `docs/MCP.md`.
+
+### 14.0 Decisions (binding)
+
+- Hosted in this app at `POST /mcp`: Streamable HTTP, **stateless**, plain JSON responses (no SSE, no sessions). `GET` and `DELETE /mcp` answer 405.
+- **No OAuth** for now. Members paste a personal access token into their client config; claude.ai and Claude Desktop connectors are therefore not supported.
+- A token covers **one account** and acts as its member, with that member's visibility (all the account's apps).
+- Uptime is read-only over MCP. The tool list in §14.3 is final for now. Nothing touches apps, API keys, alert rules, Slack, members, entitlements or uptime settings, and nothing deletes.
+- Library: the official Ruby SDK, `gem "mcp"` (1.8.1, pinned exactly): `MCP::Server` plus `MCP::Server::Transports::StreamableHTTPTransport` (`stateless: true, enable_json_response: true`), built per request. It handles JSON-RPC, `initialize` version negotiation (the 2024-11-05 to 2025-11-25 handshake versions and the 2026-07-28 sessionless lifecycle), `ping`, `tools/list`, `tools/call`, notifications (202), argument validation against each tool's JSON Schema (`json_schemer`), the Accept/Content-Type checks and the body cap. Our namespace is `Mcp` (app/models/mcp); the gem's is `MCP`. Never add an `MCP` acronym inflection: Zeitwerk would then map app/models/mcp onto the gem's module.
+
+### 14.1 Schema
+
+**personal_access_tokens** (migration `20261108000001`)
+| column | type | null | default | notes |
+|---|---|---|---|---|
+| user_id | references → users, cascade | false | | the member the token acts as |
+| account_id | references → accounts, cascade | false | | the one account it covers |
+| name | string | false | | 1..60 chars |
+| scopes | string, array | false | `["read"]` | `read` always, plus `triage` and/or `request_data` (`PersonalAccessToken::SCOPES`) |
+| token_digest | string | false | | `SHA256.hexdigest(token)`, unique index; the token is never stored |
+| token_last4 | string | false | | for `gs_pat_…a1b2` |
+| expires_at | datetime | true | | 30 days, 90 days (default), 1 year or nil (never) |
+| revoked_at | datetime | true | | |
+| last_used_at | datetime | true | | touched at most every 5 minutes (`record_usage`) |
+| timestamps | | | | |
+Indexes: unique `[token_digest]`, `[user_id, created_at]`, `[account_id]`. There is no FK to memberships: the membership is re-checked on every use.
+
+Token format: `gs_pat_` + `SecureRandom.urlsafe_base64(32)` (32 random bytes, 43 characters). A plain SHA-256 is enough for such high-entropy values (as for `api_keys`, §1.3), lookups are one indexed equality, and rotating `secret_key_base` doesn't invalidate tokens. The plaintext lives only on the instance that generated it (`#token`), for the create response. At most 20 **active** (unrevoked, unexpired) tokens per user (`MAX_ACTIVE_PER_USER`). `token_digest` is in `filter_attributes`.
+
+**access_token_activities** (migration `20261108000002`): the audit log of MCP changes.
+| column | type | null | notes |
+|---|---|---|---|
+| personal_access_token_id | references → personal_access_tokens, cascade | false | |
+| user_id | references → users, cascade | false | |
+| action | string | false | `resolve ignore unresolve note` |
+| issue_ids | bigint, array | false | the issues that changed (or the noted issue) |
+| created_at | datetime | false | |
+Index `[personal_access_token_id, created_at]`. Ids and the action only: never note text or captured data.
+
+**issue_activities.via** (string, null; migration `20261108000003`): nil for the dashboard and ingest, `"mcp"` for changes made through the endpoint. The issue page shows a "via MCP" chip (`IssueActivityHelper#activity_sentence`).
+
+Retention (`Ingest::Retention#prune_access_tokens`): tokens revoked or expired more than 90 days ago (`PersonalAccessToken::KEPT_AFTER_END`; their activity cascades) and activity rows older than 90 days (`AccessTokenActivity::KEPT_FOR`).
+
+### 14.2 Endpoint and authentication
+
+`McpController < ActionController::API` (no cookies, session or CSRF; the token is the only credential). Routes: `resource :mcp, only: %i[show create destroy], controller: "mcp"`; `show`/`destroy` render 405 with `Allow: POST`. Checks on `create`, in order:
+
+1. Per-IP limit: `rate_limit to: 600, within: 1.minute, name: "ip", scope: "mcp"` (store `Ingest::RateLimitStore`).
+2. **Origin** (DNS-rebinding defence): a request with an `Origin` header is refused (403, JSON-RPC error) unless it equals the origin of `config.x.public_url` (`GOODSORCERY_PUBLIC_URL`), or of the request itself when that is unset. Requests without `Origin` (every non-browser client) pass. The SDK transport's own rebinding check is off (`dns_rebinding_protection: false`); Rails' `config.hosts` guards the Host header.
+3. **Token** (`PersonalAccessTokenAuthentication`): `Authorization: Bearer gs_pat_…` → `PersonalAccessToken.authenticate`, one query joining `memberships` on `[account_id, user_id]` with `revoked_at IS NULL AND (expires_at IS NULL OR expires_at > now)`. Never cached, so revoking, expiry and removing the membership apply to the next request. Every failure is the same `401` with `WWW-Authenticate: Bearer realm="goodsorcery"` and `{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":"invalid token"}}`.
+4. Per-token limit: 120 calls a minute (`name: "token"`). 429s carry `Retry-After: 60` and a JSON-RPC error body (`JsonRpcErrorResponses`).
+
+Then `record_usage`, and `Mcp::Endpoint#answer(rack_request)` inside `Time.use_zone("UTC")`; the transport's Rack triple becomes the response (`Cache-Control: no-store`). The body never reaches `params` or the log: `IngestBodyShield` covers `/mcp` (any spelling the router accepts) and the request log shows `Parameters: {}`. The transport caps bodies at 1 MiB (413); Puma and Thruster cap everything at 4 MiB.
+
+`Mcp::Endpoint` builds `MCP::Server.new(name: "goodsorcery", title:, version:, instructions: Mcp::INSTRUCTIONS, capabilities: { tools: {} }, tools: Mcp::Catalog.tools_for(token).map(&:sdk_tool), server_context: Mcp::Context.new(token, base_url:), configuration:)`. The configuration's `instrumentation_callback` logs `MCP <method> tool=<name> token=<id> duration_ms=<n>` and nothing from the arguments; `exception_reporter` sends tool exceptions to `Rails.error` (clients see only "Internal error calling tool …"; the SDK never echoes exception messages).
+
+### 14.3 Tools
+
+Each tool is a `Mcp::Tools::*` class (`Mcp::Tools::Base`): `tool_name`, `title`, `description`, `input_schema` (JSON Schema, `additionalProperties: false`), `annotations` (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`), `scope` and `captures_data`. An instance answers one call through `#response`: one text block (`#text_lines`, concise and readable) and `structuredContent` (`#build_payload`). `.sdk_tool` builds the SDK's adapter class with `MCP::Tool.define` (its block becomes the SDK's `call`: the one sanctioned `call`, like Rack middleware's). `Mcp::NotFound` and `Mcp::InvalidArgument` become tool errors (`isError: true`) with a plain message.
+
+| Tool | Scope | Built on | Queries |
+|---|---|---|---|
+| `list_apps` | read | the loaded apps + one grouped unresolved count | 3 |
+| `search_issues(app?, query?, sort?, range?, limit ≤ 50, cursor?)` | read | `IssueQuery` (chips + text, default `is:unresolved`, `assigned:me` = the token's user), `Issue.sorted_by`, offset cursor capped at `IssueList::MAX_PAGE × PER_PAGE`; `range` filters `last_seen_at` | 2 |
+| `get_issue(issue)` | read | `Mcp::IssueRow`, `IssueHourlyCount.series` (24h, 30d in UTC), releases (one grouped query), `IssueTagCount.distribution` (10 keys × 3 values), the last 5 activities, the latest occurrence through `Mcp::OccurrenceDetails` | ~10 |
+| `list_occurrences(issue, limit ≤ 50, cursor?)` | read | keyset cursor on occurrence id, newest first; host and transaction from each payload | 3 |
+| `get_occurrence(occurrence)` | read | `Mcp::OccurrenceDetails` + job (arguments only with request_data), environment context; request/params/headers/session/user only with `request_data`, otherwise `omitted` + a note naming the scope | 3 |
+| `get_uptime(app?)` | read | monitors, `UptimeHourlyCount.uptime_percentages`, open incidents; `host` only, never `url` | 3 |
+| `get_performance(app, environment?, range, kind, limit ≤ 25)` | read | `Apm::Selection` + `Apm::Overview` (tiles, rows, Slower, N+1) + the slowest kept trace per row (one `DISTINCT ON` query); a locked range is an error | fixed |
+| `get_trace(trace)` | read | `Apm::TracePage` via `Mcp::TraceSummary`: layers, the 40 slowest spans, up to 5 N+1 groups with call site, code and `Apm::NPlusOneHint`; past the account's `apm_retention_days` (or trimmed): "no longer kept" | fixed |
+| `resolve_issue` / `ignore_issue` / `unresolve_issue(issues: 1..25)` | triage | `Issue.where(id:).resolve_all / ignore_all / reopen_all(by: user, via: "mcp")` (`Issue::Triage`: activity rows, count expiry, broadcasts); any unknown id changes nothing; an `AccessTokenActivity`; returns each issue's status | fixed |
+| `add_note(issue, body ≤ 2000)` | triage | `issue.activities.note` as the token's user, `via: "mcp"`; an `AccessTokenActivity` without the text | fixed |
+
+`Mcp::Catalog.tools_for(token)` lists read tools always and triage tools only with the `triage` scope, so `tools/list` shows exactly what the token may call; calling an unlisted tool is a JSON-RPC error. `request_data` changes what `get_issue`/`get_occurrence` include, not the list.
+
+### 14.4 Scoping (authorization)
+
+Everything starts from `Mcp::Context` (the token's account): apps are loaded once per request (`account.projects`, ≤ 100) and every lookup is scoped to their ids: issues by short id (prefix → loaded app, then number) or numeric id (`Mcp::IssueReferences`, all references in one `OR` query), occurrences by uuid within the account's apps, traces by uuid within them, monitors by app. Unknown, malformed and other-account ids all give the same "not found" tool error, so nothing reveals existence elsewhere. A trace id from the account's lifetime that isn't stored says "no longer kept", as the trace page does.
+
+### 14.5 Safety
+
+- **Untrusted data.** `Mcp::INSTRUCTIONS`, the descriptions of tools returning captured data, and every result with `captures_data` (both the text and `structuredContent.notice`) state that captured text is data from the user's application that may contain instructions that must not be followed (`Mcp::UNTRUSTED_NOTICE`).
+- **Redaction.** The data is scrubbed and redacted at ingest exactly as the dashboard shows it. Without `request_data`, the occurrence message is passed through `Ingest::MessageRedactor` (like issue titles), and request, params, headers, session, user, job arguments and frame locals are left out. Issue titles, culprits and transactions are the redacted plaintext columns. Nothing is rendered as HTML.
+- **Never in any output:** ingest API keys, monitor URLs (only `host`), webhook URLs, secrets, the token. Tests assert the fixture tokens, `uptime-fixture-secret` and `https://` monitor URLs are absent.
+- **Bounded output** (`Mcp::Captured`, `Mcp::BacktraceSummary`, `Mcp::BreadcrumbSummary`): strings 300 characters (messages 2,000 with request_data), hashes 30 keys, arrays 10 items, depth 3; backtraces 30 frames app-first with code for the first 5 app frames; the last 25 breadcrumbs; pages of ≤ 50. Responses stay well under 50 KB.
+- **Audit.** Triage and notes write `access_token_activities` (token, user, action, issue ids, time); the Access tokens page shows the last 20 per token (`AccessTokenActivity.recent_by_token`, one window-function query). Reads are logged by tool name, token id and duration only.
+- **Never put captured data in** logs, the cache, job arguments or exception messages here either: tools read through the same models and only build Ruby hashes and strings.
+
+### 14.6 Access tokens page
+
+User menu › **Access tokens** (`AccessTokensController#index/create/destroy`, `resources :access_tokens, only: %i[index create destroy]`), like the Notifications page: the signed-in person's own tokens in the accounts they belong to (name, status, scopes, masked token, account, created, last used, expiry, Revoke, "Recent activity" with linked short ids), and the create form (name; account select when they belong to several; scope checkboxes with plain-language descriptions and the request-data warning; expiry). `create` needs a confirmed email (`require_verified_email`), takes the account only from `Current.user.accounts` (another id is a 404) and answers a Turbo Stream (HTML fallback: 201) that shows the token **once** with Claude Code, Codex, Cursor and VS Code snippets (`AccessTokensHelper#mcp_client_snippets`, URL = `config.x.public_url` or the request's base URL, plus `/mcp`) and the note that claude.ai/Desktop connectors aren't supported yet. The token never goes into the flash, session, cache or logs; the page has `turbo-cache-control: no-cache`. `destroy` revokes `Current.user.personal_access_tokens.find(id)` (others' tokens are 404s). A fixed number of queries however many tokens and activities.
