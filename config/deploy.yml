@@ -71,6 +71,14 @@ env:
 <% if ENV["GOODSORCERY_UPGRADE_URL"].to_s.strip != "" %>
     GOODSORCERY_UPGRADE_URL: <%= ENV["GOODSORCERY_UPGRADE_URL"].to_json %>
 <% end %>
+<% if ENV["GOODSORCERY_TERMS_URL"].to_s.strip != "" %>
+    # Linked from the sign-up page's agreement sentence.
+    GOODSORCERY_TERMS_URL: <%= ENV["GOODSORCERY_TERMS_URL"].to_json %>
+<% end %>
+<% if ENV["GOODSORCERY_PRIVACY_URL"].to_s.strip != "" %>
+    # Linked from the sign-up page's agreement sentence.
+    GOODSORCERY_PRIVACY_URL: <%= ENV["GOODSORCERY_PRIVACY_URL"].to_json %>
+<% end %>
 <% if ENV["GOODSORCERY_ENDPOINT"].to_s.strip != "" %>
     GOODSORCERY_ENDPOINT: <%= ENV["GOODSORCERY_ENDPOINT"].to_json %>
 <% end %>

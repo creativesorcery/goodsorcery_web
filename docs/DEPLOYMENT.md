@@ -139,6 +139,8 @@ only `main`. Then add:
 | variable | `GOODSORCERY_HOSTED` | optional: `1` turns on hosted mode (entitlements and "Upgrade to unlock"); unset is self-hosted. After switching, run `goodsorcery:fit_entitlements` (see below) |
 | variable | `GOODSORCERY_APM_RETENTION_DAYS` | optional, self-hosted only: days of performance data to keep, 1–30 (default 30) |
 | variable | `GOODSORCERY_UPGRADE_URL` | optional, hosted only: where "Upgrade to unlock" links to. Unset, locked options say "Coming soon" and no upgrade text shows |
+| variable | `GOODSORCERY_TERMS_URL` | optional: an http(s) link to your Terms of Service. Set, the sign-up page says "By signing up you agree to the Terms of Service." with it linked |
+| variable | `GOODSORCERY_PRIVACY_URL` | optional: an http(s) link to your Privacy Policy, linked the same way. With neither set, the sign-up page shows no agreement sentence |
 | variable | `GOODSORCERY_ENDPOINT` | optional: where this instance's gem reports its own errors and performance data; defaults to `https://app.goodsorcery.com` |
 | variable | `GOODSORCERY_PERFORMANCE_MONITORING` | optional: `0` turns off performance monitoring of this instance (on by default, with `GOODSORCERY_API_KEY` set and a gem version that supports it) |
 

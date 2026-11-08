@@ -25,7 +25,7 @@
 v1 is built and committed on `main`. It was built in three workflows: foundation, feature slices, then security, performance, correctness and design reviews with fixes. The final check was green: 668 tests and 8 system tests passing, RuboCop and Brakeman clean, and the bundler and importmap audits clean.
 
 v1 scope:
-- **Accounts:** sign-up, sign-in, password reset and session expiry. Accounts, users and memberships; every dashboard query is scoped through `Current.account`.
+- **Accounts:** sign-up, sign-in, password reset and session expiry. Optional `GOODSORCERY_TERMS_URL` / `GOODSORCERY_PRIVACY_URL` (read once at boot into `config.x.terms_url` / `privacy_url`, http(s) only via `HttpUrl.parse`) add an agreement sentence under the sign-up button (`RegistrationsHelper#signup_agreement`); with neither set there is no sentence. Accounts, users and memberships; every dashboard query is scoped through `Current.account`.
 - **Projects ("apps"):** created via "Add a new app", with ingest-only API keys per environment that can be revealed, copied and rotated, plus the General settings page.
 - **Ingest:** `POST /api/v1/events` and `POST /api/v1/events/batch` (up to 100 events; Bearer key) return 202; `GET /api/v1/verify` checks a key. The raw body is stored encrypted and its id goes to a Sidekiq job. Processing scrubs and redacts the data, fingerprints it into an issue and updates the hourly rollups, tag counts and affected users.
 - **Projects overview:** sparklines and the "Listening…" state.
