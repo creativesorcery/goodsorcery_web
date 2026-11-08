@@ -26,6 +26,13 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_notice "reset instructions sent"
   end
 
+  test "create with an array of addresses sends no mail" do
+    post passwords_path, params: { email_address: [ @user.email_address, "random-1@example.invalid" ] }
+
+    assert_enqueued_emails 0
+    assert_redirected_to new_session_path
+  end
+
   test "edit" do
     get edit_password_path(token: @user.password_reset_token)
     assert_response :success

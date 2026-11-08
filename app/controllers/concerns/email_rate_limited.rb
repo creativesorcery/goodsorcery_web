@@ -12,6 +12,12 @@ module EmailRateLimited
 
   private
     def email_rate_limit_key
-      PrivateDigest.hexdigest("rate_limit.email", params[:email_address].to_s.strip.downcase)
+      PrivateDigest.hexdigest("rate_limit.email", email_address_param.to_s.strip.downcase)
+    end
+
+    # The submitted address, or nil unless it is a single string. An array
+    # would become an SQL IN lookup with a fresh rate-limit key every time.
+    def email_address_param
+      params[:email_address].then { |address| address if address.is_a?(String) }
     end
 end
