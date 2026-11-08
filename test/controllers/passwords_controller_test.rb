@@ -65,6 +65,19 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_notice "Password has been reset"
   end
 
+  test "update revokes the user's access tokens, so a reset locks out whoever minted one" do
+    token = @user.personal_access_tokens.create!(account: @user.accounts.first, name: "Left behind", scopes: %w[triage request_data],
+                                                 expires_at: nil)
+    others = PersonalAccessToken.where.not(user: @user).active.count
+
+    put password_path, params: { token: @user.password_reset_token, password: "new-secret-9", password_confirmation: "new-secret-9" }
+
+    assert token.reload.revoked?
+    assert_nil PersonalAccessToken.authenticate(token.token)
+    assert_empty @user.personal_access_tokens.active
+    assert_equal others, PersonalAccessToken.where.not(user: @user).active.count, "only that user's tokens"
+  end
+
   test "update confirms the email address, since the link reached the inbox" do
     @user.update!(email_verified_at: nil)
     put password_path, params: { token: @user.password_reset_token, password: "new-secret-9", password_confirmation: "new-secret-9" }
