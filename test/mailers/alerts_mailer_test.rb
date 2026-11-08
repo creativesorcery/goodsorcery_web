@@ -237,7 +237,31 @@ class AlertsMailerTest < ActionMailer::TestCase
     assert_emails(1) { AlertsMailer.monitor_down(@user, uptime_incidents(:storefront_api_outage)).deliver_now }
   end
 
+  test "slack_disabled tells an owner why Slack alerts stopped, never naming the webhook URL" do
+    mail = slack_disabled_mail
+    text = [ mail.subject, mail.html_part.body.to_s, mail.text_part.body.to_s, *mail.header_fields.map(&:to_s) ].join("\n")
+
+    assert_equal [ @user.email_address ], mail.to
+    assert_equal "Slack alerts for billing-api were turned off because Slack rejected the webhook", mail.subject
+    assert_includes mail.text_part.body.to_s, "the channel no longer exists"
+    assert_includes mail.html_part.body.to_s, "http://example.com/projects/billing-api/alerts"
+    assert_not_includes text, "BillingRejectedSecret"
+    assert_not_includes text, "hooks.slack.com"
+  end
+
+  test "slack_disabled goes to verified owners only, while the connection is still off" do
+    assert_emails(0) { slack_disabled_mail(users(:jo)).deliver_now } # a member, not an owner
+    assert_emails(0) { slack_disabled_mail(@user, projects(:storefront)).deliver_now } # connected
+
+    users(:philip).update_columns(email_verified_at: nil)
+    assert_emails(0) { slack_disabled_mail(users(:philip).reload).deliver_now }
+  end
+
   private
+    def slack_disabled_mail(user = @user, project = projects(:billing))
+      AlertsMailer.slack_disabled(user, project)
+    end
+
     def assert_no_captured_data(mail)
       content = [ mail.subject, mail.html_part.body.to_s, mail.text_part.body.to_s, *mail.header_fields.map(&:to_s) ].join("\n")
       CAPTURED.each { |text| assert_not_includes content, text }

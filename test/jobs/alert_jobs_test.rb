@@ -16,6 +16,24 @@ class AlertJobsTest < ActiveJob::TestCase
     assert_equal 2, AlertDelivery.where(issue:, kind: "regression").count
   end
 
+  test "IssueAlertJob looks the triggering occurrence up once for email and Slack" do
+    issue, occurrence_id = issues(:regressed), occurrences(:regressed_latest).id
+
+    assert_queries_match(/FROM "occurrences"/, count: 1) do
+      IssueAlertJob.perform_now(issue.id, "regression", occurrence_id)
+    end
+    assert_equal 1, SlackDelivery.where(issue:, kind: "regression").count
+  end
+
+  test "IssueAlertJob doesn't look the occurrence up when the rule is off" do
+    projects(:storefront).alert_rules.find_by!(kind: "regression").update!(enabled: false)
+    issue_id, occurrence_id = issues(:regressed).id, occurrences(:regressed_latest).id
+
+    assert_no_queries_match(/FROM "occurrences"/) do
+      IssueAlertJob.perform_now(issue_id, "regression", occurrence_id)
+    end
+  end
+
   test "IssueAlertJob does nothing for an issue that no longer exists" do
     assert_no_enqueued_emails { IssueAlertJob.perform_now(0, "new_issue") }
   end

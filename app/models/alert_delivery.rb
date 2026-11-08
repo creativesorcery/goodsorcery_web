@@ -14,9 +14,10 @@
 # user per hour ("and N more alerts", AlertSummary) covers them and sets
 # `summarized_at`. Digests, summaries and uptime alerts don't count towards
 # the cap. Uptime alerts are recorded with .record (never .claim), so they are
-# always sent and never folded.
+# always sent and never folded. slack_disabled rows throttle the email to the
+# owners when Slack rejects an app's webhook (SlackConnection, §11.5).
 class AlertDelivery < ApplicationRecord
-  KINDS = [ *AlertRule::KINDS, "summary" ].freeze
+  KINDS = [ *AlertRule::KINDS, "summary", "slack_disabled" ].freeze
   HOURLY_CAP = 20
   STILL_HAPPENING_WINDOW = 6.hours
   # Every key's window is shorter, and new_issue/reached_production can't
@@ -80,6 +81,11 @@ class AlertDelivery < ApplicationRecord
     # Once per incident of an uptime monitor: one down and one recovered email.
     def incident_key(kind, incident)
       "#{kind}:#{incident.id}"
+    end
+
+    # One "Slack alerts were turned off" email per owner, app and UTC day.
+    def slack_disabled_key(project, at = Time.current)
+      "slack_disabled:#{project.id}:#{at.to_i / 1.day.to_i}"
     end
 
     # One overflow summary per user per clock hour.

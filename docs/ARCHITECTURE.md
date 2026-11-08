@@ -675,6 +675,11 @@ Rails.application.routes.draw do
       resource :bulk_triage, only: :create
       resource :alerts, only: %i[show update]                  # Settings › Alerts (§11)
       resources :alert_rules, only: :update, param: :kind      # /alert_rules/still_happening
+      resource :slack_connection, only: %i[update destroy] do  # Slack alerts (§11.5)
+        scope module: :slack_connections do
+          resource :test_message, only: :create
+        end
+      end
       resource :notification_preference, only: :update        # the member's own switches
       resources :api_keys, only: %i[show create] do
         scope module: :api_keys do
@@ -748,6 +753,8 @@ Shared (slice A):
 | `Issues::NotesController` | F | create | turbo_stream prepends the activity item and resets the form |
 | `Projects::AlertsController` | Alerts A | show, update | Settings › Alerts (§11.3). `update` saves `alert_scope` and `alert_selected_environments` only; 422 re-renders with the error |
 | `Projects::AlertRulesController` | Alerts A | update | one rule by kind (`@project.alert_rules`, unknown kind 404): `enabled` and/or `threshold`; redirects to Settings › Alerts, 422 re-renders it with the threshold error |
+| `Projects::SlackConnectionsController` | Slack | update, destroy | §11.5: `update` connects or replaces the webhook URL and/or sets `enabled` (`slack_connection[webhook_url, enabled]`); 422 re-renders Settings › Alerts without echoing the URL; `destroy` disconnects. Any member |
+| `Projects::SlackConnections::TestMessagesController` | Slack | create | rate limited per user (5/min) and per connection (`claim_test_message`, 30 s); enqueues `SlackTestMessageJob(connection_id)`; no connection is a 404 |
 | `NotificationsController` | Alerts A | show | the signed-in member's switches per app of `Current.account` (§11.3), fixed query count |
 | `Projects::NotificationPreferencesController` | Alerts A | update | `alerts_muted` / `digest_enabled` for `Current.user`'s membership; doesn't touch `session[:last_project_id]` |
 | `AlertMutesController` | Alerts A | show, create | unauthenticated, `layout "auth"`, rate-limited 30/min per IP. Any browser (`any_browser_allowed?`, §4.2). Token → `AlertMute`, else 404 "This link no longer works". `show` confirms (never mutes, so link scanners are harmless); `create` mutes and renders 200 (RFC 8058). `skip_forgery_protection only: :create`: mail providers POST without a CSRF token, and no cookie is involved; the token is the credential |
@@ -1207,7 +1214,7 @@ Never edit a file you don't own. If you need a change in another slice's file, r
 
 ## 11. Email alerts (approved 2026-10-11)
 
-Built in two slices. **Slice A** (data model and UI, §11.1–§11.3) and **slice B** (ingest triggers, jobs, `AlertsMailer`, sidekiq-cron, §11.4) are both done.
+Built in two slices. **Slice A** (data model and UI, §11.1–§11.3) and **slice B** (ingest triggers, jobs, `AlertsMailer`, sidekiq-cron, §11.4) are both done. Slack alerts (§11.5) were added on 2026-11-08.
 
 ### 11.1 Rules, scope and recipients
 
@@ -1288,6 +1295,71 @@ SendAlertSummariesJob (hourly, :02) ──► AlertSummary#deliver ─► summar
 **Jobs and schedule.** `IssueAlertJob`, `CheckStillHappeningJob`, `SendDailyDigestsJob` and `SendAlertSummariesJob` run on the `alerts` queue (`config/sidekiq.yml` weight 2); the emails go through `mailers`. `config/schedule.yml` (sidekiq-cron, UTC): `check_still_happening` `*/5 * * * *`, `send_daily_digests` `0 * * * *`, `send_alert_summaries` `2 * * * *`.
 
 **Cost.** Per instant alert: the rule, scope and issue checks (2–3 queries), one recipients query, then per recipient a short transaction (advisory lock, cap count on `[user_id, status, created_at]`, insert). The sweep is one grouped query plus one throttle query every 5 minutes, and one EXISTS per app that has hot issues. The digest run is one recipients query per app with the rule on, per hour, and two issue queries only when someone is at 09:00.
+
+### 11.5 Slack alerts (approved 2026-11-08)
+
+Each app can post its alerts to one Slack channel through an incoming webhook that a member pastes in Settings › Alerts. Slack follows the app's email rules and environment scope exactly: new issue, regression, reached production, still happening, monitor down and recovered. There is no daily digest in Slack. Each event gets one post, not one per recipient, and it doesn't depend on anyone's email switches.
+
+**Schema** (migrations `20261108000001` and `20261108000002`).
+- `slack_connections`: `project_id` (unique, FK cascade), `webhook_url` text NOT NULL (**encrypted**), `enabled` boolean default true, `disabled_at` / `disabled_reason` (set when Slack rejects the webhook; the reason is Slack's error code from `SlackWebhook::REJECTION_CODES` or `http_404`/`http_410`, never response text or the URL), `test_sent_at`, timestamps. `Project has_one :slack_connection`; `project.slack_alerts_enabled?`.
+- `connected_by_user_id` (FK nullify) and `connected_at` record who pasted the URL and when (`SlackConnection#paste_webhook_url`). `connected_at` is stamped on every paste, the saved URL again included, and on any other URL change. It also marks which URL a rejection belongs to (see Delivery).
+- `slack_deliveries` is the Slack counterpart of `alert_deliveries`, keyed per app. Columns: `project_id`, `issue_id` / `uptime_incident_id` (nullable, FK cascade), `kind` (the instant and uptime kinds plus `summary`), `dedupe_key`, `status` (`sent`/`folded`, check constraint), `summary_counts` jsonb (summary rows: `{ kind => count }`), `posted_at`, `summarized_at` and `created_at`.
+- Its indexes: unique `[project_id, dedupe_key]`; `[project_id, status, created_at]` for the cap count; `[issue_id, kind, created_at]` for the still_happening throttle; the partial `index_slack_deliveries_awaiting_summary`; `created_at` for pruning. Rows hold ids, kinds, keys and counts only.
+- Pruned with `alert_deliveries` after `AlertDelivery::KEPT_FOR` (`Ingest::Retention#prune_slack_deliveries`), keeping an open incident's down row for its recovered post.
+
+**Decision** (no new trigger points, no ingest queries). `IssueAlertJob` runs `IssueAlert#deliver` (email) and then `SlackIssueAlert#post_later`; `UptimeAlertJob` runs `UptimeAlert#deliver` and then `SlackUptimeAlert#post_later`. `Ingest::Processor#flag_alerts` is unchanged (`alert_flags_test.rb` still pins 12 statements, with storefront's Slack connection on, and asserts no `slack` table is touched).
+- `SlackIssueAlert#due?`: an enabled connection, the rule on (`AlertRule::INSTANT_KINDS` only), the issue unresolved, the scope covering the triggering occurrence's environment (`IssueAlert::TriggeringEnvironments`, which `IssueAlertJob` shares with `IssueAlert`: the occurrence is looked up at most once, and not at all when neither channel gets that far), and for still_happening no Slack post for the issue in the last 6 hours (`SlackDelivery.posted_recently?`). `#post_later` then calls `SlackDelivery.claim`, and enqueues `SlackPostJob(delivery_id)` only for a `sent` row.
+- `SlackUptimeAlert#due?`: an enabled connection, the rule on, the incident open (down) or resolved (recovered); recovered also needs this incident's Slack down row, unless the down rule is off (as for email). Recorded with `SlackDelivery.record`, never `.claim`: uptime posts skip the cap.
+- **Still-happening sweep.** `StillHappeningCheck` treats each channel separately. An issue is enqueued while it is due on either channel: not emailed in the window and the app has recipients, or not posted in the window and the app's Slack is on. It is dropped only when both are done, so an app whose members all muted email but which posts to Slack still gets its job. The Slack row starts the Slack throttle, so there is still no job every sweep. Issues emailed in the window are narrowed in SQL to apps with Slack on (`slack_due`) before any issue is loaded, so throttled issues of apps without Slack cost no row loads.
+
+**Throttle and cap.**
+- Keys are `"slack:" + AlertDelivery.issue_key / incident_key / summary_key` (`SlackDelivery.dedupe_key`), inserted `ON CONFLICT DO NOTHING`, so retries, duplicate jobs and repeated sweeps never post twice.
+- `SlackDelivery::HOURLY_CAP` allows 30 issue-alert posts per app per hour. `claim` counts under a per-app `pg_advisory_xact_lock(4712, hashint8(project_id))` inside `uncached`, and over the cap it records the row as `folded`.
+- `SlackSummary.post_due` runs from `SendAlertSummariesJob` at :02, after `AlertSummary`. For each app with folded rows from before the hour, it records one `summary` row with the counts per kind, marks the folded rows `summarized_at`, and enqueues the post ("And N more alerts in <app> in the last hour", `SlackMessage::Summary`).
+
+**Delivery.** `SlackPostJob(slack_delivery_id)` (queue `alerts`) calls `SlackPost#deliver`, which checks again at send time:
+- the connection still exists and is enabled;
+- the row isn't posted yet;
+- the alert still qualifies: `SlackIssueAlert#still_due?` (the rule on, the issue unresolved, the scope covering any of the issue's environments), `SlackUptimeAlert#still_due?`, and summaries always.
+
+`SlackWebhook#post`:
+- Net::HTTP via `UptimeProbe::Connection` (caps every byte read), with `verify_mode` PEER, a 5 s connect, 10 s read and write timeout, a 20 s `Timeout` backstop, no proxy from ENV, `max_retries = 0`, and redirects never followed (a 3xx is a failure). At most 4 KB of the body is kept. It refuses any URL outside `SlackConnection::WEBHOOK_URL`.
+- 2xx sets `posted_at`.
+- 429 calls `retry_job(wait: Retry-After)`: an integer clamped to 1..900 s, else 60 s.
+- 5xx or a network error retries with backoff: 30 s, 2 min, 10 min, 30 min. At most `SlackPostJob::MAX_ATTEMPTS` (5) posts in all.
+- 404, 410, or a 4xx whose body is in `REJECTION_CODES` (`invalid_token`, `action_prohibited`, `channel_not_found`, `channel_is_archived`, `no_service`, `no_team`, `team_disabled`, …) calls `SlackConnection#turn_off_after_rejection(reason)`.
+  - One atomic `UPDATE … WHERE disabled_at IS NULL AND connected_at = <as loaded before the post>` sets `enabled = false`, `disabled_at` and `disabled_reason`. If the URL was replaced or pasted again during the post, or the connection was deleted, nothing changes and nothing is mailed.
+  - Only the call that wins mails each verified owner: `AlertsMailer.slack_disabled`, "Slack alerts for <app> were turned off because Slack rejected the webhook". Its send-time checks: the connection is still rejected and the recipient is still a verified owner.
+  - That email is throttled per owner and app to once per UTC day through `alert_deliveries` (kind `slack_disabled`, `AlertDelivery.slack_disabled_key`). Switching back on, re-pasting, or disconnecting and reconnecting clear the rejection but not the throttle, so a member can't make "Send test message" mail the owners over and over.
+- Any other 4xx (such as `invalid_payload`) is dropped without a retry.
+- Logs: `SlackPostJob delivery=<id> kind=<kind> outcome=<outcome> status=<HTTP status or error class>`. Never the URL, and never an exception message.
+
+**Message** (`SlackMessage::IssueAlert`, `UptimeAlert`, `Summary`, `TestMessage`): Block Kit `blocks` plus a plain `text` fallback (≤ 400 chars).
+- Issue alerts carry:
+  - the kind label and the app;
+  - the redacted title (`message`, else `exception_class`, ≤ 300 chars);
+  - environments, and events and users;
+  - the last hour against the threshold (still_happening only);
+  - first and last seen as `<!date^…>` tokens, shown in each reader's own zone with a UTC fallback;
+  - an "Open GS-1042" button.
+- Uptime alerts carry the monitor's name and host, the cause, since or back up, the interval, and an "Open monitor" button. Never the monitor URL.
+- Links come from `config.action_mailer.default_url_options`, which is `GOODSORCERY_PUBLIC_URL` in production.
+- Captured data never appears: no occurrence payloads, params, headers, backtraces, culprit, transaction or user identities.
+- Every dynamic string is escaped (`&`, `<`, `>` become entities), so nothing can form a link, mention or `<!channel>`. Every mrkdwn text object is `verbatim: true`.
+
+**Screen** (Settings › Alerts, the last panel, `projects/alerts/_slack`):
+- The heading has a status chip: Connected (mint), Off (muted), or Turned off by Slack (coral). A rejected connection also shows "Turned off because Slack rejected the webhook on <date>: <reason in words>".
+- A connected app shows "Post alerts to Slack" with only the masked URL (`masked_webhook_url`: the first 4 characters of the team and bot ids, then `••••••••`) and an `aria-pressed` switch. Next to it are "Send test message", "Disconnect" (with a Turbo confirm) and when the last test was sent.
+- Under the masked URL: "Connected by <name> on <date>" (from the saved row), with "(no longer a member of this account)" when that user has left, so owners can tell whose channel receives the alerts.
+- Below is the webhook URL form: "Connect Slack" before connecting, "Replace" after. The field is `value: nil`, so it never echoes a URL, even after a rejected submit. Errors don't repeat the value either. Pasting always reconnects: it switches posting on and clears a rejection, even when it is the URL already saved ("That webhook URL is the one already saved. Slack alerts are on."). A rejected paste changes nothing else.
+- A `<details>` "How to get a webhook URL" (open until connected) gives the four steps and links to https://api.slack.com/messaging/webhooks.
+- Who can change it follows the rest of Settings › Alerts: any account member. Outsiders get 404.
+
+**Security.**
+- The webhook URL is the credential. It is encrypted at rest and decrypted only to post and to build the mask.
+- It never appears in job arguments (ids only), Redis, `Rails.cache`, broadcasts, logs (request params are filtered by `:url`; client errors are logged by class), validation or exception messages, `slack_deliveries`, emails or other pages.
+- Validation accepts only `https://hooks.slack.com/services/T…/B…/<alphanumeric secret>`. No other host or lookalike, no userinfo, port, query, fragment, trailing path or encoded characters.
+- Fixtures: storefront's URL carries `SlackFixtureSecret`. Tests assert it never reaches the raw column, job arguments, logs, rendered pages or emails.
 
 
 ---

@@ -40,6 +40,28 @@ class AlertsSystemTest < ApplicationSystemTestCase
     assert_equal [ "staging" ], @project.reload.alert_environments
   end
 
+  test "connecting Slack, sending a test message and switching it off" do
+    marketing = projects(:marketing)
+    visit_connected project_alerts_path(marketing)
+    assert_selector "#slack details[open]", text: "Add New Webhook to Workspace"
+
+    type_into find_field("Webhook URL"), "https://hooks.slack.com/services/T024BE7LD/B01ABCDEF2G/SystemTestSecret0123456"
+    press find_button("Connect Slack")
+
+    assert_text "Slack connected."
+    assert_selector "#slack .chip", text: "Connected"
+    assert_selector "#slack_connection", text: "T024…/B01A…/••••••••"
+    assert_no_text "SystemTestSecret"
+
+    press find_button("Send test message")
+    assert_text "Sending a test message to Slack."
+
+    press find("#slack button.toggle[aria-label='Slack alerts']")
+    assert_text "Slack alerts turned off."
+    assert_selector "#slack .chip", text: "Off"
+    assert_not marketing.reload.slack_connection.enabled?
+  end
+
   test "muting an app from the Notifications page in the user menu" do
     visit_connected projects_path
     user_menu = find("aside [data-controller=dropdown]", text: users(:philip).name)

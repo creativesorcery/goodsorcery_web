@@ -41,6 +41,25 @@ module AlertsHelper
     safe_join [ "Follow the default environment", " (", default ? environment_text(default) : "all environments", ")" ]
   end
 
+  SLACK_STATUS_CHIPS = { "connected" => [ "Connected", :mint ], "off" => [ "Off", :muted ], "rejected" => [ "Turned off by Slack", :coral ] }.freeze
+
+  # The Slack section's status: connected, off, or turned off because Slack rejected the webhook.
+  def slack_status_chip(connection)
+    label, tone = SLACK_STATUS_CHIPS.fetch(connection.status)
+    chip label, tone:, small: true
+  end
+
+  # "Connected by Jo on Nov 8, 2026", from the saved connection (not a
+  # rejected paste), flagging someone who has left the account, so owners can
+  # tell whose Slack channel receives the alerts. Nil when nobody is recorded.
+  def slack_connected_by(connection)
+    user = User.find_by(id: connection.connected_by_user_id_in_database)
+    return unless user
+
+    left = " (no longer a member of this account)" unless user.memberships.exists?(account_id: connection.project.account_id)
+    "Connected by #{user.name} on #{connection.connected_at_in_database.in_time_zone.strftime('%b %-d, %Y')}#{left}"
+  end
+
   def alert_mute_subject(alert_mute)
     MUTE_SUBJECTS.fetch(alert_mute.stream)
   end

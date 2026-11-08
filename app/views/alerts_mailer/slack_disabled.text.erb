@@ -1,0 +1,10 @@
+<%# Plain text: values are output raw, since HTML escaping would show up literally. Never the webhook URL. -%>
+<% content_for :footer, raw("You're receiving this because you're an owner of #{@project.account.name}, and #{@project.name} posted alerts to Slack.\nNotification settings: #{notifications_url}") -%>
+Slack alerts for <%= raw @project.name %> were turned off
+
+Slack rejected the webhook on <%= alert_time(@connection.disabled_at) %>: <%= @connection.rejection_label %>. Good Sorcery stopped posting this app's alerts to Slack. Email alerts carry on as before.
+
+To turn Slack alerts back on, paste a new incoming webhook URL under Settings › Alerts.
+
+Open alert settings:
+<%= @alerts_url %>

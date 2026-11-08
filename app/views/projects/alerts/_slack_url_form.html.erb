@@ -1,0 +1,16 @@
+<%# locals: (project:, connection:) -%>
+<%# value: nil: the URL (a credential) is never written back into the page, even after a rejected submit. -%>
+<% invalid = connection.errors[:webhook_url].any? %>
+<%= form_with model: connection, url: project_slack_connection_path(project), method: :patch, class: "space-y-2" do |form| %>
+  <%= form.label :webhook_url, connection.persisted? ? "Replace the webhook URL" : "Webhook URL", class: "label" %>
+  <div class="flex flex-wrap items-start gap-2">
+    <%= form.url_field :webhook_url, value: nil, class: [ "field font-mono flex-1 min-w-[16rem]", ("border-coral-500" if invalid) ],
+          required: true, maxlength: 200, autocomplete: "off", spellcheck: false, placeholder: "https://hooks.slack.com/services/T…/B…/…",
+          aria: { invalid: (invalid ? "true" : nil), describedby: [ ("slack_webhook_url_error" if invalid), "slack_webhook_url_hint" ].compact.join(" ") } %>
+    <%= form.submit connection.persisted? ? "Replace" : "Connect Slack", class: "btn btn-primary" %>
+  </div>
+  <% if invalid %>
+    <p id="slack_webhook_url_error" class="hint text-coral-300" role="alert">Webhook URL <%= connection.errors[:webhook_url].to_sentence %>.</p>
+  <% end %>
+  <p id="slack_webhook_url_hint" class="hint">A Slack incoming webhook URL. Kept encrypted; only its start is shown here.</p>
+<% end %>
