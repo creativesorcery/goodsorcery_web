@@ -5,7 +5,10 @@
 # request (an N+1 query, a tax API call, a render and an enqueue).
 #
 #   bin/send_test_apm [API_KEY] [HOST]
-#   GOODSORCERY_API_KEY=gs_test_... GOODSORCERY_HOST=http://localhost:3000 bin/send_test_apm
+#   GOODSORCERY_API_KEY=gs_test_... GOODSORCERY_ENDPOINT=http://localhost:3000 bin/send_test_apm
+#
+# The server is ARGV[1], else GOODSORCERY_ENDPOINT (the gem's setting), else
+# GOODSORCERY_HOST (older name, still read), else http://localhost:3000.
 #
 # Options (ENV): BATCH_ID (reuse to test idempotency: counted once), GZIP=1
 # (gzip the bodies), MINUTES=N (1-5 closed minutes in one metrics payload),
@@ -28,8 +31,8 @@ rescue LoadError
 end
 
 api_key = ARGV[0] || ENV["GOODSORCERY_API_KEY"]
-host = ARGV[1] || ENV.fetch("GOODSORCERY_HOST", "http://localhost:3000")
-abort "usage: bin/send_test_apm API_KEY [HOST]  (or set GOODSORCERY_API_KEY / GOODSORCERY_HOST)" if api_key.to_s.empty?
+host = ARGV[1] || ENV["GOODSORCERY_ENDPOINT"] || ENV["GOODSORCERY_HOST"] || "http://localhost:3000"
+abort "usage: bin/send_test_apm API_KEY [HOST]  (or set GOODSORCERY_API_KEY / GOODSORCERY_ENDPOINT)" if api_key.to_s.empty?
 
 slow = ENV["SLOW"] == "1" ? 10 : 1
 now = Time.now.utc

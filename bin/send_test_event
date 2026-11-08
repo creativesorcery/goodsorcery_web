@@ -2,7 +2,10 @@
 # Posts a realistic sample error event to a Good Sorcery ingest endpoint.
 #
 #   bin/send_test_event [API_KEY] [HOST]
-#   GOODSORCERY_API_KEY=gs_test_... GOODSORCERY_HOST=http://localhost:3000 bin/send_test_event
+#   GOODSORCERY_API_KEY=gs_test_... GOODSORCERY_ENDPOINT=http://localhost:3000 bin/send_test_event
+#
+# The server is ARGV[1], else GOODSORCERY_ENDPOINT (the gem's setting), else
+# GOODSORCERY_HOST (older name, still read), else http://localhost:3000.
 #
 # Options (ENV): EVENT_ID (reuse to test idempotency), GZIP=1 (gzip the body),
 # EXCEPTION_CLASS (vary to create a different issue), BATCH=N (send N copies
@@ -18,7 +21,7 @@ require "time"
 require "uri"
 require "zlib"
 
-# Picks up GOODSORCERY_API_KEY / GOODSORCERY_HOST from .env when the dotenv gem is installed.
+# Picks up GOODSORCERY_API_KEY / GOODSORCERY_ENDPOINT from .env when the dotenv gem is installed.
 begin
   require "bundler/setup"
   require "dotenv/load"
@@ -27,8 +30,8 @@ rescue LoadError
 end
 
 api_key = ARGV[0] || ENV["GOODSORCERY_API_KEY"]
-host = ARGV[1] || ENV.fetch("GOODSORCERY_HOST", "http://localhost:3000")
-abort "usage: bin/send_test_event API_KEY [HOST]  (or set GOODSORCERY_API_KEY / GOODSORCERY_HOST)" if api_key.to_s.empty?
+host = ARGV[1] || ENV["GOODSORCERY_ENDPOINT"] || ENV["GOODSORCERY_HOST"] || "http://localhost:3000"
+abort "usage: bin/send_test_event API_KEY [HOST]  (or set GOODSORCERY_API_KEY / GOODSORCERY_ENDPOINT)" if api_key.to_s.empty?
 
 now = Time.now.utc
 at = ->(seconds_ago) { (now - seconds_ago).iso8601(3) }

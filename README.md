@@ -115,8 +115,10 @@ GZIP=1 bin/send_test_event YOUR_API_KEY                          # gzipped body
 JOB=1 bin/send_test_event YOUR_API_KEY                           # an error from a background job (Job tab)
 ```
 
-Script variables: `GOODSORCERY_API_KEY` and `GOODSORCERY_HOST` (default
-`http://localhost:3000`) replace the arguments. `EVENT_ID` sets the event id
+Script variables: `GOODSORCERY_API_KEY` and `GOODSORCERY_ENDPOINT` (the same
+variable the gem reads; `GOODSORCERY_HOST` is still accepted as a fallback;
+default `http://localhost:3000`) replace the arguments. `bin/send_test_apm`
+reads the same variables. `EVENT_ID` sets the event id
 (the same id twice is counted once), `EXCEPTION_CLASS` sets the class, and
 `GZIP=1` compresses the body. Test events overwrite the project's runtime label
 with your local Ruby/Rails versions, and they use up issue numbers.
