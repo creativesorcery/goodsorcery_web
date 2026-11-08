@@ -136,6 +136,11 @@ only `main`. Then add:
 | variable | `GOODSORCERY_MAIL_FROM` | optional: the sender, e.g. `Good Sorcery <no-reply@example.com>`; defaults to `no-reply@GOODSORCERY_HOST` |
 | variable | `GOODSORCERY_ENABLE_SIGNUPS` | optional: `1` keeps public sign-up open after the first account; unset or anything else closes it |
 | variable | `KAMAL_SSH_USER` | optional: the server user Kamal logs in as, if not `deploy` |
+| variable | `GOODSORCERY_HOSTED` | optional: `1` turns on hosted mode (entitlements and "Upgrade to unlock"); unset is self-hosted. After switching, run `goodsorcery:fit_uptime_monitors` (see below) |
+| variable | `GOODSORCERY_APM_RETENTION_DAYS` | optional, self-hosted only: days of performance data to keep, 1–30 (default 30) |
+| variable | `GOODSORCERY_UPGRADE_URL` | optional, hosted only: where "Upgrade to unlock" links to |
+| variable | `GOODSORCERY_ENDPOINT` | optional: where this instance's gem reports its own errors and performance data; defaults to `https://app.goodsorcery.com` |
+| variable | `GOODSORCERY_PERFORMANCE_MONITORING` | optional: `0` turns off performance monitoring of this instance (on by default, with `GOODSORCERY_API_KEY` set and a gem version that supports it) |
 
 The registry login uses the workflow's own `GITHUB_TOKEN`, so there's no
 registry secret. `CLOUDFLARE_TUNNEL_TOKEN` stays out of GitHub: only the

@@ -210,6 +210,8 @@ Every variable below is read by the app's code or config.
 | `GOODSORCERY_UPTIME_ALLOW_PRIVATE_ADDRESSES` | no | off | `1` lets uptime checks reach loopback and private addresses, for testing monitors against a local server in development. Ignored in production, where checks always refuse private, loopback, link-local and cloud-metadata addresses. |
 | `POSTMARK_API_TOKEN` | to send mail through Postmark | none | A Postmark **server** API token. When set, mail (password resets) is delivered through Postmark's API. Without it, configure SMTP instead (see "Email"). |
 | `GOODSORCERY_API_KEY` | no | none | Ingest key the `goodsorcery` gem uses to report this app's own errors (`config/initializers/goodsorcery.rb`). Unset, nothing is sent. |
+| `GOODSORCERY_ENDPOINT` | no | `https://app.goodsorcery.com` | Where the gem sends this app's own errors and performance data. |
+| `GOODSORCERY_PERFORMANCE_MONITORING` | no | on | `0`/`false`/`no`/`off` turns off the gem's performance monitoring of this app. Has no effect on gem versions without it. |
 | `GOODSORCERY_MAIL_FROM` | no | `Good Sorcery <no-reply@HOST>`, with HOST taken from the public URL | Sender address for password-reset emails. |
 | `GOODSORCERY_DOCS_URL` | no | the project's GitHub `docs/` folder | Target of the sidebar's Docs link. |
 | `SECRET_KEY_BASE_DUMMY` | build only | none | Set by the Dockerfile during `assets:precompile`, so the build needs no secrets or public URL. Never set it at runtime. |
