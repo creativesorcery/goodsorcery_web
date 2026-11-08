@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8">
     <title>Browser not supported (406) — Good Sorcery</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <meta name="robots" content="noindex, nofollow">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="icon" href="/icon.png" type="image/png">
     <!-- Static page (public/406-unsupported-browser.html): its styles are here because the app's stylesheet has a digested name. -->
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; }
-      html { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; }
+      html { -webkit-text-size-adjust: 100%; }
       body {
         min-height: 100dvh;
         display: grid;
@@ -58,7 +58,6 @@
       }
       a:hover { background: #dcdefd; }
     </style>
-    <script src="/zoom-lock.js" defer></script>
   </head>
   <body>
     <main>

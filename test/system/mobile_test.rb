@@ -86,6 +86,15 @@ class MobileSystemTest < ApplicationSystemTestCase
     assert sizes.all? { |size| size >= 16 }, "field font sizes: #{sizes.inspect}"
   end
 
+  test "pinch-zoom stays available" do
+    viewport = page.evaluate_script(%(document.querySelector("meta[name=viewport]").content))
+    assert_no_match(/maximum-scale|user-scalable/, viewport)
+    assert_equal "auto", page.evaluate_script("getComputedStyle(document.documentElement).touchAction")
+    Dir[Rails.root.join("public/*.html")].each do |file|
+      assert_no_match(/maximum-scale|user-scalable|touch-action/, File.read(file), File.basename(file))
+    end
+  end
+
   test "a row checkbox takes taps around it, not the issue link under them" do
     hits = page.evaluate_script(<<~JS)
       (() => {

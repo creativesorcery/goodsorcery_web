@@ -69,9 +69,9 @@
 }
 
 @layer base {
-  /* No pinch-zoom (the user asked for it; the viewport meta says the same):
-     pan-x pan-y leaves panning and scrolling but drops pinch and double-tap zoom. */
-  html { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  /* Pinch-zoom stays on (the user's call); only iOS's auto-zoom on field focus
+     is prevented, by the 16px field rule. */
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
   /* viewport-fit=cover: keep content clear of the notch in landscape */
   body {
