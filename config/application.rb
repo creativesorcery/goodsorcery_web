@@ -1,6 +1,16 @@
 require_relative "boot"
 
-require "rails/all"
+# Only the frameworks in use: no Active Storage, Action Mailbox or Action Text,
+# whose engines would mount unauthenticated /rails/active_storage/* and
+# /rails/action_mailbox/* endpoints.
+require "rails"
+require "active_record/railtie"
+require "active_job/railtie"
+require "action_controller/railtie"
+require "action_view/railtie"
+require "action_mailer/railtie"
+require "action_cable/engine"
+require "rails/test_unit/railtie"
 require_relative "../lib/middleware/ingest_body_shield"
 require_relative "../lib/configuration/public_url"
 require_relative "../lib/configuration/http_url"
