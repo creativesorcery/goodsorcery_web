@@ -70,7 +70,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_select "a[href=?]", new_project_uptime_monitor_path(@project), count: 0
-    assert_select ".chip", "3 of 1 monitor used", "acme counts the monitors of all its apps"
+    assert_select ".chip", "2 of 1 monitor used", "the limit counts this app's monitors only"
     assert_select "a[href=?][target=_blank]", "https://billing.example/upgrade", text: "Upgrade to unlock"
   end
 
@@ -115,7 +115,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "turbo-frame##{dom_id(@monitor, :row)}" do
       assert_select ".chip-muted", "Paused"
-      assert_select "p", /Over this account's monitor limit\.\s*Upgrade to unlock/
+      assert_select "p", /Over this app's monitor limit\.\s*Upgrade to unlock/
     end
   end
 
@@ -124,7 +124,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
 
     with_hosted_mode { with_upgrade_url(nil) { get project_uptime_monitor_path(@project, @monitor) } }
 
-    assert_select "p", "Over this account's monitor limit."
+    assert_select "p", "Over this app's monitor limit."
     assert_no_match "Upgrade", response.body
   end
 
@@ -262,7 +262,8 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
     with_hosted_mode { with_upgrade_url { get new_project_uptime_monitor_path(@project) } }
 
     assert_response :success
-    assert_select "#uptime_monitor_limit h2", "This account has reached its limit of 1 monitor."
+    assert_select "#uptime_monitor_limit h2", "This app has reached its limit of 1 monitor."
+    assert_select "#uptime_monitor_limit p", "Each app in Acme Labs can have 1 monitor."
     assert_select "#uptime_monitor_limit a[href=?]", "https://billing.example/upgrade", text: "Upgrade to unlock"
     assert_select "form[action=?]", project_uptime_monitors_path(@project), count: 0
   end
@@ -313,21 +314,38 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ @project, "pending", nil ], [ monitor.project, monitor.status, monitor.paused_at ]
   end
 
-  test "hosted, a crafted create over the account's limit is rejected" do
+  test "hosted, a crafted create over the app's limit is rejected" do
     with_hosted_mode do
       assert_no_difference -> { UptimeMonitor.count } do
-        with_upgrade_url { post project_uptime_monitors_path(projects(:marketing)), params: { uptime_monitor: { url: "https://shop.example/" } } }
+        with_upgrade_url { post project_uptime_monitors_path(@project), params: { uptime_monitor: { url: "https://shop.example/" } } }
       end
     end
 
     assert_response :unprocessable_entity
-    assert_select "#uptime_monitor_limit h2", "This account has reached its limit of 1 monitor."
+    assert_select "#uptime_monitor_limit h2", "This app has reached its limit of 1 monitor."
+  end
+
+  test "hosted, the limit is per app: another app of the same account can still add a monitor" do
+    marketing = projects(:marketing)
+
+    with_hosted_mode do
+      get project_uptime_monitors_path(marketing)
+      assert_select "a[href=?]", new_project_uptime_monitor_path(marketing), text: /Add a monitor/
+
+      assert_difference -> { marketing.uptime_monitors.count } do
+        post project_uptime_monitors_path(marketing), params: { uptime_monitor: { url: "https://shop.example/" } }
+      end
+
+      get project_uptime_monitors_path(marketing)
+      assert_select "a[href=?]", new_project_uptime_monitor_path(marketing), count: 0
+      assert_select "span[aria-disabled=true]", "Cannot add more yet, but it's coming soon"
+    end
   end
 
   test "hosted without an upgrade URL, a crafted create over the limit says coming soon" do
     with_hosted_mode do
       assert_no_difference -> { UptimeMonitor.count } do
-        with_upgrade_url(nil) { post project_uptime_monitors_path(projects(:marketing)), params: { uptime_monitor: { url: "https://shop.example/" } } }
+        with_upgrade_url(nil) { post project_uptime_monitors_path(@project), params: { uptime_monitor: { url: "https://shop.example/" } } }
       end
     end
 

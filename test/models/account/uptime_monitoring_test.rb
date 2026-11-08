@@ -10,8 +10,15 @@ class Account::UptimeMonitoringTest < ActiveSupport::TestCase
     @third = add_monitor("Third", 60)
   end
 
-  def add_monitor(name, interval)
-    with_hosted_mode(false) { projects(:umbrella_app).uptime_monitors.create!(name:, url: "https://#{name.downcase}.example/", interval_minutes: interval) }
+  def add_monitor(name, interval, project: projects(:umbrella_app))
+    with_hosted_mode(false) { project.uptime_monitors.create!(name:, url: "https://#{name.downcase.tr(' ', '-')}.example/", interval_minutes: interval) }
+  end
+
+  def count_queries(&block)
+    count = 0
+    counter = ->(*, payload) { count += 1 unless payload[:name] == "SCHEMA" || payload[:cached] }
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record", &block)
+    count
   end
 
   test "uptime_monitors spans every app of the account" do
@@ -20,12 +27,43 @@ class Account::UptimeMonitoringTest < ActiveSupport::TestCase
     assert_equal 3, @account.uptime_monitors.count
   end
 
-  test "monitor_limit_reached? counts the whole account" do
-    with_hosted_mode do
-      assert @account.monitor_limit_reached?
-      assert accounts(:acme).monitor_limit_reached?
+  test "the limit is per app: each app keeps its own oldest monitors running" do
+    other_app = with_hosted_mode(false) { @account.projects.create!(name: "Umbrella API") }
+    first, newer = %w[First Newer].map { |name| add_monitor(name, 10, project: other_app) }
+
+    with_hosted_mode { @account.update_entitlements!("max_monitors" => 1) }
+
+    assert_equal [ false, true, true ], [ @site, @second, @third ].map { it.reload.paused? }
+    assert_equal [ false, true ], [ first, newer ].map { it.reload.paused? }, "the other app keeps its own oldest"
+
+    with_hosted_mode { @account.update_entitlements!("max_monitors" => 2) }
+
+    assert_equal [ false, false, true ], [ @site, @second, @third ].map { it.reload.paused? }
+    assert_equal [ false, false ], [ first, newer ].map { it.reload.paused? }
+  end
+
+  test "deleting a monitor frees a place in its own app only" do
+    other_app = with_hosted_mode(false) { @account.projects.create!(name: "Umbrella API") }
+    other = add_monitor("Other", 10, project: other_app)
+    with_hosted_mode { @account.update_entitlements!("max_monitors" => 1) }
+
+    with_hosted_mode { other.destroy! }
+
+    assert_equal [ false, true, true ], [ @site, @second, @third ].map { it.reload.paused? }
+  end
+
+  test "fitting the count runs a fixed number of statements however many apps and monitors" do
+    with_hosted_mode { @account.update_entitlements!("max_monitors" => 1) }
+    few = count_queries { with_hosted_mode { @account.fit_uptime_monitors_to_entitlements } }
+
+    3.times do |i|
+      app = with_hosted_mode(false) { @account.projects.create!(name: "Extra #{i}") }
+      2.times { |n| add_monitor("Extra #{i}-#{n}", 10, project: app) }
     end
-    with_hosted_mode(false) { assert_not @account.monitor_limit_reached? }
+    many = count_queries { with_hosted_mode { @account.fit_uptime_monitors_to_entitlements } }
+
+    assert_equal few, many
+    assert_equal 4, @account.uptime_monitors.active.count, "one running monitor per app"
   end
 
   test "a downgrade moves disallowed intervals and pauses the newest monitors over the limit" do

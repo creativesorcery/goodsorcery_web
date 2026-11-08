@@ -8,7 +8,8 @@
 #
 # Entitlements are enforced here, so crafted requests can't get past them:
 # the interval must be allowed for the account, and creating counts the
-# monitors of every app in the account (under a lock on the account row).
+# monitors of the same app against max_monitors, a limit per app (under a
+# lock on the account row).
 class UptimeMonitor < ApplicationRecord
   include UptimeMonitor::Checking, UptimeMonitor::Broadcasting, UptimeMonitor::Alerting
 
@@ -54,7 +55,7 @@ class UptimeMonitor < ApplicationRecord
   def self.limit_sentence(max_monitors)
     return "Uptime monitors aren't included in this account." if max_monitors.zero?
 
-    "This account has reached its limit of #{max_monitors} #{'monitor'.pluralize(max_monitors)}."
+    "This app has reached its limit of #{max_monitors} #{'monitor'.pluralize(max_monitors)}."
   end
 
   def paused? = paused_at.present?
@@ -99,11 +100,12 @@ class UptimeMonitor < ApplicationRecord
 
     # Validations run inside save's transaction, so the account row lock
     # serialises concurrent creates and the count sees committed monitors.
+    # The account row rather than the project's, which ingest updates.
     def within_monitor_limit
       return if project.nil? || entitlements.max_monitors.nil?
 
       Account.where(id: project.account_id).lock("FOR NO KEY UPDATE").pick(:id)
-      count = self.class.uncached { project.account.uptime_monitors.count }
+      count = self.class.uncached { self.class.where(project_id: project.id).count }
       return unless entitlements.monitor_limit_reached?(count)
 
       errors.add(:base, self.class.limit_message(entitlements.max_monitors))
@@ -113,7 +115,7 @@ class UptimeMonitor < ApplicationRecord
       self.next_check_at = Time.current
     end
 
-    # A deleted monitor frees a place under the account's limit.
+    # A deleted monitor frees a place under its app's limit.
     def refit_account
       project.account.fit_uptime_monitors_to_entitlements
     end

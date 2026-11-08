@@ -1,11 +1,11 @@
 require "test_helper"
 
-# Concurrent creates against the account's monitor limit, each thread on its
+# Concurrent creates against the monitor limit (per app), each thread on its
 # own connection. Runs outside a test transaction so each create commits.
 class UptimeMonitor::ConcurrentCreateTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
-  THREADS = 4
+  THREADS = 6
   LIMIT = 2
 
   setup do
@@ -19,11 +19,11 @@ class UptimeMonitor::ConcurrentCreateTest < ActiveSupport::TestCase
     Account.where(id: @account.id).delete_all
   end
 
-  test "concurrent creates never exceed the account's monitor limit" do
+  test "concurrent creates never exceed any app's monitor limit" do
     results = with_hosted_mode { create_concurrently }
 
-    assert_equal LIMIT, results.count(true)
-    assert_equal LIMIT, UptimeMonitor.where(project_id: @projects.map(&:id)).count
+    assert_equal LIMIT * @projects.size, results.count(true)
+    @projects.each { |project| assert_equal LIMIT, UptimeMonitor.where(project_id: project.id).count }
   end
 
   private

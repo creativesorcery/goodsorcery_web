@@ -1297,10 +1297,10 @@ This section is the binding blueprint for the uptime build. It comes in four sli
 ### 12.0 Decisions (binding)
 
 - goodsorcery_web never knows about plan tiers. The words "free", "premium" or any tier name never appear in code, config, copy or tests. It stores entitlement **values** per account and nothing else.
-- Entitlements are account-level. `max_monitors` counts the monitors of every app in the account.
+- Entitlements are stored per account, but `max_monitors` is a limit **per app**: each app of the account may have that many uptime monitors (changed from per account on 2026-11-07).
 - **Hosted mode** is `GOODSORCERY_HOSTED`, read once at boot into `config.x.hosted`.
   - **Self-hosted** (the default, switch off): every entitlement is unlimited, meaning all four intervals and no monitor cap. Stored values are ignored, and the UI never shows a locked option or "Upgrade to unlock".
-  - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]` and `max_monitors: 1`.
+  - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]` and `max_monitors: 1` (one monitor per app).
 - Entitlements are enforced in model validations, so a crafted POST can't get past them, and they are also reflected in the views.
 - Locked options say **"Upgrade to unlock"**, linking to `GOODSORCERY_UPGRADE_URL` (`config.x.upgrade_url`), when that is set. When it isn't, no upgrade text renders anywhere: locked options stay visible, greyed out and unselectable, titled **"Coming soon"** (a native hover tooltip, on a span rather than a disabled button so every browser shows it), and an add button at a limit becomes the greyed-out sentence "Cannot add more yet, but it's coming soon" (for apps: "Cannot add more apps yet, but it's coming soon"). `UpgradeOffer` is the one place that decides between the two (approved 2026-11-07).
 - **Monitors** belong to an app (project), and every lookup is scoped through `Current.account`.
@@ -1340,7 +1340,7 @@ The column is `entitlement_values`, not `entitlements`, so the column reader doe
 | last_http_status | integer | true | | |
 | last_error_kind | string | true | | `UptimeCheck::ERROR_KINDS` |
 | down_since | datetime | true | | Set when the monitor goes down and cleared on recovery |
-| paused_at | datetime | true | | Set only by `fit_uptime_monitors_to_entitlements` (§12.3) when the account is over its monitor limit. The scheduler skips paused monitors |
+| paused_at | datetime | true | | Set only by `fit_uptime_monitors_to_entitlements` (§12.3) when its app is over the monitor limit. The scheduler skips paused monitors |
 | timestamps | | | | |
 
 Indexes: `[project_id, name]`, and the partial `index_uptime_monitors_due` on `[next_check_at] WHERE paused_at IS NULL`, which is the scheduler's only access path.
@@ -1405,7 +1405,7 @@ config.x.uptime.allow_private_addresses = ENV["GOODSORCERY_UPTIME_ALLOW_PRIVATE_
 shared:
   hosted_defaults:
     uptime_intervals: [10, 60]
-    max_monitors: 1
+    max_monitors: 1        # per app
 ```
 
 `ApplicationHelper#hosted?` returns `Rails.configuration.x.hosted`. Existing tests that set `ENV["GOODSORCERY_HOSTED"]` switch to the `with_hosted_mode` test helper.
@@ -1427,8 +1427,8 @@ entitlements.allows_uptime_interval?(5)      # true/false
 entitlements.locked_uptime_intervals         # UPTIME_INTERVALS - uptime_intervals ([] when self-hosted)
 entitlements.default_uptime_interval         # 10 if allowed, else the smallest allowed above 10, else the largest allowed
 entitlements.nearest_uptime_interval(1)      # smallest allowed >= minutes, else the largest allowed (used by fitting)
-entitlements.max_monitors                    # Integer, or nil for no cap
-entitlements.monitor_limit_reached?(count)   # false when max_monitors is nil
+entitlements.max_monitors                    # Integer (monitors per app), or nil for no cap
+entitlements.monitor_limit_reached?(count)   # count is one app's monitors; false when max_monitors is nil
 entitlements.monitors_left(count)            # nil when uncapped, else [max - count, 0].max
 Entitlements.problems(values)                # => [] or whole-sentence messages, for Account validation
 ```
@@ -1475,7 +1475,7 @@ A separate private billing app will **push** values to goodsorcery_web. Nothing 
 `Account::UptimeMonitoring#fit_uptime_monitors_to_entitlements` handles downgrades and upgrades, so lowering stored values never leaves monitors running outside them.
 
 1. Every monitor whose interval isn't allowed gets `entitlements.nearest_uptime_interval(interval)`, with one `update_all` per distinct interval.
-2. Monitors beyond `max_monitors`, newest first by `id`, get `paused_at`. Paused monitors that fit again, oldest first, are unpaused, with `paused_at` set to nil and `next_check_at` to now.
+2. In each app, monitors beyond `max_monitors`, newest first by `id`, get `paused_at`. Paused monitors that fit again, oldest first, are unpaused, with `paused_at` set to nil and `next_check_at` to now. This is set-based: one subquery ranks every monitor of the account within its app (`ROW_NUMBER() OVER (PARTITION BY project_id ORDER BY id)`, `Account::UptimeMonitoring::APP_RANK_SQL`), and two `update_all`s pause and resume, however many apps and monitors there are.
 
 When self-hosted, the result is all monitors unpaused and intervals left unchanged.
 
@@ -1614,7 +1614,7 @@ The unique partial index makes a second open incident impossible. A monitor whos
     - `url` is present and valid by `UptimeUrl` (`public?`), with the message "must be a public http:// or https:// address". The message never echoes the value.
     - `interval_minutes` is in `INTERVALS`.
     - `validate :interval_entitled` uses `project.account.entitlements.allows_uptime_interval?`, with the message "isn't available on this account". It runs on create, and on update only when `interval_minutes` changed, so fitting and other edits never trip it.
-    - `validate :within_monitor_limit, on: :create` first runs `Account.where(id: project.account_id).lock("FOR NO KEY UPDATE").pick(:id)` (validations run inside `save`'s transaction, so concurrent creates serialise), then checks `entitlements.monitor_limit_reached?(account.uptime_monitors.count)`. The error goes on `:base`: "This account has reached its limit of N monitor(s).", or "Uptime monitors aren't included in this account." for a limit of 0 (`UptimeMonitor.limit_message`).
+    - `validate :within_monitor_limit, on: :create` first runs `Account.where(id: project.account_id).lock("FOR NO KEY UPDATE").pick(:id)` (validations run inside `save`'s transaction, so concurrent creates serialise), then checks `entitlements.monitor_limit_reached?` against the uncached count of the same app's monitors (the limit is per app). The error goes on `:base`: "This app has reached its limit of N monitor(s).", or "Uptime monitors aren't included in this account." for a limit of 0, or "Cannot add more yet, but it's coming soon" without an upgrade URL (`UptimeMonitor.limit_message`).
 - **`UptimeCheck`**: `enum :status` (`up down`), `ERROR_KINDS`, `.error_label`, `scope :recent`, `MAX_KEPT_DAYS = 7`.
 - **`UptimeIncident`**: `scope :open`, `scope :recent`, `#open?`, `#duration` (to `resolved_at` or now), `#cause_label`, `KEPT_FOR = 31.days`.
 - **`UptimeHourlyCount`** answers every one of these queries with a single grouped query, however many monitors there are:
@@ -1658,7 +1658,7 @@ The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_mon
 - There is at most one broadcast per check, so no debounce is needed.
 
 **Presentation objects:**
-- `UptimeOverview.new(monitors, now:)#rows` costs a fixed 3 queries for the list: monitors, `uptime_percentages` and `hourly_bars`. When hosted, the account monitor count (one query, `@account_monitor_count`) feeds the limit chip and `@monitor_limit_reached`.
+- `UptimeOverview.new(monitors, now:)#rows` costs a fixed 3 queries for the list: monitors, `uptime_percentages` and `hourly_bars`. When hosted, the app's monitor count (one query, `@monitor_count`) feeds the limit chip and `@monitor_limit_reached`.
 - `UptimeReport.new(monitor, zone:)` serves the detail page with `#percentages`, `#daily_bars`, `#average_response_ms`, `#response_series`, `#recent_checks` (20), `#incidents` (`incidents.recent.limit(10)` within `KEPT_FOR`) and `#open_incident`.
 
 **Screens** follow the flat pastel theme with existing tokens and component classes (`.panel`, `.chip-*`, `.btn*`, `.segmented`, `.toggle`), server-rendered SVG, no inline styles or scripts, and no new JS beyond the existing Stimulus controllers.
@@ -1669,7 +1669,7 @@ The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_mon
   - When any unpaused monitor of the sidebar project is down, a coral dot badge shows, titled "N down". The count is a correlated subquery (`NavigationHelper::DOWN_MONITORS_SQL`) in the app switcher's existing projects query, so it costs no extra query; `#sidebar_down_monitors_count` falls back to one count when the project isn't in the switcher list.
 - **Uptime index:**
   - Header: eyebrow "<app> · uptime", then "Uptime — N monitors", then an "Add a monitor" `btn-primary`.
-  - When hosted and the limit is reached, the button (here and in the empty state) is replaced by a muted chip with the account's real usage, "3 of 1 monitor used", plus `upgrade_to_unlock` (`_add_button`). With a limit of 0 there is no chip, only the link. Without an upgrade URL it is replaced by the greyed-out "Cannot add more yet, but it's coming soon" (`coming_soon_notice`) and no chip.
+  - When hosted and the limit is reached, the button (here and in the empty state) is replaced by a muted chip with the app's real usage, "2 of 1 monitor used", plus `upgrade_to_unlock` (`_add_button`). With a limit of 0 there is no chip, only the link. Without an upgrade URL it is replaced by the greyed-out "Cannot add more yet, but it's coming soon" (`coming_soon_notice`) and no chip.
   - The table is a `div` grid like the issue rows, with the name link stretched over the row. Columns:
     - a status chip: "Up" mint, "Down" coral with dot plus "for 12 min" (`down_since`), "Pending" muted, "Paused" muted;
     - name with `host` in small mono below;
@@ -1678,7 +1678,7 @@ The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_mon
     - last response time ("212 ms");
     - uptime 24h/7d/30d ("99.93%", "—" for no data);
     - a 24-segment hourly status bar.
-  - A paused row (and the detail hero) adds `uptime_paused_note`: "Over this account's monitor limit. Upgrade to unlock" when hosted (without an upgrade URL just the first sentence), and how to resume with the fit task when self-hosted (§12.3.1).
+  - A paused row (and the detail hero) adds `uptime_paused_note`: "Over this app's monitor limit. Upgrade to unlock" when hosted (without an upgrade URL just the first sentence), and how to resume with the fit task when self-hosted (§12.3.1).
 - **Status bar:** `UptimeHelper#uptime_bar_svg(buckets, height: 22)` is pure SVG built with `tag`, like `ChartHelper`. Each segment has a `<title>` such as "Oct 3, 14:00 · 98.3% up · 60 checks". Colours come from `ChartHelper` constants:
   - no checks: `PAPER` at 0.45 opacity;
   - all up: `MINT`;
@@ -1687,7 +1687,7 @@ The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_mon
 - **Empty state** (`shared/_empty_state`):
   - Title "Watch your app from the outside".
   - Body "Uptime requests a URL of yours every few minutes, from outside your servers, and emails you when it stops answering and again when it's back."
-  - Action "Add a monitor", or, when hosted and the limit is reached (another app may use it up), the same chip and `upgrade_to_unlock` as the header.
+  - Action "Add a monitor", or, when hosted and the limit is reached (a limit of 0), the same chip and `upgrade_to_unlock` as the header.
 - **Detail** (`show`; the hero, ribbon, bars and recent checks sit inside the `dom_id(monitor, :report)` frame):
   - Hero: status chip, name in `font-display`, the full URL in mono (escaped), `interval_label`, and the buttons Check now (`btn-sm`), Edit and Delete.
   - Ribbon: Uptime 24h / 7d / 30d, Avg response 24h, Last check (`clock_label` · ago), and then by state "Paused since", "Status: Not checked yet" (pending), "Down since" or "Up since" (the last incident's `resolved_at`, or the first check).
@@ -1700,7 +1700,7 @@ The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_mon
   - URL: `url_field`, `autocomplete: "off"`, placeholder `https://example.com/up`. The hint says "Kept encrypted. Lists and emails show only the host."
   - Check interval (the label matches the error messages' "Check interval"): a `select` of `INTERVALS` with `INTERVAL_LABELS`, default `entitlements.default_uptime_interval`. Locked intervals are `disabled` options labelled and titled with `locked_note`: "Every minute · Upgrade to unlock", or "Every minute · Coming soon" without an upgrade URL. Below the select, a hint (`uptime_locked_intervals_hint`: "Some intervals aren't available on this account." with `upgrade_to_unlock`, or "Some intervals are coming soon."; `#uptime_monitor_interval_hint`, the select's `aria-describedby`) renders when any interval is locked. This only happens when hosted.
   - Errors are whole sentences in coral, with `aria-invalid`, like Settings › Alerts.
-  - `new`, when the limit is reached, renders a panel "This account has reached its limit of N monitor(s)." with `upgrade_to_unlock` instead of the form, or "Cannot add more yet, but it's coming soon" without an upgrade URL (`UptimeMonitor.limit_message`, also the validation error). `create` is still rejected by validation.
+  - `new`, when the limit is reached, renders a panel "This app has reached its limit of N monitor(s)." ("Each app in <account> can have N monitor(s).") with `upgrade_to_unlock` instead of the form, or "Cannot add more yet, but it's coming soon" without an upgrade URL (`UptimeMonitor.limit_message`, also the validation error). `create` is still rejected by validation.
 
 ### 12.9 Alerts (slice 4)
 

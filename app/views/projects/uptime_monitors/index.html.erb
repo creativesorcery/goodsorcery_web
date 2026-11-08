@@ -12,7 +12,7 @@
       <h1 class="page-title">Uptime <span class="text-ink-400 text-[30px]">— <%= pluralize(@overview.size, "monitor") %></span></h1>
     </div>
     <% unless @overview.empty? %>
-      <%= render "projects/uptime_monitors/add_button", project: @project, limit_reached: @monitor_limit_reached, count: @account_monitor_count %>
+      <%= render "projects/uptime_monitors/add_button", project: @project, limit_reached: @monitor_limit_reached, count: @monitor_count %>
     <% end %>
   </div>
 
@@ -21,7 +21,7 @@
       <%= render "shared/empty_state", title: "Watch your app from the outside",
             body: "Uptime requests a URL of yours every few minutes, from outside your servers, and emails you when it stops answering and again when it's back.",
             action: render("projects/uptime_monitors/add_button", project: @project, limit_reached: @monitor_limit_reached,
-                           count: @account_monitor_count) %>
+                           count: @monitor_count) %>
     </div>
   <% else %>
     <section id="<%= dom_id(@project, :uptime_monitors) %>" class="panel mt-8 overflow-hidden rise rise-1" aria-label="Monitors">

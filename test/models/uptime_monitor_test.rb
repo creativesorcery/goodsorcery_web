@@ -78,35 +78,36 @@ class UptimeMonitorTest < ActiveSupport::TestCase
     end
   end
 
-  test "hosted counts the monitors of every app in the account against the limit" do
+  test "hosted counts only the monitors of the same app against the limit" do
+    second_app = with_hosted_mode(false) { accounts(:umbrella).projects.create!(name: "Umbrella API") }
+
     with_hosted_mode do
-      with_upgrade_url { over_the_limit_after_two }.then do |over|
-        assert_equal [ "This account has reached its limit of 3 monitors." ], over.errors[:base]
-      end
+      2.times { |i| assert build(projects(:umbrella_app), name: "Site #{i}", interval_minutes: 5).save }
+      over = build(projects(:umbrella_app), name: "One too many", interval_minutes: 5)
+      with_upgrade_url { assert_not over.save }
+      assert_equal [ "This app has reached its limit of 3 monitors." ], over.errors[:base]
+
+      3.times { |i| assert build(second_app, name: "API #{i}", interval_minutes: 5).save, "another app has its own 3" }
+      assert_not build(second_app, name: "API 4", interval_minutes: 5).save
     end
+    assert_equal [ 3, 3 ], [ projects(:umbrella_app), second_app ].map { it.uptime_monitors.count }
   end
 
-  def over_the_limit_after_two
-    2.times { |i| assert build(projects(:umbrella_app), name: "Site #{i}", interval_minutes: 5).save }
-    over = build(projects(:umbrella_app), name: "One too many", interval_minutes: 5)
-
-    assert_not over.save
-    assert_equal 3, accounts(:umbrella).uptime_monitors.count
-    over
-  end
-
-  test "hosted defaults apply when the account stores no limit" do
+  test "hosted defaults apply per app when the account stores no limit" do
     with_hosted_mode do
-      monitor = build(projects(:marketing)) # acme already has 3 monitors, over its default of 1
+      monitor = build(projects(:storefront)) # storefront already has 2 monitors, over the default of 1 per app
 
       with_upgrade_url { assert_not monitor.save }
-      assert_equal [ "This account has reached its limit of 1 monitor." ], monitor.errors[:base]
+      assert_equal [ "This app has reached its limit of 1 monitor." ], monitor.errors[:base]
+
+      assert build(projects(:marketing)).save, "marketing, in the same account, has no monitor yet"
+      assert_not build(projects(:marketing), name: "Second").save
     end
   end
 
   test "without an upgrade URL, the limit error says more are coming soon" do
     with_hosted_mode do
-      monitor = build(projects(:marketing))
+      monitor = build(projects(:storefront))
 
       with_upgrade_url(nil) { assert_not monitor.save }
       assert_equal [ "Cannot add more yet, but it's coming soon" ], monitor.errors[:base]

@@ -40,11 +40,11 @@ module UptimeHelper
     end
   end
 
-  # Why a monitor is paused. Only hosted mode pauses monitors (over the
-  # monitor limit); a self-hosted instance that used to be hosted resumes
-  # them with the fit task.
+  # Why a monitor is paused. Only hosted mode pauses monitors (over its
+  # app's monitor limit); a self-hosted instance that used to be hosted
+  # resumes them with the fit task.
   def uptime_paused_note
-    return safe_join([ "Over this account's monitor limit.", upgrade_to_unlock ].compact, " ") unless entitlements.unlimited?
+    return safe_join([ "Over this app's monitor limit.", upgrade_to_unlock ].compact, " ") unless entitlements.unlimited?
 
     safe_join([ "Paused while this instance was hosted. Run", tag.code("bin/rails goodsorcery:fit_uptime_monitors", class: "font-mono"),
                 "to resume it." ], " ")
