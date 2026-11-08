@@ -8,6 +8,14 @@ Built with Rails 8.1, Hotwire (Turbo and Stimulus), Action Cable, Postgres and
 Tailwind. No single-page JavaScript framework, and no Solid Queue, Solid Cache
 or Solid Cable.
 
+## Features
+
+- Error tracking: an ingest API, issues with search and triage, issue pages with backtraces and request data, live updates.
+- Performance monitoring (APM): endpoint and trace pages.
+- Uptime monitors with down and recovered alerts.
+- Alerts by email (per-app rules, environment scope, per-person switches, a daily digest) and to one Slack channel per app
+  through an incoming webhook (the same rules and scope as email; set up under Settings › Alerts).
+
 - `docs/INGEST_API.md` documents the ingest API payload for client authors.
 - `docs/ARCHITECTURE.md` describes the data model, ingest pipeline, privacy model and live updates.
 - `docs/DEPLOYMENT.md` covers the production deploy: Kamal, GitHub Actions and Cloudflare Tunnel.
@@ -186,7 +194,7 @@ Every variable below is read by the app's code or config.
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `SECRET_KEY_BASE` | **yes** | none (**production refuses to boot without it**) | Signs and encrypts cookies and derives the `PrivateDigest` HMAC key. See "Secrets". |
-| `GOODSORCERY_PUBLIC_URL` | **yes** | none (**production refuses to boot without it**) | This instance's public URL, e.g. `https://errors.example.com`. Sets the host and protocol of email links (password resets) and the allowed hosts (`config.hosts`). The setup page's install snippet also shows it as the endpoint. |
+| `GOODSORCERY_PUBLIC_URL` | **yes** | none (**production refuses to boot without it**) | This instance's public URL, e.g. `https://errors.example.com`. Sets the host and protocol of links in emails (password resets, alerts) and Slack alert posts, and the allowed hosts (`config.hosts`). The setup page's install snippet also shows it as the endpoint. |
 | `GOODSORCERY_EXTRA_HOSTS` | no | none | Comma-separated extra hostnames to accept besides the public URL's host. `/up` answers on any host. |
 | `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY` | **yes** | none | Encrypts captured error data, raw inbound events, API key tokens, tag values and notes. |
 | `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | **yes** | none | Deterministic encryption key. |
