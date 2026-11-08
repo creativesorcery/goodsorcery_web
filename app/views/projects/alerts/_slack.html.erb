@@ -26,6 +26,9 @@
         <div class="min-w-0">
           <div class="text-[14px] text-ink-50">Post alerts to Slack</div>
           <p class="text-[12.5px] text-ink-400 mt-0.5 font-mono truncate" title="Webhook URL, secret part hidden"><%= connection.masked_webhook_url %></p>
+          <% if (connected = slack_connected_by(connection)) %>
+            <p id="slack_connected_by" class="text-[12.5px] text-ink-400 mt-0.5"><%= connected %></p>
+          <% end %>
         </div>
         <%= switch_button_to project_slack_connection_path(project), pressed: connection.enabled?,
               params: { "slack_connection[enabled]" => !connection.enabled? }, label: "Slack alerts" %>

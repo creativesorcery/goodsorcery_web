@@ -96,6 +96,69 @@ class SlackConnectionTest < ActiveSupport::TestCase
     assert_equal [ false, Time.current, "channel_not_found" ], connection.reload.values_at(:enabled, :disabled_at, :disabled_reason)
   end
 
+  test "a rejection emails the owners at most once a day, however often it is cleared" do
+    freeze_time
+    connection = slack_connections(:storefront)
+
+    assert_enqueued_emails 1 do
+      assert connection.turn_off_after_rejection("invalid_token")
+      connection.update!(enabled: true) # switched back on: the rejection is cleared
+      assert SlackConnection.find(connection.id).turn_off_after_rejection("invalid_token"), "still turned off again"
+
+      connection.destroy! # disconnected and reconnected: a new row
+      fresh = SlackConnection.new(project: projects(:storefront))
+      assert fresh.paste_webhook_url(VALID, by: users(:jo))
+      assert fresh.turn_off_after_rejection("no_service")
+    end
+    assert_equal "rejected", SlackConnection.find_by!(project: projects(:storefront)).status
+
+    travel 1.day
+    SlackConnection.find_by!(project: projects(:storefront)).update!(enabled: true)
+    assert_enqueued_emails(1) { SlackConnection.find_by!(project: projects(:storefront)).turn_off_after_rejection("no_service") }
+  end
+
+  test "a rejection of a URL replaced meanwhile changes nothing" do
+    in_flight = SlackConnection.find(slack_connections(:storefront).id) # loaded before the post
+    SlackConnection.find(in_flight.id).paste_webhook_url(VALID, by: users(:philip))
+
+    assert_no_enqueued_emails { assert_not in_flight.turn_off_after_rejection("invalid_token") }
+    assert_equal [ VALID, "connected" ], SlackConnection.find(in_flight.id).then { [ it.webhook_url, it.status ] }
+  end
+
+  test "a rejection for a connection deleted meanwhile changes nothing and doesn't raise" do
+    in_flight = SlackConnection.find(slack_connections(:storefront).id)
+    SlackConnection.where(id: in_flight.id).delete_all
+
+    assert_no_enqueued_emails { assert_not in_flight.turn_off_after_rejection("no_service") }
+  end
+
+  test "pasting a URL records who and when, and pasting the saved one again reconnects" do
+    freeze_time
+    billing = slack_connections(:billing) # rejected
+
+    assert billing.paste_webhook_url(billing.webhook_url, by: users(:philip))
+    billing.reload
+    assert_equal [ true, nil, nil, users(:philip), Time.current ],
+                 [ billing.enabled, billing.disabled_at, billing.disabled_reason, billing.connected_by, billing.connected_at ]
+  end
+
+  test "a rejected paste changes nothing else" do
+    billing = slack_connections(:billing)
+
+    assert_not billing.paste_webhook_url("https://example.com/hook", by: users(:jo))
+    assert_predicate billing.errors[:webhook_url], :any?
+    assert_equal [ false, nil, nil ], [ billing.enabled, billing.connected_by, billing.connected_at ]
+    assert_equal "rejected", billing.status
+  end
+
+  test "changing the URL any other way stamps connected_at too" do
+    freeze_time
+    connection = slack_connections(:storefront)
+    connection.update!(webhook_url: VALID)
+
+    assert_equal Time.current, connection.reload.connected_at
+  end
+
   test "owners to notify are verified owners only" do
     users(:philip).update_columns(email_verified_at: nil)
 

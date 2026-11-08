@@ -1300,8 +1300,9 @@ SendAlertSummariesJob (hourly, :02) ──► AlertSummary#deliver ─► summar
 
 Each app can post its alerts to one Slack channel through an incoming webhook that a member pastes in Settings › Alerts. Slack follows the app's email rules and environment scope exactly: new issue, regression, reached production, still happening, monitor down and recovered. There is no daily digest in Slack. Each event gets one post, not one per recipient, and it doesn't depend on anyone's email switches.
 
-**Schema** (migration `20261108000001`).
+**Schema** (migrations `20261108000001` and `20261108000002`).
 - `slack_connections`: `project_id` (unique, FK cascade), `webhook_url` text NOT NULL (**encrypted**), `enabled` boolean default true, `disabled_at` / `disabled_reason` (set when Slack rejects the webhook; the reason is Slack's error code from `SlackWebhook::REJECTION_CODES` or `http_404`/`http_410`, never response text or the URL), `test_sent_at`, timestamps. `Project has_one :slack_connection`; `project.slack_alerts_enabled?`.
+- `connected_by_user_id` (FK nullify) and `connected_at` record who pasted the URL and when (`SlackConnection#paste_webhook_url`). `connected_at` is stamped on every paste, the saved URL again included, and on any other URL change. It also marks which URL a rejection belongs to (see Delivery).
 - `slack_deliveries` is the Slack counterpart of `alert_deliveries`, keyed per app. Columns: `project_id`, `issue_id` / `uptime_incident_id` (nullable, FK cascade), `kind` (the instant and uptime kinds plus `summary`), `dedupe_key`, `status` (`sent`/`folded`, check constraint), `summary_counts` jsonb (summary rows: `{ kind => count }`), `posted_at`, `summarized_at` and `created_at`.
 - Its indexes: unique `[project_id, dedupe_key]`; `[project_id, status, created_at]` for the cap count; `[issue_id, kind, created_at]` for the still_happening throttle; the partial `index_slack_deliveries_awaiting_summary`; `created_at` for pruning. Rows hold ids, kinds, keys and counts only.
 - Pruned with `alert_deliveries` after `AlertDelivery::KEPT_FOR` (`Ingest::Retention#prune_slack_deliveries`), keeping an open incident's down row for its recovered post.
@@ -1327,8 +1328,9 @@ Each app can post its alerts to one Slack channel through an incoming webhook th
 - 429 calls `retry_job(wait: Retry-After)`: an integer clamped to 1..900 s, else 60 s.
 - 5xx or a network error retries with backoff: 30 s, 2 min, 10 min, 30 min. At most `SlackPostJob::MAX_ATTEMPTS` (5) posts in all.
 - 404, 410, or a 4xx whose body is in `REJECTION_CODES` (`invalid_token`, `action_prohibited`, `channel_not_found`, `channel_is_archived`, `no_service`, `no_team`, `team_disabled`, …) calls `SlackConnection#turn_off_after_rejection(reason)`.
-  - One atomic `UPDATE … WHERE disabled_at IS NULL` sets `enabled = false`, `disabled_at` and `disabled_reason`.
+  - One atomic `UPDATE … WHERE disabled_at IS NULL AND connected_at = <as loaded before the post>` sets `enabled = false`, `disabled_at` and `disabled_reason`. If the URL was replaced or pasted again during the post, or the connection was deleted, nothing changes and nothing is mailed.
   - Only the call that wins mails each verified owner: `AlertsMailer.slack_disabled`, "Slack alerts for <app> were turned off because Slack rejected the webhook". Its send-time checks: the connection is still rejected and the recipient is still a verified owner.
+  - That email is throttled per owner and app to once per UTC day through `alert_deliveries` (kind `slack_disabled`, `AlertDelivery.slack_disabled_key`). Switching back on, re-pasting, or disconnecting and reconnecting clear the rejection but not the throttle, so a member can't make "Send test message" mail the owners over and over.
 - Any other 4xx (such as `invalid_payload`) is dropped without a retry.
 - Logs: `SlackPostJob delivery=<id> kind=<kind> outcome=<outcome> status=<HTTP status or error class>`. Never the URL, and never an exception message.
 
@@ -1348,7 +1350,8 @@ Each app can post its alerts to one Slack channel through an incoming webhook th
 **Screen** (Settings › Alerts, the last panel, `projects/alerts/_slack`):
 - The heading has a status chip: Connected (mint), Off (muted), or Turned off by Slack (coral). A rejected connection also shows "Turned off because Slack rejected the webhook on <date>: <reason in words>".
 - A connected app shows "Post alerts to Slack" with only the masked URL (`masked_webhook_url`: the first 4 characters of the team and bot ids, then `••••••••`) and an `aria-pressed` switch. Next to it are "Send test message", "Disconnect" (with a Turbo confirm) and when the last test was sent.
-- Below is the webhook URL form: "Connect Slack" before connecting, "Replace" after. The field is `value: nil`, so it never echoes a URL, even after a rejected submit. Errors don't repeat the value either.
+- Under the masked URL: "Connected by <name> on <date>" (from the saved row), with "(no longer a member of this account)" when that user has left, so owners can tell whose channel receives the alerts.
+- Below is the webhook URL form: "Connect Slack" before connecting, "Replace" after. The field is `value: nil`, so it never echoes a URL, even after a rejected submit. Errors don't repeat the value either. Pasting always reconnects: it switches posting on and clears a rejection, even when it is the URL already saved ("That webhook URL is the one already saved. Slack alerts are on."). A rejected paste changes nothing else.
 - A `<details>` "How to get a webhook URL" (open until connected) gives the four steps and links to https://api.slack.com/messaging/webhooks.
 - Who can change it follows the rest of Settings › Alerts: any account member. Outsiders get 404.
 

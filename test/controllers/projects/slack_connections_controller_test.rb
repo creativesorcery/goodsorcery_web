@@ -29,6 +29,16 @@ class Projects::SlackConnectionsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "BillingRejectedSecret"
   end
 
+  test "shows who connected the webhook and when, and flags someone who left the account" do
+    connected_at = slack_connections(:storefront).connected_at.in_time_zone(users(:philip).time_zone)
+    get project_alerts_path(@project)
+    assert_select "#slack_connected_by", "Connected by #{users(:jo).name} on #{connected_at.strftime('%b %-d, %Y')}"
+
+    memberships(:jo_acme).destroy!
+    get project_alerts_path(@project)
+    assert_select "#slack_connected_by", /\(no longer a member of this account\)/
+  end
+
   test "an app without Slack shows the connect form with the help open" do
     get project_alerts_path(projects(:marketing))
 
@@ -52,7 +62,7 @@ class Projects::SlackConnectionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to project_alerts_path(projects(:marketing), anchor: "slack")
     assert_equal "Slack connected. Send a test message to check the channel.", flash[:notice]
     connection = projects(:marketing).reload.slack_connection
-    assert_equal [ NEW_URL, true ], connection.values_at(:webhook_url, :enabled)
+    assert_equal [ NEW_URL, true, users(:philip) ], [ *connection.values_at(:webhook_url, :enabled), connection.connected_by ]
   end
 
   test "rejects a URL that isn't a Slack webhook, without echoing it back" do
@@ -81,6 +91,24 @@ class Projects::SlackConnectionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "Slack webhook URL replaced.", flash[:notice]
     assert_equal [ NEW_URL, true, nil ], slack_connections(:billing).reload.values_at(:webhook_url, :enabled, :disabled_at)
+  end
+
+  test "pasting the saved URL again turns a rejected connection back on" do
+    sign_in_as users(:jo)
+    billing = slack_connections(:billing)
+
+    patch project_slack_connection_path(projects(:billing)), params: { slack_connection: { webhook_url: billing.webhook_url } }
+
+    assert_equal "That webhook URL is the one already saved. Slack alerts are on.", flash[:notice]
+    assert_equal [ "connected", users(:jo) ], billing.reload.then { [ it.status, it.connected_by ] }
+  end
+
+  test "a rejected paste on a rejected connection still shows it rejected" do
+    patch project_slack_connection_path(projects(:billing)), params: { slack_connection: { webhook_url: "https://hooks.slack.com/x" } }
+
+    assert_response :unprocessable_entity
+    assert_select "#slack .chip", "Turned off by Slack"
+    assert_select "#slack button.toggle[aria-pressed=false]"
   end
 
   test "switches posting off and on" do

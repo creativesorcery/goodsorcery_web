@@ -10,6 +10,7 @@
 # messages, or slack_deliveries.
 #
 #   connection.status                       # => "connected", "off" or "rejected"
+#   connection.paste_webhook_url(url, by: Current.user)   # => true, or false with errors
 #   connection.turn_off_after_rejection("channel_not_found")
 #   connection.claim_test_message           # => true at most once per TEST_MESSAGE_GAP
 class SlackConnection < ApplicationRecord
@@ -32,6 +33,7 @@ class SlackConnection < ApplicationRecord
   }.freeze
 
   belongs_to :project, inverse_of: :slack_connection
+  belongs_to :connected_by, class_name: "User", foreign_key: :connected_by_user_id, optional: true
 
   encrypts :webhook_url
 
@@ -42,8 +44,11 @@ class SlackConnection < ApplicationRecord
   validates :project_id, uniqueness: true
   validate :webhook_url_from_slack
 
-  # A new URL is a fresh start, and switching back on clears the rejection.
-  before_save :reconnect, if: -> { webhook_url_changed? || (enabled_changed? && enabled?) }
+  # A pasted URL (a new one, or the saved one again) is a fresh start, and
+  # switching back on clears the rejection. connected_at marks which URL a
+  # rejection belongs to (#turn_off_after_rejection).
+  before_save :stamp_connected_at, if: :webhook_url_changed?
+  before_save :reconnect, if: -> { connected_at_changed? || (enabled_changed? && enabled?) }
 
   # Slack turned the webhook down (and so did we): disabled_at and the reason are kept.
   def rejected? = !enabled? && disabled_at.present?
@@ -64,14 +69,35 @@ class SlackConnection < ApplicationRecord
     "https://hooks.slack.com/services/#{team.to_s.first(4)}…/#{bot.to_s.first(4)}…/••••••••"
   end
 
+  # Saves a pasted URL, the saved one again included: switched on, any
+  # rejection cleared, and who pasted it and when recorded. On a validation
+  # error nothing else changes (the page shows the saved state and the error).
+  def paste_webhook_url(url, by:)
+    assign_attributes(webhook_url: url, enabled: true, connected_by: by, connected_at: Time.current)
+    return true if save
+
+    restore_attributes(%i[enabled connected_by_user_id connected_at])
+    false
+  end
+
   # Turns the connection off because Slack rejected the webhook, recording when
   # and Slack's reason. Returns true only for the call that turned it off (one
-  # atomic UPDATE), so the owners are emailed once however many posts fail.
+  # atomic UPDATE), so a rejection is acted on once however many posts fail.
+  #
+  # Applies only while the URL this record was loaded with is still the saved
+  # one (connected_at unchanged): a post to a URL that was replaced or pasted
+  # again meanwhile can't turn off the replacement. A deleted connection
+  # changes nothing. Owners are emailed at most once a day per app
+  # (#notify_owners_of_rejection), however often a rejection is cleared.
   def turn_off_after_rejection(reason, at: Time.current)
-    turned_off = self.class.where(id:, disabled_at: nil).update_all(enabled: false, disabled_at: at, disabled_reason: reason, updated_at: at) == 1
-    reload
-    notify_owners_of_rejection if turned_off
-    turned_off
+    turned_off = self.class.where(id:, disabled_at: nil, connected_at:)
+      .update_all(enabled: false, disabled_at: at, disabled_reason: reason, updated_at: at) == 1
+    return false unless turned_off
+
+    assign_attributes(enabled: false, disabled_at: at, disabled_reason: reason, updated_at: at)
+    clear_attribute_changes(%i[enabled disabled_at disabled_reason updated_at])
+    notify_owners_of_rejection(at)
+    true
   end
 
   # One test message per TEST_MESSAGE_GAP per connection, whoever asks
@@ -96,8 +122,20 @@ class SlackConnection < ApplicationRecord
       errors.add(:webhook_url, URL_MESSAGE) unless WEBHOOK_URL.match?(webhook_url)
     end
 
-    def notify_owners_of_rejection
-      owners_to_notify.each { |user| AlertsMailer.slack_disabled(user, project).deliver_later }
+    # Throttled per owner and app through alert_deliveries (one key per UTC
+    # day), so neither switching back on nor disconnecting and reconnecting
+    # can make a rejection email the owners again the same day.
+    def notify_owners_of_rejection(at)
+      dedupe_key = AlertDelivery.slack_disabled_key(project, at)
+      owners_to_notify.each do |user|
+        next unless AlertDelivery.record(user:, project:, kind: :slack_disabled, dedupe_key:)
+
+        AlertsMailer.slack_disabled(user, project).deliver_later
+      end
+    end
+
+    def stamp_connected_at
+      self.connected_at = Time.current unless connected_at_changed?
     end
 
     def reconnect

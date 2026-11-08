@@ -73,6 +73,49 @@ class SlackPostJobTest < ActiveJob::TestCase
     assert_no_enqueued_jobs only: SlackPostJob
   end
 
+  test "a rejection for a URL replaced during the post leaves the replacement on" do
+    new_url = "https://hooks.slack.com/services/T024BE7LD/B01ABCDEF2G/ReplacementSecret1234567"
+    connection, jo = slack_connections(:storefront), users(:jo)
+
+    assert_no_enqueued_emails do
+      with_fake_slack(slack_result(:rejected, 404, reason: "no_service")) do |slack|
+        posting = slack.method(:post)
+        slack.define_singleton_method(:post) do |payload|
+          SlackConnection.find(connection.id).paste_webhook_url(new_url, by: jo)
+          posting.call(payload)
+        end
+        SlackPostJob.perform_now(@delivery.id)
+      end
+    end
+    assert_equal [ new_url, "connected" ], connection.reload.then { [ it.webhook_url, it.status ] }
+  end
+
+  test "a rejection after the connection was deleted during the post finishes quietly" do
+    connection_id = slack_connections(:storefront).id
+    with_fake_slack(slack_result(:rejected, 404, reason: "no_service")) do |slack|
+      posting = slack.method(:post)
+      slack.define_singleton_method(:post) do |payload|
+        SlackConnection.where(id: connection_id).delete_all
+        posting.call(payload)
+      end
+      assert_nothing_raised { SlackPostJob.perform_now(@delivery.id) }
+    end
+    assert_no_enqueued_emails
+    assert_no_enqueued_jobs only: SlackPostJob
+  end
+
+  test "test messages to a rejected webhook switched back on email the owners once a day" do
+    connection = slack_connections(:storefront)
+
+    assert_enqueued_emails 1 do
+      3.times do
+        with_fake_slack(slack_result(:rejected, 403, reason: "invalid_token")) { SlackTestMessageJob.perform_now(connection.id) }
+        assert_equal "rejected", connection.reload.status
+        connection.update!(enabled: true)
+      end
+    end
+  end
+
   test "another 4xx drops the post without retrying or turning Slack off" do
     with_fake_slack(slack_result(:failed, 400)) { SlackPostJob.perform_now(@delivery.id) }
 
