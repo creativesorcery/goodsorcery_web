@@ -82,7 +82,7 @@ module PerformanceHelper
 
   # Web: "POST /checkout"; jobs: "sidekiq · critical · waits 0.8 s (p95)".
   def apm_route_line(transaction, queue_wait_ms: nil)
-    return transaction.route_label if transaction.web?
+    return apm_distinct_route(transaction) if transaction.web?
 
     wait = queue_wait_ms && "waits #{apm_duration(queue_wait_ms)} (p95)"
     [ transaction.adapter, transaction.queue, wait ].compact_blank.join(" · ").presence
@@ -90,7 +90,7 @@ module PerformanceHelper
 
   # "POST /checkout • app/controllers/checkouts_controller.rb" under an endpoint's name.
   def apm_source_line(transaction)
-    first = transaction.web? ? transaction.route_label : [ transaction.adapter, transaction.queue ].compact_blank.join(" · ")
+    first = transaction.web? ? apm_distinct_route(transaction) : [ transaction.adapter, transaction.queue ].compact_blank.join(" · ")
     [ first.presence, transaction.source_file.presence ].compact
   end
 
@@ -163,6 +163,13 @@ module PerformanceHelper
   end
 
   private
+    # The route label, unless the client already named the transaction after it
+    # ("POST /checkout" twice says nothing new).
+    def apm_distinct_route(transaction)
+      label = transaction.route_label
+      label unless label == transaction.name
+    end
+
     def apm_value_parts(format, value)
       case format
       when :duration then apm_duration_parts(value)

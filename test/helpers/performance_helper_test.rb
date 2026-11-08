@@ -45,6 +45,15 @@ class PerformanceHelperTest < ActionView::TestCase
     assert_equal [ "POST /checkout", "app/controllers/checkouts_controller.rb" ], apm_source_line(apm_transactions(:checkout_create))
   end
 
+  test "a transaction named after its route shows the route once" do
+    transaction = apm_transactions(:checkout_create)
+    transaction.name = "POST /checkout"
+    transaction.source_file = nil
+
+    assert_nil apm_route_line(transaction)
+    assert_equal [], apm_source_line(transaction)
+  end
+
   test "status labels for requests and jobs" do
     assert_equal "200 OK", apm_status_label(apm_traces(:checkout_slow))
     assert_equal "500", apm_status_code(apm_traces(:checkout_failed))
