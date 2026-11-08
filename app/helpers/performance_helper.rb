@@ -7,9 +7,19 @@ module PerformanceHelper
   SPAN_TYPES = { "sql" => "SQL", "http" => "HTTP", "view" => "View", "enqueue" => "Job" }.freeze
   RANGE_SHORT = { "15m" => "15m", "1h" => "1h", "1d" => "24h", "7d" => "7d", "30d" => "30d" }.freeze
   SORT_LABELS = { "time" => "Time consumed", "p95" => "Slowest p95", "rate" => "Most requests", "failed" => "Most failed" }.freeze
-  TABLE_GRID = "grid grid-cols-[minmax(280px,1fr)_76px_76px_76px_76px_76px_64px_150px_120px] items-center gap-4".freeze
-  TRACE_GRID = "grid grid-cols-[130px_84px_84px_64px_128px_minmax(0,1fr)_64px] items-center gap-4".freeze
-  TIMELINE_GRID = "grid grid-cols-[minmax(0,380px)_minmax(0,1fr)_72px] items-center gap-4".freeze
+  # Below md each table row is a card: the name, then its figures on one line
+  # (MOBILE_ONLY), with the column cells hidden (DESKTOP_CELL). From md the
+  # tables scroll sideways inside their panel.
+  TABLE_GRID = "grid grid-cols-1 md:grid-cols-[minmax(280px,1fr)_76px_76px_76px_76px_76px_64px_150px_140px] " \
+    "items-center gap-x-4 gap-y-1 md:gap-4".freeze
+  TRACE_GRID = "grid grid-cols-[minmax(0,1fr)_auto_auto_auto] md:grid-cols-[130px_84px_84px_64px_128px_minmax(0,1fr)_64px] " \
+    "items-center gap-x-3 gap-y-1 md:gap-4".freeze
+  # Phones put a span's label on its own line, with the bar and time under it.
+  TIMELINE_GRID = "grid grid-cols-[minmax(0,1fr)_64px] md:grid-cols-[minmax(0,380px)_minmax(0,1fr)_72px] " \
+    "items-center gap-x-4 gap-y-1.5 md:gap-4".freeze
+  TIMELINE_LABEL = "max-md:col-span-2".freeze
+  DESKTOP_CELL = "max-md:hidden".freeze
+  MOBILE_ONLY = "md:hidden".freeze
 
   # 0.4 → "0.4 ms", 412 → "412 ms", 1240 → "1.24 s", 3200 → "3.2 s"; nil → "—".
   def apm_duration(ms)

@@ -1,8 +1,8 @@
 <%# locals: (project:, overview:) -%>
-<div class="flex flex-wrap items-end justify-between gap-6 rise">
+<div class="page-header rise">
   <div>
     <div class="eyebrow"><%= project.name %> · <%= overview.environment %></div>
-    <h1 class="page-title">Performance <span class="text-ink-400 text-[28px]">— <%= overview.range.label %></span></h1>
+    <h1 class="page-title">Performance <span class="text-ink-400 text-[22px] sm:text-[28px]">— <%= overview.range.label %></span></h1>
   </div>
   <div class="flex flex-wrap items-center gap-2">
     <%= render "projects/performance/environment_menu", selection: overview.selection,

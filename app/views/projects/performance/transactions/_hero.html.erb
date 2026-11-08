@@ -2,11 +2,11 @@
 <div class="flex flex-wrap items-start justify-between gap-6 rise">
   <div class="min-w-0">
     <div class="eyebrow"><%= transaction.web? ? "Web request" : "Background job" %> · <%= transaction.environment %></div>
-    <h1 class="mt-2 font-mono text-[30px] leading-[1.15] font-semibold text-ink-50 break-all"><%= transaction.name %></h1>
+    <h1 class="mt-2 font-mono text-[19px] sm:text-[30px] leading-[1.15] font-semibold text-ink-50 break-words"><%= transaction.name %></h1>
     <div class="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-2 font-mono text-[13px] text-ink-200">
       <% apm_source_line(transaction).each_with_index do |part, index| %>
         <% if index.positive? %><span class="text-paper-500" aria-hidden="true">•</span><% end %>
-        <span class="break-all"><%= part %></span>
+        <span class="min-w-0 break-words"><%= part %></span>
       <% end %>
       <% if (ratio = report.slower_ratio) %>
         <% since = report.climbing_since %>

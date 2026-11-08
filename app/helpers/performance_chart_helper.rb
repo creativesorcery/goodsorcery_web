@@ -97,9 +97,15 @@ module PerformanceChartHelper
   # The timeline's axis labels ([[ms, fraction]]) as SVG text.
   def apm_axis_svg(ticks)
     labels = ticks.each_with_index.map do |(ms, fraction), index|
-      tag.text(index.zero? ? "0" : apm_duration(ms), x: apm_percent_attr(fraction), y: 12, "text-anchor": apm_tick_anchor(index, ticks.size))
+      tag.text(index.zero? ? "0" : apm_duration(ms), x: apm_percent_attr(fraction), y: 12, "text-anchor": apm_tick_anchor(index, ticks.size),
+        class: apm_tick_visibility(index, ticks.size))
     end
     tag.svg safe_join(labels), width: "100%", height: 16, class: "block overflow-visible fill-ink-400 font-mono text-[11px] normal-case tracking-normal", "aria-hidden": true
+  end
+
+  # Phones (the timeline's narrow axis) keep every other tick label, and the last.
+  def apm_tick_visibility(index, count)
+    "max-md:hidden" if index.odd? && index < count - 1
   end
 
   # A 10px legend square in a layer's colour.

@@ -1,6 +1,6 @@
 <%# locals: (span:, web:) -%>
 <% call_site = span.call_site %>
-<section id="span-detail" class="panel p-5 rise rise-3" aria-labelledby="apm_span_heading">
+<section id="span-detail" class="panel p-4 sm:p-5 rise rise-3" aria-labelledby="apm_span_heading">
   <div class="flex flex-wrap items-center gap-2.5">
     <h2 id="apm_span_heading" class="text-[15px] font-semibold text-ink-50">One query, run <%= pluralize(delimited(span.calls), "time") %></h2>
     <%= chip "N+1", tone: :lilac, small: true %>
@@ -20,14 +20,17 @@
 
   <% if call_site&.file.present? %>
     <p class="mt-5 text-[12.5px] text-ink-200">
-      Called from <span class="font-mono text-ink-50"><%= call_site.location %></span><% if call_site.method_name.present? %> in <span class="font-mono text-ink-50"><%= call_site.method_name %></span><% end %>
+      Called from <span class="font-mono text-ink-50 break-words"><%= call_site.location %></span><% if call_site.method_name.present? %> in <span class="font-mono text-ink-50"><%= call_site.method_name %></span><% end %>
     </p>
     <% if call_site.lines.any? %>
       <div class="code mt-2 overflow-x-auto rounded-xl border border-paper-700 bg-paper-950 py-2">
+        <%# min-w-max: every line is as wide as the longest, so the highlight spans the scrolled width. -%>
+        <div class="min-w-max">
         <% call_site.lines.each_with_index do |line, index| %>
           <% number = call_site.start_line.to_i + index %>
           <div class="flex gap-4 px-3.5 <%= number == call_site.line.to_i ? "bg-lilac-400/15 text-ink-50" : "text-ink-100" %>"><span class="w-7 shrink-0 text-right text-ink-400 select-none"><%= number %></span><span><%= line %></span></div>
         <% end %>
+        </div>
       </div>
     <% end %>
   <% end %>

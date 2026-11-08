@@ -1,7 +1,7 @@
 <%# locals: (project:, overview:) -%>
 <% counts = overview.tab_counts %>
 <div class="mt-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-paper-700">
-  <nav class="flex items-center gap-6" role="tablist" aria-label="Transactions">
+  <nav class="tab-strip gap-6" role="tablist" aria-label="Transactions">
     <% { "web" => "Web requests", "jobs" => "Background jobs" }.each do |tab, label| %>
       <%= link_to project_performance_path(project, overview.link_params(tab:, q: nil)), class: "tab", role: "tab",
             aria: { selected: overview.tab == tab }, data: { turbo_prefetch: false } do %>
@@ -10,9 +10,9 @@
     <% end %>
   </nav>
 
-  <div class="flex items-center gap-2 pb-2">
+  <div class="flex items-center gap-2 pb-2 max-sm:w-full">
     <%= form_with url: project_performance_path(project), method: :get, html: { role: "search" },
-          class: "input flex items-center gap-2 rounded-[10px] px-3 py-1.5 w-64" do |form| %>
+          class: "input flex items-center gap-2 rounded-[10px] px-3 py-1.5 flex-1 min-w-0 sm:flex-none sm:w-64" do |form| %>
       <%= icon :search, classes: "w-[15px] h-[15px] text-ink-400" %>
       <% overview.link_params(q: nil).each do |name, value| %>
         <%= hidden_field_tag name, value, id: nil %>

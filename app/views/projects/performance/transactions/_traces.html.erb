@@ -4,7 +4,7 @@
 <% page_path = ->(**overrides) { project_performance_transaction_path(project, transaction, selection.link_params(traces: (list.sort unless list.sort == "slowest"), **overrides)) } %>
 <%= turbo_frame_tag dom_id(transaction, :traces), data: { turbo_action: "advance" } do %>
   <section class="panel mt-4 overflow-hidden" aria-labelledby="apm_traces_heading">
-    <div class="px-5 py-4 flex flex-wrap items-start justify-between gap-4">
+    <div class="px-4 sm:px-5 py-4 flex flex-wrap items-start justify-between gap-4">
       <div>
         <h2 id="apm_traces_heading" class="text-[15px] font-semibold text-ink-50">Slow traces <span class="font-medium text-ink-300">· <%= selection.range.label %></span></h2>
         <p class="mt-1 text-[12px] text-ink-300">We keep the slowest request each minute this hour, and the 3 slowest of each earlier hour.</p>
@@ -17,21 +17,25 @@
       </nav>
     </div>
     <% if list.traces.any? %>
-      <div class="overflow-x-auto">
-        <div class="min-w-[760px]">
-          <div class="<%= PerformanceHelper::TRACE_GRID %> px-5 py-2 text-[11px] uppercase tracking-[.16em] text-ink-400/80 border-y border-paper-700 bg-paper-850/60">
-            <span>Time</span><span class="text-right">Duration</span><span class="text-right">Database</span><span class="text-right">Queries</span>
-            <span class="text-right whitespace-nowrap">External HTTP</span><span>Status</span><span></span>
+      <% cell = PerformanceHelper::DESKTOP_CELL %>
+      <div class="scroll-x">
+        <div class="md:min-w-[760px]">
+          <div class="<%= PerformanceHelper::TRACE_GRID %> px-4 sm:px-5 py-2 text-[11px] uppercase tracking-[.16em] text-ink-400/80 border-y border-paper-700 bg-paper-850/60">
+            <span>Time</span><span class="text-right">Duration</span><span class="<%= cell %> text-right">Database</span><span class="<%= cell %> text-right">Queries</span>
+            <span class="<%= cell %> text-right whitespace-nowrap">External HTTP</span><span>Status</span><span></span>
           </div>
           <% list.traces.each do |trace| %>
             <% issue = list.issue_for(trace) %>
-            <div class="<%= PerformanceHelper::TRACE_GRID %> relative px-5 py-3 border-b border-paper-700/70 last:border-b-0 hover:bg-iris-500/[.04] transition text-[13px]">
-              <span class="font-mono text-ink-100"><%= apm_clock(trace.started_at) %></span>
+            <div class="<%= PerformanceHelper::TRACE_GRID %> relative px-4 sm:px-5 py-3 border-b border-paper-700/70 last:border-b-0 hover:bg-iris-500/[.04] transition text-[13px]">
+              <span class="min-w-0">
+                <span class="block font-mono text-ink-100"><%= apm_clock(trace.started_at) %></span>
+                <span class="<%= PerformanceHelper::MOBILE_ONLY %> block text-[12px] text-ink-300">db <%= apm_duration(trace.db_ms) %> · <%= pluralize(delimited(trace.sql_count), "query") %><%= " · http #{apm_duration(trace.http_ms)}" if trace.http_count.positive? %></span>
+              </span>
               <span class="text-right font-mono font-semibold text-ink-50"><%= apm_duration(trace.duration_ms) %></span>
-              <span class="text-right font-mono text-ink-100"><%= apm_duration(trace.db_ms) %></span>
-              <span class="text-right font-mono text-ink-100"><%= delimited(trace.sql_count) %></span>
-              <span class="text-right font-mono text-ink-100"><%= trace.http_count.positive? ? "#{apm_duration(trace.http_ms)} · #{trace.http_count}" : "—" %></span>
-              <span class="flex flex-wrap items-center gap-1.5">
+              <span class="<%= cell %> text-right font-mono text-ink-100"><%= apm_duration(trace.db_ms) %></span>
+              <span class="<%= cell %> text-right font-mono text-ink-100"><%= delimited(trace.sql_count) %></span>
+              <span class="<%= cell %> text-right font-mono text-ink-100"><%= trace.http_count.positive? ? "#{apm_duration(trace.http_ms)} · #{trace.http_count}" : "—" %></span>
+              <span class="flex flex-wrap items-center gap-1.5 max-md:flex-col max-md:items-end">
                 <span class="chip chip-sm <%= apm_failed_status?(trace) ? "chip-coral" : "chip-mint" %>"><%= apm_status_code(trace) %></span>
                 <% if issue %>
                   <%= link_to issue.short_id, project_issue_path(project, issue), class: "relative z-10 chip chip-sm chip-coral font-mono hover:underline",
@@ -45,7 +49,7 @@
           <% end %>
         </div>
       </div>
-      <div class="px-5 py-3 flex flex-wrap items-center justify-between gap-3 border-t border-paper-700 text-[12.5px] text-ink-300">
+      <div class="px-4 sm:px-5 py-3 flex flex-wrap items-center justify-between gap-3 border-t border-paper-700 text-[12.5px] text-ink-300">
         <span>
           <%= list.first_number == 1 ? delimited(list.last_number) : "#{delimited(list.first_number)}–#{delimited(list.last_number)}" %>
           of <%= pluralize(delimited(list.total), "trace") %> in the <%= selection.range.label %>
