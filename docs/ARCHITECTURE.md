@@ -816,7 +816,7 @@ All dashboard controllers inherit `ApplicationController`. Feature controllers `
       end
   end
   ```
-  The signature stops tampering, and the membership check also rejects stale signed names after a user loses access. `ApplicationCable::Connection` (A, from the generator) identifies `current_user` from the signed `session_id` cookie and rejects anonymous connections.
+  The signature stops tampering, and the membership check also rejects stale signed names after a user loses access. The stock `Turbo::StreamsChannel` accepts the same signed names without that check, and Action Cable lets a client name any channel class, so `config/initializers/turbo_streams_channel.rb` makes it reject every subscription (its broadcast class methods still work). `ApplicationCable::Connection` (A, from the generator) identifies `current_user` from the signed `session_id` cookie and rejects anonymous connections.
 - **Broadcasting.** G replaces the A stubs `Issue::Broadcasting` and `Project::Broadcasting`:
   - `Issue#broadcast_changes_later(created: false)`:
     - When `created`, it runs `BroadcastIssueChangesJob.perform_later(self, created: true)` immediately: a prepend of `turbo_frame_tag(dom_id(issue, :row), src: project_issue_row_path(project, issue), target: "_top")` into the all-environments container `dom_id(project, :new_issues)` and into the container of each environment in `issue.environments` (one at creation), so a list scoped to staging never gets a new production issue. Environment names come from API keys (`[a-z0-9_-]`), not from captured data.

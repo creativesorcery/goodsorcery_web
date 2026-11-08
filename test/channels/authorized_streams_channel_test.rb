@@ -140,3 +140,21 @@ class ApplicationCable::ConnectionTest < ActionCable::Connection::TestCase
     assert_reject_connection { connect }
   end
 end
+
+# The stock channel verifies the same never-expiring signed names without the
+# membership check, and any client can name it in a subscribe command.
+class TurboStreamsChannelTest < ActionCable::Channel::TestCase
+  tests Turbo::StreamsChannel
+
+  test "rejects even a correctly signed name, so a removed member cannot listen in" do
+    signed = Turbo::StreamsChannel.signed_stream_name([ projects(:storefront), :issues ])
+
+    [ users(:outsider), users(:philip) ].each do |user|
+      stub_connection current_user: user
+      subscribe signed_stream_name: signed
+
+      assert subscription.rejected?, "expected rejection for #{user.name}"
+      assert_no_streams
+    end
+  end
+end
