@@ -41,6 +41,17 @@ module ActiveSupport
       Rails.configuration.x.upgrade_url = previous
     end
 
+    # GOODSORCERY_TERMS_URL and GOODSORCERY_PRIVACY_URL are read once at boot
+    # into config.x.terms_url and config.x.privacy_url; nil means unset.
+    def with_legal_urls(terms: nil, privacy: nil)
+      previous = [ Rails.configuration.x.terms_url, Rails.configuration.x.privacy_url ]
+      Rails.configuration.x.terms_url = terms
+      Rails.configuration.x.privacy_url = privacy
+      yield
+    ensure
+      Rails.configuration.x.terms_url, Rails.configuration.x.privacy_url = previous
+    end
+
     # The test cache store is a null store; this swaps in a real one.
     def with_memory_cache
       previous = Rails.cache

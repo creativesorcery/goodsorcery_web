@@ -3,6 +3,7 @@ require_relative "boot"
 require "rails/all"
 require_relative "../lib/middleware/ingest_body_shield"
 require_relative "../lib/configuration/public_url"
+require_relative "../lib/configuration/http_url"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -38,6 +39,11 @@ module GoodsorceryWeb
     config.x.hosted = ActiveModel::Type::Boolean.new.cast(ENV["GOODSORCERY_HOSTED"]) || false
     config.x.upgrade_url = ENV["GOODSORCERY_UPGRADE_URL"].presence
     config.x.entitlements = config_for(:entitlements)
+
+    # Optional legal pages the sign-up page links to; only http(s) URLs count,
+    # and with neither set the page shows no agreement sentence at all.
+    config.x.terms_url = HttpUrl.parse(ENV["GOODSORCERY_TERMS_URL"])
+    config.x.privacy_url = HttpUrl.parse(ENV["GOODSORCERY_PRIVACY_URL"])
 
     # Days of performance data a self-hosted instance keeps (1..30, default
     # 30); hosted accounts use their apm_retention_days entitlement instead.

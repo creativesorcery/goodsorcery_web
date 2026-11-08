@@ -14,6 +14,33 @@ class RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "new shows no agreement sentence without terms or privacy URLs" do
+    with_legal_urls { get new_registration_path }
+
+    assert_response :success
+    assert_no_match "By signing up", response.body
+    assert_select "form input[type=submit] ~ p", 0
+  end
+
+  test "new links the terms and privacy policy when both are set" do
+    with_legal_urls(terms: "https://example.com/terms", privacy: "https://example.com/privacy") { get new_registration_path }
+
+    assert_select "form p", text: "By signing up you agree to the Terms of Service and Privacy Policy." do
+      assert_select "a[href=?][target=_top][rel=noopener]", "https://example.com/terms", text: "Terms of Service"
+      assert_select "a[href=?][target=_top][rel=noopener]", "https://example.com/privacy", text: "Privacy Policy"
+    end
+  end
+
+  test "new ignores a legal URL that is not http(s)" do
+    # The same parsing config/application.rb applies to the env vars at boot.
+    terms = HttpUrl.parse("javascript:alert(1)")
+    with_legal_urls(terms:, privacy: HttpUrl.parse("https://example.com/privacy")) { get new_registration_path }
+
+    assert_select "form p", text: "By signing up you agree to the Privacy Policy."
+    assert_select "a[href^=javascript]", 0
+    assert_no_match "Terms of Service", response.body
+  end
+
   test "create makes an account, an owner and signs in" do
     assert_difference -> { Account.count } => 1, -> { User.count } => 1, -> { Membership.count } => 1 do
       post registration_path, params: { signup: VALID }
