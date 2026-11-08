@@ -16,11 +16,12 @@
       </span>
     <% end %>
   </nav>
+  <div class="hidden lg:block flex-1"></div>
   <%= form_with url: search_path, method: :get, html: { role: "search" },
-        class: "input ml-auto flex flex-1 min-w-[7.5rem] max-w-72 sm:flex-none sm:w-72 items-center gap-2 rounded-lg px-3 py-1.5 text-[13px]" do |form| %>
+        class: "input max-lg:ml-auto flex flex-1 min-w-[7.5rem] max-w-72 sm:flex-none sm:w-72 lg:flex-initial lg:min-w-auto items-center gap-2 rounded-lg px-3 py-1.5 text-[13px]" do |form| %>
     <%= icon :search, classes: "w-4 h-4 text-ink-400" %>
     <%= form.search_field :q, value: global_search_query, placeholder: "Search projects and issues…",
           "aria-label": "Search projects and issues", autocomplete: "off",
-          class: "flex-1 min-w-0 bg-transparent outline-none placeholder:text-ink-400" %>
+          class: "flex-1 min-w-0 bg-transparent outline-none text-ellipsis placeholder:text-ink-400" %>
   <% end %>
 </header>

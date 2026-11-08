@@ -12,7 +12,7 @@
     </button>
 
     <div class="menu left-3 right-3" data-dropdown-target="menu" hidden>
-      <div class="max-h-72 overflow-y-auto">
+      <div class="max-h-72 max-lg:max-h-[min(18rem,calc(100dvh-13rem))] overflow-y-auto">
         <% sidebar_projects.each do |item| %>
           <% current = item.id == project.id %>
           <%= link_to project_issues_path(item), class: "menu-item", aria: { current: ("page" if current) } do %>

@@ -9,7 +9,7 @@
     </div>
   <% else %>
     <div class="mt-2 text-[12px] text-ink-300">
-      Last hour <%= apm_figure(tile.format, tile.last_hour) %><% if issues_path %> · <%= link_to "see issues", issues_path, class: "text-iris-300 hover:underline" %><% end %>
+      Last hour <%= apm_figure(tile.format, tile.last_hour) %><% if issues_path %> · <%= link_to "see issues", issues_path, class: "tap-link text-iris-300 hover:underline" %><% end %>
     </div>
   <% end %>
 </div>

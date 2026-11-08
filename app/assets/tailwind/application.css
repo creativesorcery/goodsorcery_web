@@ -157,7 +157,7 @@
 
   /* A page header: title on the left, controls on the right, wrapping under
      the title when they don't fit. */
-  .page-header { @apply flex flex-wrap items-end justify-between gap-x-6 gap-y-4; }
+  .page-header { @apply flex flex-wrap items-end justify-between gap-x-6 gap-y-4 lg:gap-y-6; }
 
   .section-label {
     @apply px-3 pb-2 text-[10.5px] uppercase tracking-[.2em] text-ink-400/70;
@@ -177,8 +177,12 @@
   /* Below lg the sidebar is a drawer (drawer_controller): off-screen and
      hidden from focus and screen readers until it has data-open. */
   @media (width < 64rem) {
+    /* The whole drawer scrolls when the screen is short (phone landscape),
+       rather than squeezing the nav between the switcher and the user block. */
     .sidebar {
       height: 100dvh;
+      overflow-y: auto;
+      overscroll-behavior: contain;
       padding-top: env(safe-area-inset-top);
       padding-bottom: env(safe-area-inset-bottom);
       padding-left: env(safe-area-inset-left);
@@ -244,18 +248,23 @@
   .tab-strip::-webkit-scrollbar { display: none; }
   .tab-strip > * { flex-shrink: 0; }
 
-  /* a panel or box whose wide content scrolls sideways, with a fading
-     shadow on the side(s) that have more (scroll-driven, no JS) */
+  /* a panel or box whose wide content scrolls sideways; below lg a fading
+     shadow marks the side(s) that have more (scroll-driven, no JS), while
+     desktop keeps its plain look */
   .scroll-x {
     overflow-x: auto;
     overscroll-behavior-x: contain;
     --scroll-bg: var(--color-paper-900);
-    background:
-      linear-gradient(to right, var(--scroll-bg) 30%, transparent) left / 2.5rem 100% no-repeat local,
-      linear-gradient(to left, var(--scroll-bg) 30%, transparent) right / 2.5rem 100% no-repeat local,
-      radial-gradient(farthest-side at 0 50%, rgb(35 37 58 / 0.14), transparent) left / 0.9rem 100% no-repeat scroll,
-      radial-gradient(farthest-side at 100% 50%, rgb(35 37 58 / 0.14), transparent) right / 0.9rem 100% no-repeat scroll;
-    background-color: var(--scroll-bg);
+  }
+  @media (width < 64rem) {
+    .scroll-x {
+      background:
+        linear-gradient(to right, var(--scroll-bg) 30%, transparent) left / 2.5rem 100% no-repeat local,
+        linear-gradient(to left, var(--scroll-bg) 30%, transparent) right / 2.5rem 100% no-repeat local,
+        radial-gradient(farthest-side at 0 50%, rgb(35 37 58 / 0.14), transparent) left / 0.9rem 100% no-repeat scroll,
+        radial-gradient(farthest-side at 100% 50%, rgb(35 37 58 / 0.14), transparent) right / 0.9rem 100% no-repeat scroll;
+      background-color: var(--scroll-bg);
+    }
   }
   .code-pane-body.scroll-x { --scroll-bg: var(--color-paper-950); }
   .tab[aria-selected="true"] { color: var(--color-ink-50); border-color: var(--color-iris-400); }
@@ -452,6 +461,16 @@
     .sidebar[data-open] { transition: none; }
   }
 
+  /* A row checkbox's label: drawn above the row's stretched title link. On
+     touch screens it also covers the row's left strip (the gutter, the box
+     column and the gap, the full row height), so a tap near the box ticks it
+     instead of opening the issue. Negative margins keep the layout as is;
+     --hit-y is the row's vertical padding. */
+  .check-hit { position: relative; z-index: 10; display: grid; place-items: center; cursor: pointer; }
+
+  /* Says on touch screens what a hover title says on desktop. */
+  .touch-hint { display: none; }
+
   /* ── touch screens and narrow windows ─────────────────────── */
   /* 40px tap targets where the desktop sizes are smaller. */
   @media (width < 64rem), (pointer: coarse) {
@@ -466,7 +485,19 @@
     .toggle[aria-pressed="true"] .knob { transform: translateX(18px); }
     /* short text links (Forgot password?, Back to sign in, …): a taller hit
        area without changing the line they sit on */
-    .tap-link { display: inline-block; padding-block: 0.65rem; margin-block: -0.65rem; }
+    .tap-link {
+      display: inline-block;
+      padding-block: 0.65rem;
+      margin-block: -0.65rem;
+      padding-block: max(0.65rem, calc((2.5rem - 1lh) / 2));
+      margin-block: min(-0.65rem, calc((1lh - 2.5rem) / 2));
+    }
+    .check-hit {
+      align-self: stretch;
+      padding: var(--hit-y, 1rem) 0.75rem var(--hit-y, 1rem) 1rem;
+      margin: calc(var(--hit-y, 1rem) * -1) -0.75rem calc(var(--hit-y, 1rem) * -1) -1rem;
+    }
+    .touch-hint { display: inline; }
   }
 }
 

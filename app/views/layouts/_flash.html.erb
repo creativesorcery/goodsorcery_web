@@ -1,17 +1,20 @@
 <%# locals: (wrapper_class: "") -%>
+<%# Below lg the message wraps under its chip and × is a 40px button; from lg it is the original one-line bar. -%>
+<% bar = "panel mt-4 flex items-center gap-x-3 gap-y-1 flex-wrap sm:flex-nowrap pl-4 pr-1.5 py-1.5 lg:px-4 lg:py-2.5 rise" %>
+<% text = "order-last basis-full sm:order-none sm:basis-auto flex-1 min-w-0 pb-1.5 sm:pb-0 text-[13.5px] text-ink-100 break-words" %>
 <div id="flash" class="<%= wrapper_class %>" aria-live="polite">
   <% if flash[:notice].present? %>
-    <div class="panel mt-4 flex items-center gap-x-3 gap-y-1 flex-wrap sm:flex-nowrap pl-4 pr-1.5 py-1.5 rise" role="status" data-controller="flash">
+    <div class="<%= bar %>" role="status" data-controller="flash">
       <%= chip "Done", tone: :mint %>
-      <span class="order-last basis-full sm:order-none sm:basis-auto flex-1 min-w-0 pb-1.5 sm:pb-0 text-[13.5px] text-ink-100 break-words"><%= flash[:notice] %></span>
-      <button type="button" class="icon-btn ml-auto text-ink-400" data-action="flash#dismiss" aria-label="Dismiss"><%= icon :close, classes: "w-4 h-4" %></button>
+      <span class="<%= text %>"><%= flash[:notice] %></span>
+      <%= render "layouts/flash_dismiss" %>
     </div>
   <% end %>
   <% if flash[:alert].present? %>
-    <div class="panel mt-4 flex items-center gap-x-3 gap-y-1 flex-wrap sm:flex-nowrap pl-4 pr-1.5 py-1.5 rise" role="alert" data-controller="flash" data-flash-delay-value="0">
+    <div class="<%= bar %>" role="alert" data-controller="flash" data-flash-delay-value="0">
       <%= chip "Heads up", tone: :coral %>
-      <span class="order-last basis-full sm:order-none sm:basis-auto flex-1 min-w-0 pb-1.5 sm:pb-0 text-[13.5px] text-ink-100 break-words"><%= flash[:alert] %></span>
-      <button type="button" class="icon-btn ml-auto text-ink-400" data-action="flash#dismiss" aria-label="Dismiss"><%= icon :close, classes: "w-4 h-4" %></button>
+      <span class="<%= text %>"><%= flash[:alert] %></span>
+      <%= render "layouts/flash_dismiss" %>
     </div>
   <% end %>
 </div>

@@ -3,9 +3,11 @@
 <%= turbo_frame_tag dom_id(issue, :row), target: "_top" do %>
   <div class="<%= issue_row_classes(issue) %>">
     <%= issue_edge_stripe(issue) %>
-    <input type="checkbox" form="bulk_triage" name="issue_ids[]" value="<%= issue.id %>"
-           class="accent-iris-500 relative z-10" aria-label="Select <%= issue.short_id %>"
-           data-bulk-selection-target="checkbox" data-action="bulk-selection#toggle">
+    <label class="check-hit">
+      <input type="checkbox" form="bulk_triage" name="issue_ids[]" value="<%= issue.id %>"
+             class="accent-iris-500" aria-label="Select <%= issue.short_id %>"
+             data-bulk-selection-target="checkbox" data-action="bulk-selection#toggle">
+    </label>
 
     <div class="min-w-0">
       <div class="relative flex items-center gap-2 min-w-0">
@@ -40,6 +42,6 @@
       <span class="block text-ink-100"><%= time_ago_compact(issue.last_seen_at) %></span>
       <span class="block text-ink-400"><%= first_seen_label(issue.first_seen_at) %></span>
     </span>
-    <span class="<%= IssuesHelper::METRIC_CELL %>"><%= issue_assignee_avatar(issue) %></span>
+    <span class="<%= IssuesHelper::METRIC_CELL %> md:flex items-center"><%= issue_assignee_avatar(issue) %></span>
   </div>
 <% end %>

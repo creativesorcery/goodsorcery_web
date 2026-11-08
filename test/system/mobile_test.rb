@@ -86,6 +86,55 @@ class MobileSystemTest < ApplicationSystemTestCase
     assert sizes.all? { |size| size >= 16 }, "field font sizes: #{sizes.inspect}"
   end
 
+  test "a row checkbox takes taps around it, not the issue link under them" do
+    hits = page.evaluate_script(<<~JS)
+      (() => {
+        const box = document.querySelector("[data-bulk-selection-target=checkbox]")
+        box.scrollIntoView({ block: "center" })
+        const rect = box.getBoundingClientRect()
+        const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2
+        const points = [[x, rect.bottom + 14], [x, rect.top - 14], [rect.right + 12, y], [rect.left - 14, y]]
+        return points.map(([px, py]) => document.elementFromPoint(px, py)?.closest("label")?.contains(box) || false)
+      })()
+    JS
+    assert_equal [ true ] * 4, hits
+  end
+
+  test "in phone landscape the whole drawer scrolls, so the nav and the project switcher fit" do
+    page.current_window.resize_to(740, 360)
+    visit_connected project_issues_path(@project)
+    press menu_button
+    assert_drawer_open
+
+    nav = page.evaluate_script("(() => { const nav = document.querySelector('#sidebar nav'); return [nav.clientHeight, nav.scrollHeight] })()")
+    assert_operator nav.first, :>=, nav.last, "the nav is squeezed to #{nav.first}px of #{nav.last}px"
+
+    press find("#sidebar [data-dropdown-target=button]", match: :first)
+    last_entry_bottom = page.evaluate_script(<<~JS)
+      (() => {
+        const last = document.querySelector("#sidebar [data-dropdown-target=menu]").lastElementChild
+        last.scrollIntoView({ block: "end" })
+        return last.getBoundingClientRect().bottom - window.innerHeight
+      })()
+    JS
+    assert_operator last_entry_bottom, :<=, 0, "the switcher's last entry stays #{last_entry_bottom}px below the screen"
+  ensure
+    page.current_window.resize_to(390, 844)
+  end
+
+  test "a long snippet file name truncates and leaves Copy inside the code pane" do
+    visit_connected project_setup_path(projects(:marketing))
+    press find("[role=tab]", text: "Manual")
+    assert_selector "#install_manual", visible: true
+
+    spill = page.evaluate_script(<<~JS)
+      [...document.querySelectorAll("#install_manual .code-pane-header")].map((header) =>
+        header.querySelector("button").getBoundingClientRect().right - header.getBoundingClientRect().right)
+    JS
+    assert spill.any?
+    assert spill.all? { |px| px <= 0 }, "Copy spills out by #{spill.inspect}px"
+  end
+
   private
     def menu_button
       find("button[aria-label='Open menu']")

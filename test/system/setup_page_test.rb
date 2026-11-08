@@ -35,6 +35,18 @@ class SetupPageSystemTest < ApplicationSystemTestCase
     assert_equal "bundle add goodsorcery\nexport GOODSORCERY_API_KEY=YOUR_PRODUCTION_KEY", copied_text
   end
 
+  test "desktop code panes keep their plain look: no scroll shadow and the small Copy" do
+    visit_connected project_setup_path(@project)
+    styles = page.evaluate_script(<<~JS)
+      [...document.querySelectorAll(".code-pane-body")].filter((pane) => pane.offsetParent).map((pane) => {
+        const button = pane.parentElement.querySelector(".code-pane-header button")
+        return [getComputedStyle(pane).backgroundImage, getComputedStyle(button).paddingLeft, button.getBoundingClientRect().height < 24]
+      })
+    JS
+    assert styles.any?
+    assert_equal [ [ "none", "0px", true ] ], styles.uniq
+  end
+
   private
     def stub_clipboard
       page.execute_script(<<~JS)

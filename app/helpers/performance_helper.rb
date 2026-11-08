@@ -9,14 +9,23 @@ module PerformanceHelper
   SORT_LABELS = { "time" => "Time consumed", "p95" => "Slowest p95", "rate" => "Most requests", "failed" => "Most failed" }.freeze
   # Below md each table row is a card: the name, then its figures on one line
   # (MOBILE_ONLY), with the column cells hidden (DESKTOP_CELL). From md the
-  # tables scroll sideways inside their panel.
+  # tables scroll sideways inside their panel; from lg the columns are the
+  # desktop ones (TABLE_MIN_WIDTH goes with TABLE_GRID).
   TABLE_GRID = "grid grid-cols-1 md:grid-cols-[minmax(280px,1fr)_76px_76px_76px_76px_76px_64px_150px_140px] " \
-    "items-center gap-x-4 gap-y-1 md:gap-4".freeze
-  TRACE_GRID = "grid grid-cols-[minmax(0,1fr)_auto_auto_auto] md:grid-cols-[130px_84px_84px_64px_128px_minmax(0,1fr)_64px] " \
+    "lg:grid-cols-[minmax(280px,1fr)_76px_76px_76px_76px_76px_64px_150px_120px] items-center gap-x-4 gap-y-1 md:gap-4".freeze
+  TABLE_MIN_WIDTH = "md:min-w-[1140px] lg:min-w-[1120px]".freeze
+  # Phone trace cards: time and its db line on the left over two rows; the
+  # duration (a fixed column, so rows line up) and Trace → on the first row,
+  # the status chips under them (TRACE_STATUS, TRACE_LINK).
+  TRACE_GRID = "grid grid-cols-[minmax(0,1fr)_64px_auto] md:grid-cols-[130px_84px_84px_64px_128px_minmax(0,1fr)_64px] " \
     "items-center gap-x-3 gap-y-1 md:gap-4".freeze
-  # Phones put a span's label on its own line, with the bar and time under it.
-  TIMELINE_GRID = "grid grid-cols-[minmax(0,1fr)_64px] md:grid-cols-[minmax(0,380px)_minmax(0,1fr)_72px] " \
-    "items-center gap-x-4 gap-y-1.5 md:gap-4".freeze
+  TRACE_TIME = "max-md:row-span-2".freeze
+  TRACE_STATUS = "max-md:col-span-2 max-md:justify-end".freeze
+  TRACE_LINK = "max-md:col-start-3 max-md:row-start-1".freeze
+  # Phones put a span's label on its own line, with the bar and time under it;
+  # tablets share the width between label and bar so Time stays in view.
+  TIMELINE_GRID = "grid grid-cols-[minmax(0,1fr)_64px] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_72px] " \
+    "lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)_72px] items-center gap-x-4 gap-y-1.5 md:gap-4".freeze
   TIMELINE_LABEL = "max-md:col-span-2".freeze
   DESKTOP_CELL = "max-md:hidden".freeze
   MOBILE_ONLY = "md:hidden".freeze
@@ -170,6 +179,17 @@ module PerformanceHelper
               [ "Started", trace.started_at.in_time_zone.strftime("%H:%M:%S.%L") ] ]
     facts += apm_job_facts(details.job) unless page.web?
     facts + [ [ "Runtime", apm_runtime(details.runtime) ], [ "GC", apm_gc(details.gc) ], [ "Allocations", apm_allocations(details.allocations) ] ]
+  end
+
+  # What the locked 7d/30d ranges say in their hover titles, for touch screens
+  # that never show a title: "This instance keeps 3 days." self-hosted, "7d and
+  # 30d: coming soon." hosted without an upgrade URL. Nil when nothing is
+  # locked or the "Upgrade to unlock" link already shows beside the picker.
+  def apm_locked_ranges_hint(locked)
+    return if locked.empty?
+    return "This instance keeps #{pluralize(entitlements.apm_retention_days, 'day')}." if entitlements.unlimited?
+
+    "#{locked.to_sentence}: #{locked_note.downcase}." unless upgrade_offered?
   end
 
   private

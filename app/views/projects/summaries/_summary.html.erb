@@ -3,7 +3,7 @@
     the page-load fade-and-rise runs only on the full page (animate: true). %>
 <% project = summary.project %>
 <% period = summary.period %>
-<div class="page-header <%= 'rise' if animate %>">
+<div class="page-header lg:flex-nowrap <%= 'rise' if animate %>">
   <div>
     <div class="eyebrow"><%= issues_eyebrow(project, summary.environment) %></div>
     <h1 class="page-title">Issues <span class="text-ink-400 text-[22px] sm:text-[30px] whitespace-nowrap">— <%= delimited(summary.unresolved_count) %> unresolved</span></h1>

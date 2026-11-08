@@ -17,7 +17,7 @@
 
   <%= render "layouts/project_switcher", project: project %>
 
-  <nav class="flex-1 overflow-y-auto px-3 mt-5 space-y-0.5" aria-label="Main">
+  <nav class="flex-1 lg:overflow-y-auto px-3 mt-5 space-y-0.5" aria-label="Main">
     <div class="section-label">Grimoire</div>
     <%= nav_link_to "Projects", projects_path, key: "projects", icon: :projects %>
     <% if project %>

@@ -2,10 +2,10 @@
   <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
     <h2 class="font-display text-[22px] text-ink-50">Breadcrumbs <span class="text-[14px] text-ink-400 font-sans">— the trail leading here</span></h2>
     <div class="flex flex-wrap gap-1.5 text-[12px]" role="group" aria-label="Filter breadcrumbs">
-      <button type="button" class="chip max-lg:px-3 max-lg:py-1.5 text-ink-400 aria-pressed:text-ink-200 aria-pressed:bg-paper-700" aria-pressed="true"
+      <button type="button" class="chip max-lg:min-h-10 max-lg:px-3.5 text-ink-400 aria-pressed:text-ink-200 aria-pressed:bg-paper-700" aria-pressed="true"
               data-breadcrumb-filter-target="chip" data-breadcrumb-filter-category-param="all" data-action="breadcrumb-filter#filter">all <%= breadcrumbs.size %></button>
       <% BreadcrumbsHelper::FILTERS.each do |category| %>
-        <button type="button" class="chip max-lg:px-3 max-lg:py-1.5 text-ink-400 aria-pressed:text-ink-200 aria-pressed:bg-paper-700" aria-pressed="false"
+        <button type="button" class="chip max-lg:min-h-10 max-lg:px-3.5 text-ink-400 aria-pressed:text-ink-200 aria-pressed:bg-paper-700" aria-pressed="false"
                 title="<%= pluralize(breadcrumb_count(breadcrumbs, category), "#{category} breadcrumb") %>"
                 data-breadcrumb-filter-target="chip" data-breadcrumb-filter-category-param="<%= category %>" data-action="breadcrumb-filter#filter"><%= category %></button>
       <% end %>

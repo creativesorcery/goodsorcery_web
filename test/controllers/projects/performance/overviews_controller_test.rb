@@ -197,7 +197,30 @@ class Projects::Performance::OverviewsControllerTest < ActionDispatch::Integrati
     assert_select "nav[aria-label='Time range'] span[title='Coming soon']", text: "7d"
     assert_select "nav[aria-label='Time range'] span[aria-label='30 days, coming soon']", text: "30d"
     assert_select "nav[aria-label='Time range'] span[title='Coming soon'] svg", 0
+    assert_select ".touch-hint[aria-hidden=true]", "7d and 30d: coming soon."
     assert_no_match "Upgrade", response.body
+  end
+
+  test "the upgrade link is the only reason given when an upgrade URL is set" do
+    with_hosted_mode { with_upgrade_url("https://billing.example/upgrade") { get project_performance_path(@project) } }
+
+    assert_select "a[href='https://billing.example/upgrade']", "Upgrade to unlock"
+    assert_select ".touch-hint", 0
+  end
+
+  test "self-hosted with a short performance retention says how many days it keeps, for touch screens" do
+    Rails.configuration.x.apm_retention_days, previous = 3, Rails.configuration.x.apm_retention_days
+    get project_performance_path(@project)
+
+    assert_select "nav[aria-label='Time range'] span[aria-disabled=true][title='This instance keeps 3 days']", 2
+    assert_select ".touch-hint", "This instance keeps 3 days."
+  ensure
+    Rails.configuration.x.apm_retention_days = previous if previous
+  end
+
+  test "nothing locked, no hint" do
+    get project_performance_path(@project)
+    assert_select ".touch-hint", 0
   end
 
   test "the per-transaction figures are cached as numbers only" do

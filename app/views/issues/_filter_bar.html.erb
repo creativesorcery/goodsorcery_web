@@ -1,7 +1,7 @@
 <%# locals: (project:, list:, choice:) -%>
 <% query = list.query %>
 <%# Phones: the search takes a line of its own, Filters and Sort share the next. -%>
-<div class="flex flex-wrap items-center gap-3">
+<div class="flex flex-wrap lg:flex-nowrap items-center gap-3">
   <%= form_with url: project_issues_path(project), method: :get, html: { role: "search" },
         class: "input flex flex-wrap items-center gap-2 px-3 py-2 w-full sm:w-auto sm:flex-1 min-w-0" do |form| %>
     <%= icon :search, classes: "w-4 h-4 text-ink-400" %>
@@ -18,7 +18,7 @@
     <%= form.search_field :text, value: query.text, autocomplete: "off",
           placeholder: "Search message, class, controller#action, user email…",
           "aria-label": "Search issues (chips such as level:error work too)",
-          class: "flex-1 min-w-[8rem] bg-transparent outline-none placeholder:text-ink-400/60 text-[14px]" %>
+          class: "flex-1 min-w-[8rem] lg:min-w-[12rem] bg-transparent outline-none placeholder:text-ink-400/60 text-[14px]" %>
   <% end %>
 
   <div class="relative max-sm:flex-1" data-controller="dropdown">

@@ -20,8 +20,10 @@
 
     <section id="<%= dom_id(@project, :issues) %>" class="panel mt-4 overflow-hidden rise rise-3" aria-label="Issues">
       <div class="<%= IssuesHelper::ROW_GRID %> px-4 sm:px-5 py-2.5 text-[11px] uppercase tracking-[.16em] text-ink-400/80 border-b border-paper-700 bg-paper-850/60">
-        <input type="checkbox" class="accent-iris-500" aria-label="Select all issues on screen"
-               data-bulk-selection-target="all" data-action="bulk-selection#toggleAll">
+        <label class="check-hit [--hit-y:0.625rem]">
+          <input type="checkbox" class="accent-iris-500" aria-label="Select all issues on screen"
+                 data-bulk-selection-target="all" data-action="bulk-selection#toggleAll">
+        </label>
         <span>Issue</span><span class="<%= IssuesHelper::HISTOGRAM_CELL %>">Last 24h</span><span class="<%= IssuesHelper::METRIC_CELL %> text-right">Events</span><span class="<%= IssuesHelper::METRIC_CELL %> text-right">Users</span><span class="<%= IssuesHelper::METRIC_CELL %>">Seen</span><span class="<%= IssuesHelper::METRIC_CELL %>"></span>
       </div>
 

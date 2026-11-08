@@ -24,7 +24,7 @@ module AvatarHelper
 
   # Dashed circle for "unassigned".
   def empty_avatar(size: :md)
-    tag.span title: "Unassigned", class: "#{AVATAR_BOXES.fetch(size)} shrink-0 rounded-full border border-dashed border-paper-600"
+    tag.span title: "Unassigned", class: "#{AVATAR_BOXES.fetch(size)} inline-block shrink-0 rounded-full border border-dashed border-paper-600"
   end
 
   # Letter tile tinted by project.color; listening projects get a dashed iris outline.

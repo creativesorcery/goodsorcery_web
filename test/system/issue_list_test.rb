@@ -76,6 +76,22 @@ class IssueListSystemTest < ApplicationSystemTestCase
     assert_selector "[id^=row_issue_]", count: 3
   end
 
+  test "the unassigned placeholder is a 28px circle and the checkbox stays centred in its column" do
+    size = page.evaluate_script(<<~JS)
+      (() => { const rect = document.querySelector("[id^=row_issue_] span[title=Unassigned]").getBoundingClientRect(); return [rect.width, rect.height] })()
+    JS
+    assert_equal [ 28, 28 ], size.map(&:round)
+
+    offset = page.evaluate_script(<<~JS)
+      (() => {
+        const box = document.querySelector("[data-bulk-selection-target=checkbox]")
+        const rect = box.getBoundingClientRect()
+        return rect.left + rect.width / 2 - box.closest("[class*=grid-cols]").getBoundingClientRect().left
+      })()
+    JS
+    assert_equal 34, offset.round, "the checkbox should sit in the middle of the 28px column after the 20px row padding"
+  end
+
   private
     def row_checkbox(issue)
       find("input[type=checkbox][value='#{issue.id}']")

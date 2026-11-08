@@ -15,7 +15,7 @@
           Last hour <%= apm_percent(stat.last_hour) %> ·
           <% if report.issues_count.positive? %>
             <%= link_to pluralize(report.issues_count, "issue"), project_issues_path(project, q: "is:unresolved #{transaction.name}", env: transaction.environment),
-                  class: "text-iris-300 hover:underline" %>
+                  class: "tap-link text-iris-300 hover:underline" %>
           <% else %>
             no issues
           <% end %>

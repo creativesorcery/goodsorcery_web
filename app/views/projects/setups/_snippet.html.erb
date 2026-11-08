@@ -1,9 +1,10 @@
 <%# locals: (label:) -%>
 <%# Layout for a copyable code pane: render layout: "projects/setups/snippet", locals: { label: "terminal" } do … end -%>
+<%# A long file name truncates rather than pushing Copy out of the header; Copy is a bigger target below lg only. -%>
 <div class="code-pane" data-controller="clipboard">
-  <div class="code-pane-header">
-    <span class="font-mono"><%= label %></span>
-    <button type="button" class="-my-1.5 -mr-2 inline-flex min-h-8 items-center rounded-md px-2 hover:text-iris-300" data-action="clipboard#copy">Copy</button>
+  <div class="code-pane-header gap-3">
+    <span class="font-mono min-w-0 truncate" title="<%= label %>"><%= label %></span>
+    <button type="button" class="shrink-0 hover:text-iris-300 max-lg:-my-1.5 max-lg:-mr-2 max-lg:inline-flex max-lg:min-h-8 max-lg:items-center max-lg:rounded-md max-lg:px-2" data-action="clipboard#copy">Copy</button>
   </div>
   <pre class="code-pane-body scroll-x" data-clipboard-target="source"><%= yield %></pre>
 </div>

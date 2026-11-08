@@ -20,8 +20,9 @@ module NavigationHelper
   end
 
   # Phones show the last crumb, tablets the last two, lg and up all of them.
-  # Each crumb hides its "/" where it is the first one shown.
-  BREADCRUMB_ITEM = [ "flex", "hidden sm:flex", "hidden lg:flex" ].freeze
+  # Each crumb hides its "/" where it is the first one shown. From lg the
+  # wrappers are display: contents, so the trail lays out as it always has.
+  BREADCRUMB_ITEM = [ "flex lg:contents", "hidden sm:flex lg:contents", "hidden lg:contents" ].freeze
   BREADCRUMB_SEPARATOR = [ "hidden sm:inline", "hidden lg:inline", "" ].freeze
 
   def breadcrumb_item_classes(index, count)

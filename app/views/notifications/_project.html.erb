@@ -24,7 +24,7 @@
     <% else %>
       <%# Both uptime rules are off; the person's own choice is kept for when one is turned on. -%>
       <%= link_to "Off for this app", project_alerts_path(project),
-            class: "inline-block text-[11.5px] leading-tight text-ink-400 hover:text-iris-300 hover:underline",
+            class: "tap-link text-[11.5px] leading-tight text-ink-400 hover:text-iris-300 hover:underline",
             title: "#{project.name} sends no uptime alerts. Turn them on in Settings › Alerts." %>
     <% end %>
     <span class="<%= AlertsHelper::NOTIFICATION_SWITCH_LABEL %>" aria-hidden="true">Uptime alerts</span>
@@ -36,7 +36,7 @@
     <% else %>
       <%# The app sends no digest; the person's own choice is kept for when it's turned on. -%>
       <%= link_to "Off for this app", project_alerts_path(project),
-            class: "inline-block text-[11.5px] leading-tight text-ink-400 hover:text-iris-300 hover:underline",
+            class: "tap-link text-[11.5px] leading-tight text-ink-400 hover:text-iris-300 hover:underline",
             title: "#{project.name} sends no daily digest. Turn it on in Settings › Alerts." %>
     <% end %>
     <span class="<%= AlertsHelper::NOTIFICATION_SWITCH_LABEL %>" aria-hidden="true">Daily digest</span>

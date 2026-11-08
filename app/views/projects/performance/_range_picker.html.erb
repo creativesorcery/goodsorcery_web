@@ -28,4 +28,8 @@
   <% if locked.any? && !entitlements.unlimited? %>
     <%= upgrade_to_unlock(classes: "text-[12.5px] font-semibold text-iris-300") %>
   <% end %>
+  <%# Touch screens never show the titles above; the options' own labels already say it to screen readers. -%>
+  <% if (hint = apm_locked_ranges_hint(locked)) %>
+    <span class="touch-hint text-[12px] text-ink-400" aria-hidden="true"><%= hint %></span>
+  <% end %>
 </div>

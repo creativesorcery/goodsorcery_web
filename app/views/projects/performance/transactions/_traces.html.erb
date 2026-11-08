@@ -22,12 +22,12 @@
         <div class="md:min-w-[760px]">
           <div class="<%= PerformanceHelper::TRACE_GRID %> px-4 sm:px-5 py-2 text-[11px] uppercase tracking-[.16em] text-ink-400/80 border-y border-paper-700 bg-paper-850/60">
             <span>Time</span><span class="text-right">Duration</span><span class="<%= cell %> text-right">Database</span><span class="<%= cell %> text-right">Queries</span>
-            <span class="<%= cell %> text-right whitespace-nowrap">External HTTP</span><span>Status</span><span></span>
+            <span class="<%= cell %> text-right whitespace-nowrap">External HTTP</span><span class="<%= cell %>">Status</span><span></span>
           </div>
           <% list.traces.each do |trace| %>
             <% issue = list.issue_for(trace) %>
             <div class="<%= PerformanceHelper::TRACE_GRID %> relative px-4 sm:px-5 py-3 border-b border-paper-700/70 last:border-b-0 hover:bg-iris-500/[.04] transition text-[13px]">
-              <span class="min-w-0">
+              <span class="<%= PerformanceHelper::TRACE_TIME %> min-w-0">
                 <span class="block font-mono text-ink-100"><%= apm_clock(trace.started_at) %></span>
                 <span class="<%= PerformanceHelper::MOBILE_ONLY %> block text-[12px] text-ink-300">db <%= apm_duration(trace.db_ms) %> · <%= pluralize(delimited(trace.sql_count), "query") %><%= " · http #{apm_duration(trace.http_ms)}" if trace.http_count.positive? %></span>
               </span>
@@ -35,7 +35,7 @@
               <span class="<%= cell %> text-right font-mono text-ink-100"><%= apm_duration(trace.db_ms) %></span>
               <span class="<%= cell %> text-right font-mono text-ink-100"><%= delimited(trace.sql_count) %></span>
               <span class="<%= cell %> text-right font-mono text-ink-100"><%= trace.http_count.positive? ? "#{apm_duration(trace.http_ms)} · #{trace.http_count}" : "—" %></span>
-              <span class="flex flex-wrap items-center gap-1.5 max-md:flex-col max-md:items-end">
+              <span class="<%= PerformanceHelper::TRACE_STATUS %> flex flex-wrap items-center gap-1.5">
                 <span class="chip chip-sm <%= apm_failed_status?(trace) ? "chip-coral" : "chip-mint" %>"><%= apm_status_code(trace) %></span>
                 <% if issue %>
                   <%= link_to issue.short_id, project_issue_path(project, issue), class: "relative z-10 chip chip-sm chip-coral font-mono hover:underline",
@@ -43,7 +43,7 @@
                 <% end %>
               </span>
               <%= link_to "Trace →", project_performance_trace_path(project, trace, selection.link_params),
-                    class: "text-right text-[12.5px] font-semibold text-iris-300 after:absolute after:inset-0 focus:outline-none",
+                    class: "#{PerformanceHelper::TRACE_LINK} text-right text-[12.5px] font-semibold text-iris-300 after:absolute after:inset-0 focus:outline-none",
                     data: { turbo_frame: "_top" }, "aria-label": "Trace of #{apm_clock(trace.started_at)}, #{apm_duration(trace.duration_ms)}" %>
             </div>
           <% end %>
@@ -56,15 +56,15 @@
         </span>
         <span class="flex items-center gap-4">
           <% if list.previous_page? %>
-            <%= link_to "← Previous #{Apm::TraceList::PER_PAGE}", page_path.call(page: (list.page - 1 if list.page > 2)), class: "font-semibold text-iris-300 hover:underline" %>
+            <%= link_to "← Previous #{Apm::TraceList::PER_PAGE}", page_path.call(page: (list.page - 1 if list.page > 2)), class: "tap-link font-semibold text-iris-300 hover:underline" %>
           <% end %>
           <% if list.next_page? %>
-            <%= link_to "Next #{Apm::TraceList::PER_PAGE} →", page_path.call(page: list.page + 1), class: "font-semibold text-iris-300 hover:underline" %>
+            <%= link_to "Next #{Apm::TraceList::PER_PAGE} →", page_path.call(page: list.page + 1), class: "tap-link font-semibold text-iris-300 hover:underline" %>
           <% end %>
         </span>
       </div>
     <% elsif list.page > 1 && !list.empty? %>
-      <p class="px-5 pb-5 text-[13.5px] text-ink-400">No traces on this page. <%= link_to "Back to the first page", page_path.call, class: "text-iris-300 hover:underline" %></p>
+      <p class="px-5 pb-5 text-[13.5px] text-ink-400">No traces on this page. <%= link_to "Back to the first page", page_path.call, class: "tap-link text-iris-300 hover:underline" %></p>
     <% else %>
       <p class="px-5 pb-5 text-[13.5px] text-ink-400">No traces in the <%= selection.range.label %>.</p>
     <% end %>

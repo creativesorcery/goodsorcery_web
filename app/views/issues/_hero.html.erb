@@ -8,13 +8,13 @@
       <% end %>
       <%= level_chip(issue.level) %>
     </div>
-    <h1 class="mt-4 font-mono text-[15px] tracking-tight break-words <%= issue_class_tone(issue) %>"><%= issue.exception_class %></h1>
+    <h1 class="mt-4 font-mono text-[15px] tracking-tight break-words lg:break-all <%= issue_class_tone(issue) %>"><%= issue.exception_class %></h1>
     <% if issue.message.present? %>
       <p class="font-display text-[26px] sm:text-[34px] leading-[1.15] text-ink-50 mt-1 max-w-4xl break-words"><%= issue_message_parts(issue.message) %></p>
     <% else %>
       <p class="font-display text-[26px] sm:text-[34px] leading-[1.15] text-ink-400 mt-1">No message</p>
     <% end %>
-    <p class="mt-3 text-[13px] text-ink-400 font-mono break-words"><%= issue_location(issue) %></p>
+    <p class="mt-3 text-[13px] text-ink-400 font-mono break-words lg:break-all"><%= issue_location(issue) %></p>
   </div>
 
   <div class="hero-actions">
