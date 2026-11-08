@@ -31,7 +31,8 @@ class Projects::Performance::TracesControllerTest < ActionDispatch::IntegrationT
   test "the timeline groups repeated queries and the N+1 detail explains them" do
     get project_performance_trace_path(@project, @trace)
 
-    assert_select "span", "Action"
+    assert_select "span", "Request"
+    assert_select "span", text: "Action", count: 0
     assert_select "span[title=?]", 'SELECT "users" WHERE "id" = $1'
     assert_select "a[href='#span-detail'][aria-current=true] .chip-lilac", "N+1 ×38"
     assert_select "span", "POST api.taxjar.com/v2/taxes"

@@ -3,7 +3,7 @@
 <% row_classes = "#{PerformanceHelper::TIMELINE_GRID} px-5 py-2 border-b border-paper-700/70 last:border-b-0" %>
 <% content = capture do %>
   <span class="flex items-center gap-2 min-w-0">
-    <span class="w-11 shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-ink-400"><%= apm_span_type(span) %></span>
+    <span class="w-14 shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-ink-400"><%= apm_span_type(span) %></span>
     <span class="font-mono text-[12.5px] truncate <%= span.n_plus_one? ? "text-ink-50 font-semibold" : "text-ink-100" %>" title="<%= apm_span_label(span) %>"><%= apm_span_label(span) %></span>
     <% if span.n_plus_one? %>
       <%= apm_n_plus_one_chip(span.calls) %>

@@ -44,6 +44,7 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     assert_select "##{dom_id(issues(:resolved_issue), :row)}", count: 0
     assert_select "##{dom_id(issues(:ignored_issue), :row)}", count: 0
     assert_select "##{dom_id(issues(:billing_timeout), :row)}", count: 0
+    assert_select "input[type=search][placeholder=?]", "Search message, class, transaction, user email…"
   end
 
   test "rows show tone, short id, counts and the assignee" do
