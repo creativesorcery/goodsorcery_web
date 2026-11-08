@@ -154,6 +154,12 @@ one-time accessory boot below needs it.
   the CI checks, and block force pushes. Allow direct pushes only for yourself.
 - **Settings → Actions → General:** require approval for workflows from
   outside contributors' forks.
+- **Settings → Environments → production:** add yourself as a required
+  reviewer, so no push to `main` reaches the production secrets unreviewed.
+- **Settings → Advanced Security:** turn on private vulnerability reporting
+  (the reporting link in `SECURITY.md` needs it), secret scanning with push
+  protection, and Dependabot security updates. GitHub offers some of these
+  only once the repository is public.
 
 ### 6. First boot
 
