@@ -25,7 +25,6 @@ class PasswordsController < ApplicationController
   def update
     if @user.update(params.permit(:password, :password_confirmation))
       @user.sessions.destroy_all
-      PersonalAccessToken.revoke_all(user_id: @user.id) # recovery locks out whoever had the session, tokens included
       @user.verify_email # the reset link reached their inbox
       redirect_to new_session_path, notice: "Password has been reset."
     else

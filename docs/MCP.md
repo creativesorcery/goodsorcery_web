@@ -111,7 +111,7 @@ Every result has a short text part and the same facts as `structuredContent`. Un
 - **What leaves Good Sorcery:** whatever a tool returns goes to your AI client and, from there, to your AI provider. Data is scrubbed and redacted exactly as in the dashboard. Without the request data scope, error messages are redacted like issue titles (emails, numbers, tokens and similar replaced), and request data, user details, job arguments, frame locals and custom context your app added are left out (the runtime details and the causes' exception classes stay, with cause messages redacted too).
 - **Never returned:** ingest API keys, monitor URLs, other secrets, and the token itself.
 - **Audit:** triage actions and notes made through MCP are recorded with the token, and shown under each token on the Access tokens page ("Recent activity", the last 20). On the issue page they're marked "via MCP". Reads are logged with the tool name, token and duration only, never their arguments.
-- **Password reset:** resetting your password signs out every session and revokes all your access tokens; create new ones afterwards.
+- **Password resets don't revoke tokens.** A reset signs you out of the dashboard everywhere, but your tokens keep working (most resets are forgotten passwords). If you think a token leaked, revoke it on the Access tokens page.
 - **Retention:** revoked and expired tokens, and MCP activity, are deleted 90 days later.
 
 ## Limits
