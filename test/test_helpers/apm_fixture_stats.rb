@@ -21,7 +21,9 @@ module ApmFixtureStats
   # the test process loads. Tests that read APM data include ApmFixtureClock,
   # which travels to it, so a minute or hour passing between loading the
   # fixtures and running a test can't shift the windows the tests count in.
-  ANCHOR = Time.current.change(usec: 0)
+  # It never falls in the first 15 minutes of an hour: traces sit up to 10
+  # minutes before it and must stay in the same (open) hour.
+  ANCHOR = Time.current.change(usec: 0).then { it.min < 15 ? it - 15.minutes : it }
 
   module_function
 
