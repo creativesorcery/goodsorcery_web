@@ -14,6 +14,8 @@ module IconHelper
     book: [ [ :path, { d: "M4 4h10a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z" } ], [ :path, { d: "M18 8h2v12" } ] ],
     search: [ [ :circle, { cx: 11, cy: 11, r: 7 } ], [ :path, { d: "m20 20-3.5-3.5" } ] ],
     filter: [ [ :path, { d: "M3 5h18M6 12h12M10 19h4" } ] ],
+    menu: [ [ :path, { d: "M4 6h16M4 12h16M4 18h16" } ] ],
+    close: [ [ :path, { d: "M6 6l12 12M18 6 6 18" } ] ],
     chevron_updown: [ [ :path, { d: "m8 9 4-4 4 4M8 15l4 4 4-4" } ] ],
     chevron_down: [ [ :path, { d: "m6 9 6 6 6-6" } ] ],
     lock: [ [ :rect, { x: 5, y: 11, width: 14, height: 10, rx: 2 } ], [ :path, { d: "M8 11V7a4 4 0 0 1 8 0v4" } ] ],

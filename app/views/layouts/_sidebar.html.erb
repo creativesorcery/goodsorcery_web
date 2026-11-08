@@ -1,12 +1,19 @@
 <% project = sidebar_project %>
-<aside class="hidden lg:flex w-[248px] shrink-0 flex-col border-r border-iris-500/10 bg-paper-900/60 backdrop-blur sticky top-0 h-screen">
-  <%= link_to root_path, class: "flex items-center gap-3 px-5 pt-5 pb-4" do %>
-    <span class="w-8 h-8"><%= render "shared/sigil" %></span>
-    <span class="leading-none">
-      <span class="block font-display text-[18px] text-ink-50 tracking-tight">Good Sorcery</span>
-      <span class="block text-[10.5px] uppercase tracking-[.18em] text-ink-400 font-semibold mt-1">Error Tracker</span>
-    </span>
-  <% end %>
+<%# Below lg this is the drawer (drawer_controller): fixed, off-screen and hidden until the top bar menu button opens it. -%>
+<aside id="sidebar" class="sidebar fixed inset-y-0 left-0 z-50 flex w-[min(85vw,288px)] shrink-0 flex-col border-r border-iris-500/10 bg-paper-900 lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-[248px] lg:bg-paper-900/60 lg:backdrop-blur"
+       aria-label="Navigation" data-drawer-target="panel" data-action="click->drawer#closeOnLink">
+  <div class="flex items-center">
+    <%= link_to root_path, class: "flex flex-1 min-w-0 items-center gap-3 px-5 pt-5 pb-4" do %>
+      <span class="w-8 h-8"><%= render "shared/sigil" %></span>
+      <span class="leading-none">
+        <span class="block font-display text-[18px] text-ink-50 tracking-tight">Good Sorcery</span>
+        <span class="block text-[10.5px] uppercase tracking-[.18em] text-ink-400 font-semibold mt-1">Error Tracker</span>
+      </span>
+    <% end %>
+    <button type="button" class="icon-btn mr-3 lg:hidden" data-action="drawer#close" aria-label="Close menu">
+      <%= icon :close, classes: "w-5 h-5" %>
+    </button>
+  </div>
 
   <%= render "layouts/project_switcher", project: project %>
 

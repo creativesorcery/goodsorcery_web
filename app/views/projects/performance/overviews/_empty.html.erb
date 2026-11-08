@@ -1,6 +1,6 @@
 <%# locals: (project:) -%>
 <%# The switch that turns performance monitoring on, in the app's own client (projects.platform). -%>
-<div class="panel border-dashed px-8 py-12 mt-8 text-center rise rise-1">
+<div class="panel border-dashed px-5 sm:px-8 py-12 mt-8 text-center rise rise-1">
   <div class="mx-auto w-12 h-12"><%= render "shared/sigil" %></div>
   <h2 class="font-display text-[22px] text-ink-50 mt-4">See where request time goes</h2>
   <p class="text-[14px] text-ink-400 mt-2 max-w-md mx-auto">
@@ -9,10 +9,10 @@
   <div class="code-pane mt-5 mx-auto max-w-md text-left">
     <% if project.rust? %>
       <div class="code-pane-header"><span>src/main.rs</span></div>
-      <pre class="code-pane-body">goodsorcery::<span class="tok-sym">Config</span>::from_env().performance_monitoring(<span class="tok-k">true</span>)</pre>
+      <pre class="code-pane-body whitespace-pre-wrap break-words">goodsorcery::<span class="tok-sym">Config</span>::from_env().performance_monitoring(<span class="tok-k">true</span>)</pre>
     <% else %>
       <div class="code-pane-header"><span><%= project.rails? ? "config/initializers/goodsorcery.rb" : "config/goodsorcery.rb" %></span></div>
-      <pre class="code-pane-body">config.performance_monitoring = <span class="tok-k">true</span></pre>
+      <pre class="code-pane-body whitespace-pre-wrap break-words">config.performance_monitoring = <span class="tok-k">true</span></pre>
     <% end %>
   </div>
   <% if project.rust? %>

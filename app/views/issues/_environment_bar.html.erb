@@ -1,7 +1,7 @@
 <%# locals: (project:, list:, choice:) -%>
 <%# A scope indicator, not a callout: a thin strip in the environment's tone while the list shows one non-production environment. -%>
 <% if choice.outside_production? %>
-  <div class="flex items-center gap-2 px-8 py-1.5 border-b text-[12.5px] <%= environment_bar_classes(choice.environment) %>"
+  <div class="flex items-center gap-2 page-gutter py-1.5 border-b text-[12.5px] <%= environment_bar_classes(choice.environment) %>"
        role="status" aria-label="Environment scope" data-turbo-prefetch="false">
     <%= environment_dot choice.environment %>
     <span>Viewing <span class="font-semibold"><%= choice.environment %></span></span>

@@ -1,6 +1,6 @@
 <%# locals: (project:, progress:) -%>
 <%# Replaced by a turbo-stream from the listening frame once the first event lands. -%>
-<section id="<%= dom_id(project, :setup_hero) %>" class="relative overflow-hidden panel px-8 py-8 rise">
+<section id="<%= dom_id(project, :setup_hero) %>" class="relative overflow-hidden panel px-5 sm:px-8 py-8 rise">
   <div class="absolute right-8 top-1/2 -translate-y-1/2 w-40 h-40 hidden md:block" aria-hidden="true">
     <div class="relative w-full h-full">
       <span class="absolute inset-0 rounded-full <%= progress.connected? ? "bg-mint-100" : "bg-iris-100" %>"></span>

@@ -19,6 +19,21 @@ module NavigationHelper
     @breadcrumbs ||= []
   end
 
+  # Phones show the last crumb, tablets the last two, lg and up all of them.
+  # Each crumb hides its "/" where it is the first one shown.
+  BREADCRUMB_ITEM = [ "flex", "hidden sm:flex", "hidden lg:flex" ].freeze
+  BREADCRUMB_SEPARATOR = [ "hidden sm:inline", "hidden lg:inline", "" ].freeze
+
+  def breadcrumb_item_classes(index, count)
+    from_end = (count - 1 - index).clamp(0, 2)
+    width = from_end.zero? ? "min-w-0" : "min-w-[3rem] max-w-[14rem]"
+    "#{BREADCRUMB_ITEM[from_end]} #{width} items-center gap-2"
+  end
+
+  def breadcrumb_separator_classes(index, count)
+    BREADCRUMB_SEPARATOR[(count - 1 - index).clamp(0, 2)]
+  end
+
   # Sidebar link; aria-current="page" when the view did `provide :nav, key`.
   def nav_link_to(label, path, key:, icon:, badge: nil)
     link_to path, class: "nav-link", aria: { current: ("page" if current_nav?(key)) } do

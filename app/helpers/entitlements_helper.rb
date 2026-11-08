@@ -10,7 +10,7 @@ module EntitlementsHelper
   def upgrade_to_unlock(text = UpgradeOffer::UPGRADE_TO_UNLOCK, classes: "text-iris-300")
     return unless upgrade_offered?
 
-    link_to text, UpgradeOffer.url, class: [ classes, "hover:underline" ], target: "_blank", rel: "noopener noreferrer"
+    link_to text, UpgradeOffer.url, class: [ "tap-link", classes, "hover:underline" ], target: "_blank", rel: "noopener noreferrer"
   end
 
   def upgrade_offered? = UpgradeOffer.available?

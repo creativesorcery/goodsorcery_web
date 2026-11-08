@@ -9,7 +9,7 @@
 <% breadcrumb transaction.name, project_performance_transaction_path(@project, transaction, @selection.link_params) %>
 <% breadcrumb "trace #{trace.short_id}" %>
 
-<div class="px-8 pt-8 pb-16 max-w-[1400px]">
+<div class="page-gutter pt-8 pb-16 max-w-[1400px]">
   <%= render "projects/performance/traces/hero", project: @project, page: @page, selection: @selection %>
   <%= render "projects/performance/traces/chips", page: @page %>
   <%= render "projects/performance/traces/layers", page: @page %>

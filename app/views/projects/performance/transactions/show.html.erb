@@ -5,7 +5,7 @@
 <% breadcrumb "Performance", project_performance_path(@project, @selection.link_params(tab: (@transaction.job? ? "jobs" : nil))) %>
 <% breadcrumb @transaction.name %>
 
-<div class="px-8 pt-8 pb-16 max-w-[1400px]">
+<div class="page-gutter pt-8 pb-16 max-w-[1400px]">
   <%= render "projects/performance/transactions/hero", project: @project, transaction: @transaction, selection: @selection, report: @report %>
   <%= render "projects/performance/transactions/ribbon", project: @project, transaction: @transaction, report: @report %>
 

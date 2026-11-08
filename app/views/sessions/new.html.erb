@@ -13,7 +13,7 @@
   <div>
     <div class="flex items-center justify-between">
       <%= form.label :password, class: "label" %>
-      <%= link_to "Forgot password?", new_password_path, class: "mb-1.5 text-[12.5px] text-iris-300 hover:underline" %>
+      <%= link_to "Forgot password?", new_password_path, class: "tap-link mb-1.5 text-[12.5px] text-iris-300 hover:underline" %>
     </div>
     <%= form.password_field :password, required: true, autocomplete: "current-password", maxlength: 72, class: "field" %>
   </div>
@@ -24,7 +24,7 @@
 <% if signups_enabled? %>
   <% content_for :auth_footer do %>
     <p class="mt-5 text-center text-[13px] text-ink-400">
-      New to Good Sorcery? <%= link_to "Create an account", new_registration_path, class: "text-iris-300 hover:underline" %>
+      New to Good Sorcery? <%= link_to "Create an account", new_registration_path, class: "tap-link text-iris-300 hover:underline" %>
     </p>
   <% end %>
 <% end %>

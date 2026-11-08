@@ -4,7 +4,7 @@
 <% breadcrumb @project.name, project_issues_path(@project) %>
 <% breadcrumb "Performance" %>
 
-<div class="px-8 pt-8 pb-16 max-w-[1400px]">
+<div class="page-gutter pt-8 pb-16 max-w-[1400px]">
   <% if @overview.any_data? %>
     <%= render "projects/performance/overviews/header", project: @project, overview: @overview %>
     <%= render "projects/performance/overviews/tiles", project: @project, overview: @overview %>

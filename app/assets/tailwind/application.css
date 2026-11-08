@@ -69,6 +69,16 @@
 }
 
 @layer base {
+  /* No pinch-zoom (the user asked for it; the viewport meta says the same):
+     pan-x pan-y leaves panning and scrolling but drops pinch and double-tap zoom. */
+  html { touch-action: pan-x pan-y; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+  /* viewport-fit=cover: keep content clear of the notch in landscape */
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
   html,
   body {
     background: var(--color-paper-950);
@@ -134,12 +144,63 @@
   }
 
   .page-title {
-    @apply font-display text-[42px] leading-[1.05] text-ink-50 mt-2 tracking-tight;
+    @apply font-display text-[32px] sm:text-[42px] leading-[1.05] text-ink-50 mt-2 tracking-tight;
   }
+
+  /* page side gutter: 16px on phones, 24px on tablets, 32px from lg */
+  .page-gutter { @apply px-4 sm:px-6 lg:px-8; }
+
+  /* Detail-page hero (issue, monitor): title and actions side by side from
+     lg, stacked below it so the title keeps the full width. */
+  .hero-row { @apply flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8; }
+  .hero-actions { @apply flex flex-col items-start gap-3 lg:shrink-0 lg:items-end; }
+
+  /* A page header: title on the left, controls on the right, wrapping under
+     the title when they don't fit. */
+  .page-header { @apply flex flex-wrap items-end justify-between gap-x-6 gap-y-4; }
 
   .section-label {
     @apply px-3 pb-2 text-[10.5px] uppercase tracking-[.2em] text-ink-400/70;
   }
+
+  /* ── app shell: top bar and the sidebar drawer ────────────── */
+  .topbar {
+    height: calc(3.5rem + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* square icon button (menu, close): a 40px tap target */
+  .icon-btn {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-200 transition hover:bg-paper-800 hover:text-ink-50;
+  }
+
+  /* Below lg the sidebar is a drawer (drawer_controller): off-screen and
+     hidden from focus and screen readers until it has data-open. */
+  @media (width < 64rem) {
+    .sidebar {
+      height: 100dvh;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      transform: translateX(-100%);
+      visibility: hidden;
+      transition: transform 0.22s ease, visibility 0s linear 0.22s;
+    }
+    .sidebar[data-open] {
+      transform: none;
+      visibility: visible;
+      box-shadow: 0 0 40px -8px rgb(35 37 58 / 0.35);
+      transition: transform 0.22s ease;
+    }
+  }
+  .drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgb(35 37 58 / 0.3);
+    animation: fade-in 0.22s ease both;
+  }
+  body.drawer-open { overflow: hidden; }
 
   /* ── navigation ───────────────────────────────────────────── */
   .nav-link {
@@ -167,6 +228,36 @@
     transition: color 0.15s;
   }
   .tab:hover { color: var(--color-ink-100); }
+
+  /* A row of tabs that scrolls sideways instead of wrapping or spilling out
+     (phones); the edges fade while there is more to scroll to. */
+  .tab-strip {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    white-space: nowrap;
+  }
+  .tab-strip::-webkit-scrollbar { display: none; }
+  .tab-strip > * { flex-shrink: 0; }
+
+  /* a panel or box whose wide content scrolls sideways, with a fading
+     shadow on the side(s) that have more (scroll-driven, no JS) */
+  .scroll-x {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    --scroll-bg: var(--color-paper-900);
+    background:
+      linear-gradient(to right, var(--scroll-bg) 30%, transparent) left / 2.5rem 100% no-repeat local,
+      linear-gradient(to left, var(--scroll-bg) 30%, transparent) right / 2.5rem 100% no-repeat local,
+      radial-gradient(farthest-side at 0 50%, rgb(35 37 58 / 0.14), transparent) left / 0.9rem 100% no-repeat scroll,
+      radial-gradient(farthest-side at 100% 50%, rgb(35 37 58 / 0.14), transparent) right / 0.9rem 100% no-repeat scroll;
+    background-color: var(--scroll-bg);
+  }
+  .code-pane-body.scroll-x { --scroll-bg: var(--color-paper-950); }
   .tab[aria-selected="true"] { color: var(--color-ink-50); border-color: var(--color-iris-400); }
 
   /* 1h / 24h / 7d / 30d switchers: mark the active item with aria-current="true" */
@@ -188,7 +279,7 @@
 
   /* dropdown menus (dropdown_controller) */
   .menu {
-    @apply absolute z-30 mt-1 min-w-[12rem] rounded-xl border border-paper-700 bg-paper-900 p-1 shadow-[0_8px_24px_-12px_rgb(35_37_58/0.25)];
+    @apply absolute z-30 mt-1 min-w-[12rem] max-w-[calc(100vw-1.5rem)] rounded-xl border border-paper-700 bg-paper-900 p-1 shadow-[0_8px_24px_-12px_rgb(35_37_58/0.25)];
   }
   .menu-item {
     @apply flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] text-ink-100 transition hover:bg-paper-800 hover:text-ink-50;
@@ -355,6 +446,38 @@
   @media (prefers-reduced-motion: reduce) {
     .rise,
     .coral-dot,
-    .ping-dot::before { animation: none; }
+    .ping-dot::before,
+    .drawer-backdrop { animation: none; }
+    .sidebar,
+    .sidebar[data-open] { transition: none; }
   }
+
+  /* ── touch screens and narrow windows ─────────────────────── */
+  /* 40px tap targets where the desktop sizes are smaller. */
+  @media (width < 64rem), (pointer: coarse) {
+    .btn { min-height: 2.5rem; min-width: 2.5rem; justify-content: center; }
+    .segmented > :not([aria-hidden="true"]) { display: inline-flex; align-items: center; justify-content: center; min-height: 2.25rem; min-width: 2.5rem; }
+    .menu-item { min-height: 2.5rem; }
+    .nav-link { min-height: 2.75rem; }
+    .tab { padding-block: 0.75rem; }
+    input[type="checkbox"], input[type="radio"] { width: 1.125rem; height: 1.125rem; }
+    .toggle .track { width: 2.75rem; height: 1.625rem; }
+    .toggle .knob { width: 1.125rem; height: 1.125rem; top: 3px; left: 3px; }
+    .toggle[aria-pressed="true"] .knob { transform: translateX(18px); }
+    /* short text links (Forgot password?, Back to sign in, …): a taller hit
+       area without changing the line they sit on */
+    .tap-link { display: inline-block; padding-block: 0.65rem; margin-block: -0.65rem; }
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+
+/* iOS Safari zooms into any field under 16px when it gains focus. Unlayered,
+   so it wins over the text-[13px]-style utilities on individual fields. */
+@media (width < 64rem), (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]),
+  select,
+  textarea { font-size: 16px; }
 }

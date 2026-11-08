@@ -5,7 +5,7 @@
 <% breadcrumb "Settings", project_setup_path(@project) %>
 <% breadcrumb "Alerts" %>
 
-<div class="px-8 py-8 max-w-[1300px] grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-10">
+<div class="page-gutter py-8 max-w-[1300px] grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-6 lg:gap-10">
   <%= render "projects/settings_nav", project: @project, current: :alerts %>
 
   <div class="min-w-0 max-w-2xl">

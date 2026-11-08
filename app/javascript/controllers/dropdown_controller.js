@@ -8,7 +8,8 @@ import { Controller } from "@hotwired/stimulus"
 //   <div data-dropdown-target="menu" class="menu right-0" hidden>…links / button_to…</div>
 // </div>
 //
-// Closes on outside click, Escape, and before Turbo caches the page.
+// Closes on outside click, Escape, and before Turbo caches the page. An open
+// menu that would poke past the side of a narrow window is nudged back in.
 export default class extends Controller {
   static targets = ["button", "menu"]
 
@@ -31,13 +32,17 @@ export default class extends Controller {
 
   open() {
     this.menuTarget.hidden = false
+    this.keepInViewport()
     this.setExpanded(true)
     document.addEventListener("click", this.closeOnOutsideClick)
     document.addEventListener("keydown", this.closeOnEscape)
   }
 
   close() {
-    if (this.hasMenuTarget) this.menuTarget.hidden = true
+    if (this.hasMenuTarget) {
+      this.menuTarget.hidden = true
+      this.menuTarget.style.removeProperty("translate")
+    }
     this.setExpanded(false)
     document.removeEventListener("click", this.closeOnOutsideClick)
     document.removeEventListener("keydown", this.closeOnEscape)
@@ -51,6 +56,17 @@ export default class extends Controller {
     if (event.key !== "Escape") return
     this.close()
     if (this.hasButtonTarget) this.buttonTarget.focus()
+  }
+
+  keepInViewport() {
+    const margin = 12
+    this.menuTarget.style.removeProperty("translate")
+    const { left, right } = this.menuTarget.getBoundingClientRect()
+    const width = document.documentElement.clientWidth
+    let shift = 0
+    if (left < margin) shift = margin - left
+    else if (right > width - margin) shift = Math.max(width - margin - right, margin - left)
+    if (shift) this.menuTarget.style.translate = `${Math.round(shift)}px 0`
   }
 
   setExpanded(expanded) {
