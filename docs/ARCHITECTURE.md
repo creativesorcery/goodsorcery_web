@@ -951,7 +951,7 @@ Other rules:
 ### 7.3 Layouts and shared partials
 
 - `layouts/application.html.erb` is the authenticated shell:
-  - `<body class="min-h-screen">` → `div.flex` → sidebar `<aside class="hidden lg:flex w-[248px] shrink-0 flex-col border-r border-iris-500/10 bg-paper-900/60 backdrop-blur sticky top-0 h-screen">` + `<main class="flex-1 min-w-0">`.
+  - `<html data-controller="zoom-lock">` → `<body class="min-h-screen" data-controller="drawer">` → `div.flex` → `.drawer-backdrop` (hidden) + sidebar `<aside id="sidebar" class="sidebar fixed … lg:sticky lg:top-0 lg:h-screen lg:w-[248px] …">` + `<main class="flex-1 min-w-0">`. From lg (1024px) the sidebar is the sticky 248px column it always was; below lg it is the drawer (§7.6).
   - `main` holds the topbar, then flash, then `yield`.
   - `<title>` is `"#{yield(:title)} — Good Sorcery"`.
 - `layouts/_sidebar.html.erb`:
@@ -962,7 +962,7 @@ Other rules:
   - "Project": "Settings & setup" → `project_setup_path(sidebar_project)`; Docs → `docs_url` (external)
   - `layouts/_usage_meter` (events this month / `entitlements.monthly_event_quota`, hidden when that is nil, so always self-hosted)
   - `layouts/_user_menu` (initials, name, "Account name · Hosted" or "Self-hosted" by `ENV["GOODSORCERY_HOSTED"]`, dropdown with Notifications (`notifications_path`) and Sign out)
-- `layouts/_topbar.html.erb` is a sticky `h-14` bar with the breadcrumb trail on the left and the global search form (GET `search_path`, `name="q"`, placeholder "Search projects and issues…") on the right.
+- `layouts/_topbar.html.erb` is a sticky `.topbar` (3.5rem plus the top safe-area inset) with the menu button (below lg only), the breadcrumb trail and the global search form (GET `search_path`, `name="q"`, placeholder "Search projects and issues…") on the right: `w-72` from sm, filling the space left by the crumbs on phones. The trail shows only the last crumb on phones, the last two on tablets and all of them from lg (`NavigationHelper#breadcrumb_item_classes` / `#breadcrumb_separator_classes`); the drawer has the way back.
 - `layouts/auth.html.erb` is a centred single panel with the sigil, used by sessions, passwords and registrations.
 - `layouts/_flash.html.erb` shows notices as `chip-mint` and alerts as `chip-coral`, inside a `.panel`.
 - `shared/_sigil.html.erb` is the SVG from `shell.js`. `shared/_empty_state.html.erb` takes locals `title`, `body` and an optional `action`.
@@ -978,7 +978,7 @@ Other rules:
   - Browser tests (`test/system`, headless Chrome, run by `bin/rails test:system`) cover the Stimulus controllers and the `reload_frame` / `reload_rows` stream actions.
   - `sidebar_project` returns `@project`, else the project last viewed (`session[:last_project_id]`, set by `ProjectScoped`, resolved within `Current.account.projects`), else the project with the most recent `issues.last_seen_at`.
   - `live_stream_from(*streamables)`.
-- `IconHelper`: `icon(name, classes: "w-[17px] h-[17px]")` covers projects, issues, alerts, uptime, settings, book, search, filter, chevron_updown, check, plus.
+- `IconHelper`: `icon(name, classes: "w-[17px] h-[17px]")` covers projects, issues, alerts, uptime, settings, book, search, filter, menu, close, chevron_updown, check, plus.
 - `ChartHelper` (pure SVG built with `tag`, numbers formatted to 1 dp, each bar has a `<title>`):
   - `sparkline_svg(values, color:, width: 120, height: 28, fluid: false)`: area at 0.18 opacity, 2px line and an end dot. The geometry matches `theme.js`.
   - `stacked_sparkline_svg(layers, width: 120, height: 28)`: `layers` is `[{ values:, color: }]`, bottom first. Each layer is an area (0.22 opacity) between its running total and the layer below (the chart floor for the first), all scaled to the largest total. The 1.5px lines along each layer's top are drawn after the areas, top layer first, so where an upper layer is zero (its top equals the one below) the lower layer's colour shows on the shared edge. One end dot on the total, in the colour of the topmost layer with a value on the last day (the bottom layer's when all are zero). Same point geometry as `sparkline_svg`.
@@ -1092,6 +1092,19 @@ Auth view styling (B owns the views): sessions/new, passwords/new, passwords/edi
   - Right rail: "What gets captured", "Scrubbed by default" (per platform) and the Self-hosting card.
   - `projects/new` shows the "Add a new app" form panel (name, platform select: "Ruby on Rails", "Ruby" or "Rust"; Settings › General can switch it).
   - The hero ("Add the gem, drop in your key…") and the stepper's "Install the gem" use `project.client_package`, so a Rust app reads "crate".
+
+### 7.6 Small screens (approved 2026-11-08)
+
+Mobile-first Tailwind classes; desktop (lg and up) looks as it did before.
+- **Viewport:** `width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover` in both layouts. No pinch-zoom (the user asked for it): `html { touch-action: pan-x pan-y }` plus `zoom_lock_controller` cancelling iOS Safari's `gesturestart`/`gesturechange`, which ignores the meta for pinches. `viewport-fit=cover` makes `env(safe-area-inset-*)` real: the body pads left/right, the top bar pads its top, the drawer pads top/bottom/left, and the bulk bar sits above the bottom inset.
+- **Drawer (`drawer_controller`, on `<body>`):** below lg `.sidebar` is fixed, `translateX(-100%)` and `visibility: hidden` (so it is out of the tab order and the accessibility tree) until it has `data-open`. The top bar's menu button (`aria-controls="sidebar"`, `aria-expanded`) opens it: the backdrop shows, `body.drawer-open` stops the page scrolling, focus moves to the first item and Tab wraps inside. Escape (unless a menu inside it is open), the backdrop, the drawer's close button and following any link close it, and focus returns to the menu button. It also closes before Turbo caches the page and when the window grows to lg. There is one nav markup (the sidebar), so project switcher, usage meter and user menu (Notifications, Sign out) are the same on phones. `prefers-reduced-motion` drops the slide and fade.
+- **Fields:** below lg or on a coarse pointer every input, select and textarea is 16px (an unlayered rule in `application.css`, so it beats `text-[13px]`-style utilities); iOS zooms into anything smaller on focus.
+- **Tap targets:** in the same media query `.btn` is at least 40×40px, `.segmented` items 36px tall, `.menu-item` 40px, `.nav-link` 44px, toggles 44×26px, checkboxes 18px; `.icon-btn` is a 40px square icon button and `.tap-link` gives a short text link a taller hit area without moving its line.
+- **Component classes:** `.page-gutter` (16/24/32px side padding, used by every page wrapper, the top bar, flash and banners), `.page-header` (title left, controls wrapping under it), `.hero-row` / `.hero-actions` (issue and monitor heroes: side by side from lg, stacked below so the title keeps the full width), `.tab-strip` (tab rows scroll sideways instead of wrapping or spilling), `.scroll-x` (a sideways scroller with scroll-driven edge shadows; set `--scroll-bg` on a non-white surface, as `.code-pane-body.scroll-x` does). `.page-title` is 32px on phones.
+- **Tables:** below md the issue, endpoint/job, slow-trace, monitor, recent-check and notification rows are cards: the column cells carry `max-md:hidden` (`IssuesHelper::METRIC_CELL`, `PerformanceHelper::DESKTOP_CELL`, `UptimeHelper::COLUMN_CELL`) and a `md:hidden` line under the name repeats the figures (`issue_card_meta`, the row partials). From md the APM tables keep their fixed `min-w-*` grids inside a `.scroll-x` panel. The trace timeline puts each span's label on its own line above its bar and time on phones (`PerformanceHelper::TIMELINE_LABEL`), and the axis keeps every other tick label.
+- **Menus:** `dropdown_controller` nudges an open `.menu` back inside the window (a CSSOM `translate`, allowed under the CSP), and `.menu` is never wider than the window less 1.5rem. Non-dropdown popovers (New key) size themselves with `min()`.
+- **Text:** captured values, class names, paths and context values use `break-words`, not `break-all`, so words such as `[FILTERED]` don't split; key/value context tables stack the key over the value below sm.
+- `test/system/mobile_test.rb` runs at 390×844 (its own driver name, `:selenium_phone`, so its browser session stays phone-sized): the drawer (button, Escape, backdrop, close button, link, Tab), 16px fields, and `scrollWidth <= innerWidth` on the projects, issues, issue, performance, uptime, monitor, settings, notifications and search pages.
 
 ---
 
