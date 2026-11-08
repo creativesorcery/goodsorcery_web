@@ -16,6 +16,10 @@ class ApmTrace < ApplicationRecord
 
   encrypts :payload
 
+  # The app-code layer (payload app_ms): the column was named before the
+  # protocol went language-neutral.
+  alias_attribute :app_ms, :ruby_ms
+
   scope :since, ->(time) { where(minute: time..) }
   scope :slowest_first, -> { order(duration_ms: :desc, id: :desc) }
   scope :newest_first, -> { order(started_at: :desc, id: :desc) }

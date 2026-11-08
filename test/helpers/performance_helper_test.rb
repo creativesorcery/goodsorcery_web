@@ -87,8 +87,27 @@ class PerformanceHelperTest < ActionView::TestCase
     facts = apm_trace_facts(page).to_h
     assert_equal "200 OK", facts["Status"]
     assert_equal "web-2 · Puma worker 3", facts["Host"]
-    assert_equal "Ruby 3.4.1 · Rails 8.0.2", facts["Runtime"]
+    assert_equal "Rails 8.0.2 · Ruby 3.4.1", facts["Runtime"]
     assert_equal "14 ms · 3 runs", facts["GC"]
     assert_equal "1.4M objects", facts["Allocations"]
+  end
+
+  test "a trace stored with a runtime list shows it in the client's order" do
+    runtime = [ { "name" => "Rust", "version" => "1.82.0" }, { "name" => "axum", "version" => "0.8.1" } ]
+    facts = ->(payload) do
+      trace = ApmTrace.find(apm_traces(:checkout_slow).id)
+      trace.payload = JSON.parse(trace.payload).merge(payload).to_json
+      apm_trace_facts(Apm::TracePage.new(trace, cutoff: 30.days.ago)).to_h
+    end
+
+    assert_equal "Rust 1.82.0 · axum 0.8.1", facts.({ "runtime" => runtime })["Runtime"]
+    assert_equal "—", facts.({ "runtime" => nil })["Runtime"]
+  end
+
+  test "the N+1 advice names no language or library" do
+    span = Apm::TraceDetails::Span.from({ "type" => "sql", "count" => 38, "duration_ms" => 1180.0 })
+    assert_equal "This query ran 38 times in one request. Load the rows in one query (a join, an IN list or a batch load) " \
+                 "instead of one per item.", apm_n_plus_one_advice(span, web: true)
+    assert_match "in one job run.", apm_n_plus_one_advice(span, web: false)
   end
 end

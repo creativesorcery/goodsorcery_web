@@ -1,5 +1,5 @@
 # GET /api/v1/verify: confirms that an ingest key is valid and the endpoint is
-# reachable (the goodsorcery gem's install check). Creates nothing and counts
+# reachable (a client's install check). Creates nothing and counts
 # toward no ingest allowance or quota; it has its own modest limits.
 class Api::V1::VerificationsController < ActionController::API
   include ApiKeyAuthentication

@@ -154,6 +154,50 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#install_env pre", text: /GOODSORCERY_ENDPOINT/, count: 0
   end
 
+  test "rust apps add the crate, init from env and hook in axum, with no Ruby lines" do
+    projects(:marketing).update!(platform: "rust")
+
+    get project_setup_path(projects(:marketing))
+
+    assert_equal [ "i.Add the crate", "ii.Hook it in", "iii.Cast a test error", "API keys" ], step_headings
+    assert_select "#setup_hero_project_#{projects(:marketing).id} ol li[aria-current=step]", text: /Install the crate/
+    assert_select "h1 + p", text: /Add the crate, drop in your key/
+    assert_select "[aria-label='Install method'] [role=tab]", count: 2
+    assert_select "[role=tab][aria-selected=true][aria-controls=install_cargo]", "Cargo"
+    assert_select "#install_cargo pre", text: /\$ cargo add goodsorcery\s+\$ export GOODSORCERY_API_KEY=gs_live_Mark…0001/
+    assert_select "#install_cargo pre", text: %r{export GOODSORCERY_ENDPOINT=http://www\.example\.com}
+    assert_select "#install_cargo pre", text: /let _guard = goodsorcery::init\(\s+goodsorcery::Config::from_env\(\)/
+    assert_select "#install_cargo pre .tok-c", text: "// .performance_monitoring(true)"
+    assert_select "#install_env[hidden] pre", text: %r{GOODSORCERY_API_KEY=.*GOODSORCERY_ENV=production\s+GOODSORCERY_ENDPOINT=http://www\.example\.com}m
+    assert_select "#hook_axum:not([hidden]) pre", text: /\.layer\(goodsorcery::axum::layer\(\)\);/
+    assert_select "#hook_capture[hidden] pre", text: /goodsorcery::capture_error\(&err\);/
+    assert_select "pre", text: /goodsorcery::capture_error\(&std::io::Error::other\("Good Sorcery test error"\)\);/
+    assert_select "aside", text: /Panics anywhere in the process/
+    assert_select "aside code", text: "GOODSORCERY_ENDPOINT=http://www.example.com"
+    assert_select "aside", text: /Same crate, same UI/
+    assert_no_match(/bundle|GoodSorcery\.|config\.endpoint|rake|Rails|\bgem\b/, response.body)
+  end
+
+  test "rust apps copy a placeholder instead of the masked key" do
+    projects(:marketing).update!(platform: "rust")
+
+    get project_setup_path(projects(:marketing))
+
+    pre = css_select("#install_cargo pre").first.dup
+    pre.css("[data-clipboard-skip]").each(&:remove)
+    assert_equal "cargo add goodsorcery\nexport GOODSORCERY_API_KEY=YOUR_PRODUCTION_KEY\nexport GOODSORCERY_ENDPOINT=http://www.example.com",
+                 pre.text.strip
+  end
+
+  test "hosted instances keep the crate's default endpoint on the rust page" do
+    projects(:marketing).update!(platform: "rust")
+
+    with_hosted_mode { get project_setup_path(projects(:marketing)) }
+
+    assert_select "#install_cargo pre", text: /export GOODSORCERY_ENDPOINT/, count: 0
+    assert_select "#install_env pre", text: /GOODSORCERY_ENDPOINT/, count: 0
+  end
+
   test "lists api keys with reveal and rotate" do
     get project_setup_path(projects(:storefront))
 

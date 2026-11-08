@@ -1,0 +1,10 @@
+<%# locals: (project:, progress:, api_key:) -%>
+<%= render "projects/setups/rust/install", api_key: %>
+<%= render "projects/setups/rust/hook_in" %>
+<%= render layout: "projects/setups/test_error", locals: { project:, progress:, number: "iii." } do %>
+<%= render layout: "projects/setups/snippet", locals: { label: "src/main.rs, after init" } do %>goodsorcery::capture_error(&amp;std::io::<span class="tok-sym">Error</span>::other(<span class="tok-s">"Good Sorcery test error"</span>));<% end %>
+<p class="text-[13px] text-ink-400">
+  Run it once with your key set, then remove it. It sends one test error in the background; the guard sends it before
+  <span class="font-mono text-ink-200">main</span> returns.
+</p>
+<% end %>

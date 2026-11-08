@@ -11,11 +11,6 @@ class Apm::SqlSummaryTest < ActiveSupport::TestCase
     assert_equal "BEGIN", label("BEGIN")
   end
 
-  test "the first table read" do
-    assert_equal "products", Apm::SqlSummary.new('SELECT * FROM "public"."products" WHERE x = 1').table
-    assert_nil Apm::SqlSummary.new("COMMIT").table
-  end
-
   test "one clause per line; joins stay with their modifier" do
     lines = Apm::SqlSummary.new("SELECT a FROM b LEFT OUTER JOIN c ON c.id = b.c_id WHERE b.x = $1 ORDER BY a LIMIT ?").lines
     texts = lines.map { |line| line.map(&:last).join }

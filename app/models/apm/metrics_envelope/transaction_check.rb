@@ -43,7 +43,7 @@ class Apm::MetricsEnvelope::TransactionCheck
     def buckets_error
       buckets = value("buckets")
       return "buckets must be an array of 1 to #{Apm::Histogram::BUCKETS} entries" unless list?(buckets, 1..Apm::Histogram::BUCKETS)
-      return "buckets entries must be [index, count, db_ms, http_ms, view_ms, ruby_ms]" unless buckets.all? { bucket?(it) }
+      return "buckets entries must be [index, count, db_ms, http_ms, view_ms, app_ms]" unless buckets.all? { bucket?(it) }
       return "buckets must not repeat an index" unless buckets.map(&:first).uniq.size == buckets.size
 
       "buckets must add up to count" unless buckets.sum { it[1] } == count

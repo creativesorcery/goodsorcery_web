@@ -3,7 +3,7 @@
 # payloads are captured data: everything here builds escaped tags with
 # tag/safe_join, never raw or html_safe.
 module PerformanceHelper
-  LAYER_NAMES = { db: "Database", http: "External HTTP", view: "Views", ruby: "Ruby" }.freeze
+  LAYER_NAMES = { db: "Database", http: "External HTTP", view: "Rendering", app: "App code" }.freeze
   SPAN_TYPES = { "sql" => "SQL", "http" => "HTTP", "view" => "View", "enqueue" => "Job" }.freeze
   RANGE_SHORT = { "15m" => "15m", "1h" => "1h", "1d" => "24h", "7d" => "7d", "30d" => "30d" }.freeze
   SORT_LABELS = { "time" => "Time consumed", "p95" => "Slowest p95", "rate" => "Most requests", "failed" => "Most failed" }.freeze
@@ -74,6 +74,12 @@ module PerformanceHelper
     chip(count ? "N+1 ×#{count}" : "N+1 queries", tone: :lilac, small:)
   end
 
+  # The advice under a trace's N+1 detail: the same in every language.
+  def apm_n_plus_one_advice(span, web:)
+    "This query ran #{pluralize(delimited(span.calls), 'time')} in one #{web ? 'request' : 'job run'}. " \
+      "Load the rows in one query (a join, an IN list or a batch load) instead of one per item."
+  end
+
   # Web: "POST /checkout"; jobs: "sidekiq · critical · waits 0.8 s (p95)".
   def apm_route_line(transaction, queue_wait_ms: nil)
     return transaction.route_label if transaction.web?
@@ -107,7 +113,7 @@ module PerformanceHelper
   def apm_span_type(span) = SPAN_TYPES.fetch(span.type.to_s, span.type.to_s.capitalize)
 
   # 'SELECT "users" WHERE "id" = $1', "POST api.taxjar.com/v2/taxes",
-  # "checkouts/create.html.erb", "enqueue Orders::PlaceJob".
+  # "checkouts/create.html.erb" (any template or view name), "enqueue Orders::PlaceJob".
   def apm_span_label(span)
     case span.type
     when "sql" then apm_sql_label(span.sql.presence || span.name)
@@ -183,9 +189,7 @@ module PerformanceHelper
         [ "Queue wait", apm_duration(job["queue_wait_ms"]) ] ]
     end
 
-    def apm_runtime(runtime)
-      [ ("Ruby #{runtime['ruby']}" if runtime["ruby"]), ("Rails #{runtime['rails']}" if runtime["rails"]) ].compact.join(" · ").presence || "—"
-    end
+    def apm_runtime(runtime) = runtime.full_label || "—"
 
     def apm_gc(gc)
       return "—" unless gc["time_ms"] || gc["count"]

@@ -1,0 +1,43 @@
+<%# locals: (api_key:) -%>
+<%# Rust: the goodsorcery crate reads its key, environment and endpoint from env vars (Config::from_env).
+    Snippets show the masked default key only; the full key sits behind Reveal below. -%>
+<section class="panel overflow-hidden rise rise-1" data-controller="tabs">
+  <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
+    <%= setup_step_heading "i.", "Add the crate" %>
+    <div class="flex items-center gap-5" role="tablist" aria-label="Install method">
+      <%= setup_tab "Cargo", "install_cargo", selected: true %>
+      <%= setup_tab "ENV only", "install_env" %>
+    </div>
+  </div>
+
+  <div id="install_cargo" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3">
+<%= render layout: "projects/setups/snippet", locals: { label: "terminal" } do %><span class="text-iris-400 select-none" data-clipboard-skip>$ </span>cargo add goodsorcery
+<span class="text-iris-400 select-none" data-clipboard-skip>$ </span>export GOODSORCERY_API_KEY=<span class="tok-s"><%= install_key_hint(api_key) %></span><%= rust_endpoint_export %><% end %>
+<%= render layout: "projects/setups/snippet", locals: { label: "src/main.rs" } do %><span class="tok-sym">#[tokio::main]</span>
+<span class="tok-k">async fn</span> main() {
+    <span class="tok-c">// Reads GOODSORCERY_API_KEY, GOODSORCERY_ENV and GOODSORCERY_ENDPOINT,</span>
+    <span class="tok-c">// and installs a panic hook that reports panics.</span>
+    <span class="tok-k">let</span> _guard = goodsorcery::init(
+        goodsorcery::<span class="tok-sym">Config</span>::from_env()
+            <%= rust_performance_lines %>
+    );
+
+    <span class="tok-c">// Build and serve your app here. Keep _guard until main returns:</span>
+    <span class="tok-c">// dropping it sends anything still queued.</span>
+}<% end %>
+    <p class="text-[13px] text-ink-400">
+      Initialise once, first thing in <span class="font-mono text-ink-200">main</span>, before anything can fail.
+      Without an API key the client stays off, so development builds send nothing unless you set one.
+    </p>
+    <p class="text-[13px] text-ink-400">
+      For response times and slow-request traces under <span class="text-ink-200">Performance</span>, uncomment
+      <span class="font-mono text-ink-200">.performance_monitoring(true)</span> (it's off by default) and add the axum layer below.
+    </p>
+  </div>
+
+  <% boot_note = capture do %>
+    <span class="font-mono text-ink-200">goodsorcery::Config::from_env()</span> reads these at startup; you still call
+    <span class="font-mono text-ink-200">goodsorcery::init</span> in <span class="font-mono text-ink-200">main</span>.
+  <% end %>
+  <%= render "projects/setups/install_env", api_key:, note: boot_note %>
+</section>

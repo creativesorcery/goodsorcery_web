@@ -16,8 +16,8 @@
 # Apm::Distribution.empty).
 class Apm::StatsQuery
   UNNEST = "CROSS JOIN LATERAL unnest(bucket_counts, bucket_db_ms, bucket_http_ms, bucket_view_ms, bucket_ruby_ms, " \
-           "queue_wait_counts) WITH ORDINALITY AS b(c, db, http, view, ruby, qw, i)".freeze
-  BUCKET_SUMS = [ "b.i", "SUM(b.c)", "SUM(b.db)", "SUM(b.http)", "SUM(b.view)", "SUM(b.ruby)", "SUM(b.qw)" ].freeze
+           "queue_wait_counts) WITH ORDINALITY AS b(c, db, http, view, app, qw, i)".freeze
+  BUCKET_SUMS = [ "b.i", "SUM(b.c)", "SUM(b.db)", "SUM(b.http)", "SUM(b.view)", "SUM(b.app)", "SUM(b.qw)" ].freeze
   SCALAR_SUMS = [ "SUM(requests_count)", "SUM(failed_count)", "SUM(duration_ms_sum)", "SUM(queue_wait_ms_sum)" ].freeze
 
   # The overview table's sorts, largest first: time consumed (the summed
@@ -92,7 +92,7 @@ class Apm::StatsQuery
       Arel.sql(format("date_bin('%d seconds', %s, TIMESTAMP '1970-01-01')", step.to_i, model.time_column))
     end
 
-    # { key => { bucket index => [count, db, http, view, ruby, queue wait count] } }
+    # { key => { bucket index => [count, db, http, view, app, queue wait count] } }
     def bucket_rows(scope, keys)
       rows = scope.from("#{scope.quoted_table_name} #{UNNEST}").where("b.c > 0 OR b.qw > 0")
         .group(*keys, "b.i").pluck(*keys, *BUCKET_SUMS.map { Arel.sql(it) })

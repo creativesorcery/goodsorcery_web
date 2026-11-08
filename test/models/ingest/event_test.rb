@@ -22,12 +22,12 @@ class Ingest::EventTest < ActiveSupport::TestCase
     assert_equal "undefined method `price_cents' for nil (cart [n], [email], card [FILTERED])", @event.redacted_message
   end
 
-  test "normalises frames, infers in_app and gem names" do
+  test "normalises frames, infers in_app and package names" do
     file, *others = @event.frames.map(&:file)
     assert_equal "app/services/cart_total.rb", file
     assert_equal [ "app/models/order.rb", "gems/activerecord-8.0.1/lib/active_record/relation.rb", "ruby/3.4.0/monitor.rb" ], others
     assert_equal [ true, true, false, false ], @event.frames.map(&:in_app?)
-    assert_equal [ nil, nil, "activerecord", nil ], @event.frames.map(&:gem_name)
+    assert_equal [ nil, nil, "activerecord", nil ], @event.frames.map(&:package)
     assert_equal "[FILTERED]", @event.frames.first.locals["api_key"]
     assert_equal 39, @event.frames.first.context[:start_line]
   end
@@ -49,6 +49,39 @@ class Ingest::EventTest < ActiveSupport::TestCase
     assert_equal [ false, true ], event.frames.map(&:in_app?)
     assert_equal "vendor/thing.rb:7 in b", event.culprit
     assert_equal 7, event.top_app_frame.line
+  end
+
+  test "reads a non-Ruby event: trusted in_app, columns, modules, packages and a runtime list" do
+    json = minimal_json(
+      exception: { class: "shop::cart::CartError", backtrace: [
+        { file: "/home/deploy/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.41.0/src/runtime/park.rs",
+          line: 281, column: 63, method: "tokio::runtime::park::CachedParkThread::block_on", in_app: false },
+        { file: "src/cart.rs", line: 42, column: 17, method: "line_total", module: "shop::cart", in_app: true },
+        { file: "src/main.rs", line: 9, method: "main", module: "shop", package: "shop", in_app: true }
+      ] },
+      context: { runtime: [ { name: "Rust", version: "1.82.0" }, { name: "axum", version: "0.8.1" } ] }
+    )
+    event = build_event(json)
+    tokio, cart, main = event.frames
+
+    assert_equal [ false, true, true ], event.frames.map(&:in_app?)
+    assert_equal [ "crates/tokio-1.41.0/src/runtime/park.rs", "tokio" ], [ tokio.file, tokio.package ]
+    assert_equal [ 17, "shop::cart", nil ], [ cart.column, cart.module_name, cart.package ]
+    assert_equal "shop", main.package
+    assert_equal "src/cart.rs:42 in line_total", event.culprit
+    assert_equal "Rust 1.82 · axum 0.8", event.runtime_label
+    assert_equal({ file: "src/cart.rs", line: 42, method: "line_total", in_app: true, package: nil, context: nil, locals: nil,
+                   column: 17, module: "shop::cart" }, cart.to_h.merge(context: nil, locals: nil))
+  end
+
+  test "the older runtime object still labels the project" do
+    assert_equal "Rails 8.1 · Ruby 4.0", build_event(minimal_json(context: { runtime: { ruby: "4.0.7", rails: "8.1.4" } })).runtime_label
+    assert_nil build_event(minimal_json(context: { runtime: "Rust 1.82" })).runtime_label
+  end
+
+  test "frame columns must be non-negative integers" do
+    json = minimal_json(exception: { backtrace: [ { file: "a.py", line: 1, column: -3 }, { file: "b.py", line: 2, column: "x" } ] })
+    assert_equal [ nil, nil ], build_event(json).frames.map(&:column)
   end
 
   test "culprit falls back to the first frame, then nil" do

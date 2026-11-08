@@ -79,9 +79,9 @@ traces = {
   traces: [ {
     id: trace_id, kind: "web", name: "CheckoutsController#create", method: "POST", route: "/checkout",
     minute: last_minute.iso8601, started_at: started_at.iso8601(3), duration_ms: 2_940.2 * slow,
-    db_ms: 1_220.4 * slow, http_ms: 1_230.0 * slow, view_ms: 320.1 * slow, ruby_ms: 169.7 * slow, status: 200, failed: false, error_event_id: nil,
+    db_ms: 1_220.4 * slow, http_ms: 1_230.0 * slow, view_ms: 320.1 * slow, app_ms: 169.7 * slow, status: 200, failed: false, error_event_id: nil,
     request: { method: "POST", path: "/checkout", request_id: SecureRandom.uuid },
-    host: "web-2", process: "Puma worker 3", runtime: { ruby: RUBY_VERSION, rails: "8.1.4" }, gc: { time_ms: 14.0, count: 3 },
+    host: "web-2", process: "Puma worker 3", runtime: [ { name: "Rails", version: "8.1.4" }, { name: "Ruby", version: RUBY_VERSION } ], gc: { time_ms: 14.0, count: 3 },
     allocations: 1_400_000, sql_count: 43, http_count: 2, spans_dropped: 0,
     spans: [
       { type: "sql", offset_ms: 12.1, duration_ms: 3.0, name: "User Load", rows: 1,

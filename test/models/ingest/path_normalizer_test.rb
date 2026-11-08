@@ -25,6 +25,16 @@ class Ingest::PathNormalizerTest < ActiveSupport::TestCase
     assert_equal "~/run.rb", @normalizer.normalize("/Users/mara/run.rb")
   end
 
+  test "normalises Cargo registry paths and container roots" do
+    assert_equal "crates/tokio-1.41.0/src/runtime/task/harness.rs",
+                 @normalizer.normalize("/home/mara/.cargo/registry/src/index.crates.io-6f17d22bba15001f/tokio-1.41.0/src/runtime/task/harness.rs")
+    assert_equal "crates/axum-0.8.1/src/routing/route.rs",
+                 @normalizer.normalize("/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/axum-0.8.1/src/routing/route.rs")
+    assert_equal "src/handlers/checkout.rs", @normalizer.normalize("/app/src/handlers/checkout.rs")
+    assert_equal "~/code/shop/src/main.rs", @normalizer.normalize("/Users/mara/code/shop/src/main.rs")
+    assert_equal "src/main.rs", @normalizer.normalize("src/main.rs")
+  end
+
   test "leaves relative and unknown paths alone" do
     assert_equal "app/models/order.rb", @normalizer.normalize("app/models/order.rb")
     assert_equal "/usr/bin/env", @normalizer.normalize("/usr/bin/env")

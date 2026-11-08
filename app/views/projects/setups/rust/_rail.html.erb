@@ -1,0 +1,22 @@
+<aside class="space-y-6">
+  <div class="panel p-5 rise rise-2">
+    <div class="text-[11px] uppercase tracking-[.18em] text-ink-400">What gets captured</div>
+    <ul class="mt-3 space-y-2.5 text-[13px] text-ink-200">
+      <li class="flex gap-2"><span class="text-iris-400">✦</span>Panics anywhere in the process, through the panic hook <span class="font-mono text-[12px]">init</span> installs</li>
+      <li class="flex gap-2"><span class="text-iris-400">✦</span><span>Errors you pass to <span class="font-mono text-[12px]">goodsorcery::capture_error</span></span></li>
+      <li class="flex gap-2"><span class="text-iris-400">✦</span><span>Each axum request's method, route and path, once you add <span class="font-mono text-[12px]">goodsorcery::axum::layer()</span></span></li>
+      <li class="flex gap-2"><span class="text-iris-400">✦</span>With performance monitoring on: response times, slow endpoints and traces of the slowest requests</li>
+    </ul>
+  </div>
+
+  <div class="panel p-5 rise rise-3">
+    <div class="text-[11px] uppercase tracking-[.18em] text-ink-400">Scrubbed by default</div>
+    <p class="text-[13px] text-ink-300 mt-3">
+      Request bodies, headers and cookies are never sent. The server scrubs passwords, tokens, API keys, Authorization values and
+      card-shaped numbers from every string it receives, and stores everything <em class="font-display">encrypted</em>.
+      Keep secrets out of error messages all the same.
+    </p>
+  </div>
+
+  <%= render "projects/setups/self_hosting", setting: "GOODSORCERY_ENDPOINT", line: "GOODSORCERY_ENDPOINT=#{instance_endpoint}", package: "crate" %>
+</aside>

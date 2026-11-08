@@ -15,7 +15,7 @@
 
     <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-6 mt-6">
       <div class="space-y-6 min-w-0">
-        <%# Install steps and side panel per platform: projects/setups/rails/*, projects/setups/ruby/*. -%>
+        <%# Install steps and side panel per platform: projects/setups/rails/*, ruby/* and rust/*. -%>
         <%= render "projects/setups/#{@project.platform}/steps", project: @project, progress: @progress, api_key: @api_keys.first %>
         <%= render "projects/setups/api_keys", project: @project, api_keys: @api_keys %>
       </div>

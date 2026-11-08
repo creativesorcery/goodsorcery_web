@@ -1,0 +1,5 @@
+<%# locals: (frame:) -%>
+<%# "in cart::total" after an app frame's location; the module shows muted when the method name doesn't already carry it. -%>
+<% if frame.method_name.present? || frame.module_label %>
+  <span class="text-ink-400">in</span><span class="break-all"><% if frame.module_label %><span class="text-ink-300"><%= frame.module_label %></span> <% end %><span class="text-lilac-300"><%= frame.method_name %></span></span>
+<% end %>

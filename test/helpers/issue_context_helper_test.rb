@@ -7,6 +7,14 @@ class IssueContextHelperTest < ActionView::TestCase
     assert_equal({ "runtime.ruby" => "3.4.1", "runtime.rails.version" => "8.1", "env" => {}, "host" => "web-1" }, flat)
   end
 
+  test "flatten_context shows a runtime list as one key per runtime" do
+    flat = flatten_context({ "runtime" => [ { "name" => "Rust", "version" => "1.82.0" }, { "name" => "axum", "version" => "0.8.1" } ],
+                             "process" => "worker 3" })
+
+    assert_equal({ "runtime.Rust" => "1.82.0", "runtime.axum" => "0.8.1", "process" => "worker 3" }, flat)
+    assert_equal({ "runtime" => [ "a", "b" ] }, flatten_context({ "runtime" => [ "a", "b" ] }))
+  end
+
   test "affected user name falls back from name to username to the email's local part" do
     assert_equal "Mara", affected_user_name({ "name" => "Mara", "username" => "mk" })
     assert_equal "mk", affected_user_name({ "username" => "mk", "email" => "m@x.io" })

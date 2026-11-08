@@ -6,7 +6,7 @@
 #   # => "Around p95 and p99, the database takes the most time (49% and 56%).
 #   #     Typical requests mostly wait on external HTTP."
 class Apm::LayerSentence
-  NAMES = { db: "the database", http: "external HTTP", view: "views", ruby: "Ruby" }.freeze
+  NAMES = { db: "the database", http: "external HTTP", view: "rendering", app: "app code" }.freeze
   WAITING_LAYERS = %i[db http].freeze
 
   def initialize(bars, noun:)

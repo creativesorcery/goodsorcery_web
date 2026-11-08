@@ -41,12 +41,13 @@ class Projects::Performance::TracesControllerTest < ActionDispatch::IntegrationT
       assert_select "h2", "One query, run 38 times"
       assert_select "pre .tok-k", "SELECT"
       assert_select "pre .tok-n", "$1"
-      assert_select "p", "Values become $1, $2 inside your app, before anything is sent."
+      assert_select "p", "Values become placeholders inside your app, before anything is sent."
       assert_select "dd", "38"
       assert_select "dd", "1.18 s"
       assert_select "p", /Called from\s*app\/services\/cart_total.rb:27\s*in\s*total_cents/
       assert_select ".code .bg-lilac-400\\/15", /item.product.price_cents/
-      assert_select "p", /Load the products in one query instead:\s*….includes\(:product\)/
+      assert_select "p", "This query ran 38 times in one request. Load the rows in one query (a join, an IN list or a batch load) instead of one per item."
+      assert_select "p", text: /includes/, count: 0
     end
   end
 
@@ -56,7 +57,7 @@ class Projects::Performance::TracesControllerTest < ActionDispatch::IntegrationT
     facts = css_select("#apm_request_heading + dl dt").map(&:text)
     assert_equal %w[Status Host Started Runtime GC Allocations], facts
     assert_select "dd", "web-2 · Puma worker 3"
-    assert_select "dd", "Ruby 3.4.1 · Rails 8.0.2"
+    assert_select "dd", "Rails 8.0.2 · Ruby 3.4.1"
     assert_select "dd", "14 ms · 3 runs"
     assert_select "dd", "1.4M objects"
     assert_select "p", "Traces carry no params, headers, cookies or bodies."

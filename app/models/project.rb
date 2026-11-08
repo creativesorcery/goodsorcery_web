@@ -13,6 +13,8 @@ class Project < ApplicationRecord
   UNRESOLVED_COUNT_TTL = 10.seconds
   LIMIT_COMING_SOON = "Cannot add more apps yet, but it's coming soon".freeze
   LIMIT_REACHED = "App limit reached.".freeze
+  # What the platform's client library is called, for the setup copy.
+  CLIENT_PACKAGES = { "rust" => "crate" }.freeze
 
   belongs_to :account, inverse_of: :projects
   has_many :api_keys, -> { order(:id) }, inverse_of: :project
@@ -25,7 +27,7 @@ class Project < ApplicationRecord
   has_many :apm_traces, inverse_of: :project
   has_many :apm_inbound_batches, inverse_of: :project
 
-  enum :platform, { rails: "rails", ruby: "ruby" }, validate: true
+  enum :platform, { rails: "rails", ruby: "ruby", rust: "rust" }, validate: true
   enum :color, COLORS.index_by(&:itself), validate: true, prefix: true
 
   attr_readonly :slug
@@ -108,6 +110,9 @@ class Project < ApplicationRecord
       "first_event_at = COALESCE(first_event_at, ?), runtime_label = COALESCE(?, runtime_label)", at, runtime_label
     ])
   end
+
+  # "gem" for the Ruby platforms, "crate" for Rust.
+  def client_package = CLIENT_PACKAGES.fetch(platform, "gem")
 
   private
     def unresolved_count_key(environment) = [ "unresolved_count", id, environment ]

@@ -17,7 +17,7 @@
 
   <div class="mt-4 grid grid-cols-1 <%= @page.n_plus_one ? "xl:grid-cols-[minmax(0,1fr)_360px]" : "lg:grid-cols-2" %> gap-4 items-start">
     <% if @page.n_plus_one %>
-      <%= render "projects/performance/traces/n_plus_one", span: @page.n_plus_one %>
+      <%= render "projects/performance/traces/n_plus_one", span: @page.n_plus_one, web: @page.web? %>
     <% end %>
     <div class="<%= @page.n_plus_one ? "space-y-4" : "contents" %>">
       <%= render "projects/performance/traces/request", page: @page %>

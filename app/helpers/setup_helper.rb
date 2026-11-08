@@ -50,7 +50,7 @@ module SetupHelper
     "YOUR_#{api_key.environment.upcase.tr('-', '_')}_KEY"
   end
 
-  # Where the gem should send events: this instance (overridable for proxies).
+  # Where the client should send events: this instance (overridable for proxies).
   def instance_endpoint
     ENV.fetch("GOODSORCERY_PUBLIC_URL") { request.base_url }
   end
@@ -73,6 +73,20 @@ module SetupHelper
   def performance_config_lines
     safe_join [ tag.span("# Performance monitoring: response times, slow endpoints, traces of slow requests.", class: "tok-c"),
                 tag.span("# config.performance_monitoring = true", class: "tok-c") ], "\n  "
+  end
+
+  # Rust: the endpoint is an env var too; hosted installs keep the crate's default.
+  def rust_endpoint_export
+    return if hosted?
+
+    safe_join [ "\n", tag.span("$ ", class: "text-iris-400 select-none", data: { clipboard_skip: true }),
+                "export GOODSORCERY_ENDPOINT=", tag.span(instance_endpoint, class: "tok-s") ]
+  end
+
+  # The crate's performance switch, commented out like the gem's: off by default.
+  def rust_performance_lines
+    safe_join [ tag.span("// Performance monitoring: response times, slow endpoints, traces of slow requests.", class: "tok-c"),
+                tag.span("// .performance_monitoring(true)", class: "tok-c") ], "\n            "
   end
 
   def api_key_label(api_key)

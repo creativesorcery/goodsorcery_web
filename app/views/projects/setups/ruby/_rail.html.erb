@@ -18,5 +18,5 @@
     </p>
   </div>
 
-  <%= render "projects/setups/self_hosting" %>
+  <%= render "projects/setups/self_hosting", setting: "config.endpoint", line: %(config.endpoint = "#{instance_endpoint}"), package: "gem" %>
 </aside>

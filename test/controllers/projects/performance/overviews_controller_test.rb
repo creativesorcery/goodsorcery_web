@@ -149,6 +149,21 @@ class Projects::Performance::OverviewsControllerTest < ActionDispatch::Integrati
     assert_select "p", /Turn on performance monitoring in the goodsorcery gem/
     assert_select "pre", "config.performance_monitoring = true"
     assert_select "a[href=?]", project_setup_path(projects(:marketing)), text: "Settings & setup"
+    assert_select ".code-pane-header", "config/initializers/goodsorcery.rb"
+  end
+
+  test "the empty state follows the app's platform" do
+    projects(:marketing).update!(platform: "ruby")
+    get project_performance_path(projects(:marketing))
+    assert_select ".code-pane-header", "config/goodsorcery.rb"
+
+    projects(:marketing).update!(platform: "rust")
+    get project_performance_path(projects(:marketing))
+    assert_select "p", /Turn on performance monitoring in the goodsorcery crate/
+    assert_select ".code-pane-header", "src/main.rs"
+    assert_select "pre", "goodsorcery::Config::from_env().performance_monitoring(true)"
+    assert_select "p", /\.layer\(goodsorcery::axum::layer\(\)\)/
+    assert_select "pre", text: /config\.performance_monitoring/, count: 0
   end
 
   test "self-hosted shows every range and no upgrade copy" do

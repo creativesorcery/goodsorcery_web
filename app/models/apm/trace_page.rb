@@ -5,10 +5,10 @@
 # through ERB escaping only.
 #
 #   page = Apm::TracePage.new(trace, cutoff: range.retention_cutoff)
-#   page.layers       # => [[:db, 1220.4, 0.415], [:http, …], [:view, …], [:ruby, …]]
+#   page.layers       # => [[:db, 1220.4, 0.415], [:http, …], [:view, …], [:app, …]]
 #   page.axis_ticks   # => [[0, 0.0], [500, 0.17], …, [2940.2, 1.0]]
 class Apm::TracePage
-  LAYERS = %i[db http view ruby].freeze
+  LAYERS = %i[db http view app].freeze
   TICK_STEPS = [ 1, 2, 2.5, 5, 10 ].freeze
   TARGET_TICKS = 6
 

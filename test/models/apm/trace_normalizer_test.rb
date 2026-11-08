@@ -22,6 +22,25 @@ class Apm::TraceNormalizerTest < ActiveSupport::TestCase
                  [ result.kind, result.name, result.labels[:http_method], result.labels[:route] ]
   end
 
+  test "app_ms fills the app-code column; the older ruby_ms key still does" do
+    old_form = normalize(trace_hash).columns
+    new_form = normalize(trace_hash(ruby_ms: nil, app_ms: 42.5)).columns
+    both = normalize(trace_hash(app_ms: 12.0)).columns
+    neither = normalize(trace_hash(ruby_ms: nil)).columns
+
+    assert_equal [ 169.7, 42.5, 12.0, 0.0 ], [ old_form, new_form, both, neither ].map { it[:ruby_ms] }
+  end
+
+  test "the runtime is stored as a list, from the list or the older object" do
+    rust = [ { name: "Rust", version: "1.82.0" }, { name: "axum", version: "0.8.1" }, { name: "bad name!", version: "1" } ]
+    listed = JSON.parse(normalize(trace_hash(runtime: rust)).payload)["runtime"]
+    legacy = JSON.parse(normalize.payload)["runtime"]
+
+    assert_equal [ { "name" => "Rust", "version" => "1.82.0" }, { "name" => "axum", "version" => "0.8.1" } ], listed
+    assert_equal [ { "name" => "Rails", "version" => "8.0.2" }, { "name" => "Ruby", "version" => "3.4.1" } ], legacy
+    assert_equal [], JSON.parse(normalize(trace_hash(runtime: "Rust")).payload)["runtime"]
+  end
+
   test "the payload allow-lists keys and strips query strings, userinfo and literals" do
     payload = JSON.parse(normalize.payload)
     assert_equal %w[request job host process runtime gc allocations spans_dropped spans].sort, payload.keys.sort
