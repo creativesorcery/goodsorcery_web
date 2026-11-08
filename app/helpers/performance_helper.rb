@@ -159,7 +159,7 @@ module PerformanceHelper
     facts = [ [ "Status", apm_status_label(trace) ], [ "Host", [ details.host, details.process ].compact_blank.join(" · ").presence || "—" ],
               [ "Started", trace.started_at.in_time_zone.strftime("%H:%M:%S.%L") ] ]
     facts += apm_job_facts(details.job) unless page.web?
-    facts + [ [ "Runtime", apm_runtime(details.runtime) ], [ "GC", apm_gc(details.gc) ], [ "Allocations", apm_allocations(details.allocations) ] ]
+    facts + [ [ "Runtime", apm_runtime(details.runtime) ] ] + apm_runtime_counters(details)
   end
 
   private
@@ -198,11 +198,15 @@ module PerformanceHelper
 
     def apm_runtime(runtime) = runtime.full_label || "—"
 
-    def apm_gc(gc)
-      return "—" unless gc["time_ms"] || gc["count"]
-
-      [ (apm_duration(gc["time_ms"]) if gc["time_ms"]), (pluralize(gc["count"], "run") if gc["count"]) ].compact.join(" · ")
+    # GC and allocation rows only for runtimes that report them (both are
+    # optional in the protocol): a runtime without a garbage collector shows neither.
+    def apm_runtime_counters(details)
+      gc, allocations = details.gc, details.allocations
+      [ ([ "GC", apm_gc(gc) ] if gc["time_ms"] || gc["count"]),
+        ([ "Allocations", "#{compact_count(allocations)} objects" ] if allocations) ].compact
     end
 
-    def apm_allocations(count) = count ? "#{compact_count(count)} objects" : "—"
+    def apm_gc(gc)
+      [ (apm_duration(gc["time_ms"]) if gc["time_ms"]), (pluralize(gc["count"], "run") if gc["count"]) ].compact.join(" · ")
+    end
 end

@@ -113,6 +113,13 @@ class PerformanceHelperTest < ActionView::TestCase
     assert_equal "—", facts.({ "runtime" => nil })["Runtime"]
   end
 
+  test "a runtime that reports no GC or allocations gets no rows for them" do
+    trace = ApmTrace.find(apm_traces(:checkout_slow).id)
+    trace.payload = JSON.parse(trace.payload).except("gc", "allocations").to_json
+
+    assert_equal %w[Status Host Started Runtime], apm_trace_facts(Apm::TracePage.new(trace, cutoff: 30.days.ago)).map(&:first)
+  end
+
   test "a plain-Ruby trace stored before revision 1.1 is not labelled Rails" do
     trace = ApmTrace.find(apm_traces(:checkout_slow).id)
     trace.payload = JSON.parse(trace.payload).merge("runtime" => { "ruby" => "3.4.1", "rails" => nil }).to_json
