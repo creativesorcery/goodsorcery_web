@@ -1,12 +1,13 @@
 # get_occurrence: one stored occurrence by id: backtrace, breadcrumbs, job
 # details, environment and runtime. The request (URL, IP), params, headers,
-# session, user, job arguments, frame locals and the unredacted message are
-# personal data: they are included only when the token has the
-# request_data scope, and otherwise named as omitted.
+# session, user, job arguments, frame locals, custom app context and the
+# unredacted error and cause messages are personal data: they are included
+# only when the token has the request_data scope, and otherwise named as
+# omitted (Mcp::EnvironmentContext keeps the runtime keys and redacts causes).
 class Mcp::Tools::GetOccurrence < Mcp::Tools::Base
-  REQUEST_DATA = %w[request params headers session user job.arguments locals full_message].freeze
-  OMITTED_NOTE = "Omitted: request, params, headers, session, user context, job arguments, frame locals and the " \
-                 "unredacted message. A token with the request_data scope adds them.".freeze
+  REQUEST_DATA = %w[request params headers session user job.arguments locals full_message context.custom cause_messages].freeze
+  OMITTED_NOTE = "Omitted: request, params, headers, session, user context, job arguments, frame locals, custom app " \
+                 "context and the unredacted error and cause messages. A token with the request_data scope adds them.".freeze
 
   SECTION_BYTES = { job: 1_000, environment: 1_000, request: 1_000, params: 2_500, headers: 1_500, session: 1_000, user: 500 }.freeze
 
@@ -40,7 +41,7 @@ class Mcp::Tools::GetOccurrence < Mcp::Tools::Base
 
     def build_payload
       { issue: issue.short_id, issue_url: context.issue_url(issue), transaction: occurrence.transaction_name,
-        **details.to_h, job:, environment_context:, **personal_data }
+        **details.to_h, job:, environment_context:, **omitted_context, **personal_data }
     end
 
     def text_lines
@@ -52,7 +53,11 @@ class Mcp::Tools::GetOccurrence < Mcp::Tools::Base
     # Each section draws on its own cap and on the occurrence's shared budget.
     def bounded(value, section) = Mcp::Captured.trim(value, budget: details.budget.section(SECTION_BYTES.fetch(section)))
 
-    def environment_context = @environment_context ||= bounded(occurrence.context, :environment)
+    def environment = @environment ||= Mcp::EnvironmentContext.new(occurrence.context, request_data:)
+
+    def environment_context = @environment_context ||= bounded(environment.to_h, :environment)
+
+    def omitted_context = environment.omitted_keys.any? ? { omitted_context_keys: environment.omitted_keys } : {}
 
     # Job metadata always; its arguments (captured values) only with request_data.
     def job
@@ -69,8 +74,13 @@ class Mcp::Tools::GetOccurrence < Mcp::Tools::Base
     end
 
     def personal_data_lines
-      return [ OMITTED_NOTE ] unless request_data
+      return omitted_lines unless request_data
 
       personal_data.map { |name, value| "#{name.to_s.capitalize}: #{value.to_json}" }
+    end
+
+    def omitted_lines
+      custom = environment.omitted_keys
+      [ OMITTED_NOTE, ("Custom context keys left out: #{custom.join(', ')}" if custom.any?) ].compact
     end
 end

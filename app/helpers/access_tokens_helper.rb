@@ -6,8 +6,8 @@ module AccessTokensHelper
   SCOPE_DESCRIPTIONS = {
     "read" => "List apps, search and read issues, occurrences, uptime and performance. Always included.",
     "triage" => "Resolve, ignore and reopen issues, and add notes, as you.",
-    "request_data" => "Include request params, headers, session, user details, job arguments and frame locals " \
-                      "in occurrence details."
+    "request_data" => "Include request params, headers, session, user details, job arguments, frame locals, " \
+                      "custom context and unredacted error messages in occurrence details."
   }.freeze
   REQUEST_DATA_WARNING = "Request data sends request params, headers and user details captured from your apps to your " \
                          "AI provider. Leave it off unless you need it.".freeze

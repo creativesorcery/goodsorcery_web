@@ -169,6 +169,30 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     PERSONAL.each { |value| assert_not_includes result.to_json, value }
   end
 
+  test "get_occurrence without request_data redacts cause messages and leaves out custom app context" do
+    occurrence = occurrences(:nomethod_latest)
+    cause = { "class" => "PG::UniqueViolation",
+              "message" => "ERROR: duplicate key value violates unique constraint\nDETAIL: Key (email)=(alice@example.com) already exists." }
+    context = occurrence.context.merge("cause" => [ cause ], "current_user_email" => "alice@example.com", "tenant_id" => 4411)
+    occurrence.update!(payload: occurrence.data.merge("context" => context).to_json)
+
+    result = mcp_tool(:philip_read, "get_occurrence", occurrence: occurrence.uuid)
+    environment = structured(result)["environment_context"]
+
+    assert_not_includes result.to_json, "alice@example.com"
+    assert_equal "PG::UniqueViolation", environment.dig("cause", 0, "class")
+    assert_match "duplicate key value", environment.dig("cause", 0, "message")
+    assert_equal %w[env host process runtime cause].sort, environment.keys.sort
+    assert_equal %w[current_user_email tenant_id], structured(result)["omitted_context_keys"]
+    assert_includes structured(result)["omitted"], "context.custom"
+    assert_match "Custom context keys left out: current_user_email, tenant_id", mcp_text(result)
+
+    full = structured(mcp_tool(:philip_full, "get_occurrence", occurrence: occurrence.uuid))
+    assert_equal "alice@example.com", full.dig("environment_context", "current_user_email")
+    assert_match "alice@example.com", full.dig("environment_context", "cause", 0, "message")
+    assert_nil full["omitted_context_keys"]
+  end
+
   test "get_occurrence with request_data includes request, params, headers, session, user and locals" do
     result = mcp_tool(:philip_full, "get_occurrence", occurrence: occurrences(:nomethod_latest).uuid)
     occurrence = structured(result)
