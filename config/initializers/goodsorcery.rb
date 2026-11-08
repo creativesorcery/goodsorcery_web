@@ -7,7 +7,7 @@ GoodSorcery.configure do |config|
   # Looked up in ENV["GOODSORCERY_API_KEY"], then in Rails credentials
   # (goodsorcery.api_key). Use one key per environment. Never commit it.
   config.api_key = ENV["GOODSORCERY_API_KEY"]
-  # config.endpoint = "https://app.goodsorcery.com"   # or ENV["GOODSORCERY_ENDPOINT"]
+  config.endpoint = ENV.fetch("GOODSORCERY_ENDPOINT", "https://app.goodsorcery.com")
 
   # --- Environments ----------------------------------------------------------
   # config.environment = Rails.env                       # or ENV["GOODSORCERY_ENV"]
@@ -56,6 +56,15 @@ GoodSorcery.configure do |config|
   # config.send_code_context = true
   # config.breadcrumbs = true
   # config.max_breadcrumbs = 40
+
+  # --- Performance monitoring (APM) -------------------------------------------
+  # On unless GOODSORCERY_PERFORMANCE_MONITORING is 0/false/no/off. The guard
+  # keeps boot working on gem versions before APM (0.1.x); drop it once the
+  # Gemfile requires a release with performance monitoring.
+  if config.respond_to?(:performance_monitoring=)
+    config.performance_monitoring =
+      !%w[0 false no off].include?(ENV.fetch("GOODSORCERY_PERFORMANCE_MONITORING", "true").strip.downcase)
+  end
 
   # --- Development -----------------------------------------------------------
   # config.install_check = :verify                       # after bundle install: :verify, :test_event or false
