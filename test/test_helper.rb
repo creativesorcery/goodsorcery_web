@@ -25,6 +25,18 @@ FIXTURE_TOKENS = {
   umbrella_production: "gs_live_UmbrellaProductionFixtureToken000001"
 }.freeze
 
+# Raw personal access tokens for the personal_access_tokens fixtures (stored
+# as SHA-256 digests only). Use these to authenticate MCP requests.
+PAT_FIXTURE_TOKENS = {
+  philip_read: "gs_pat_PhilipReadFixtureToken000000000000000000",
+  philip_triage: "gs_pat_PhilipTriageFixtureToken0000000000000000",
+  philip_full: "gs_pat_PhilipFullFixtureToken00000000000000000",
+  jo_read: "gs_pat_JoReadFixtureToken0000000000000000000000",
+  philip_expired: "gs_pat_PhilipExpiredFixtureToken000000000000000",
+  philip_revoked: "gs_pat_PhilipRevokedFixtureToken000000000000000",
+  outsider_read: "gs_pat_OutsiderReadFixtureToken00000000000000"
+}.freeze
+
 module ActiveSupport
   class TestCase
     # Run tests in parallel with specified workers

@@ -20,7 +20,9 @@ module IssueActivityHelper
   def activity_sentence(activity)
     return SYSTEM_SENTENCES.fetch(activity.kind) if SYSTEM_SENTENCES.key?(activity.kind)
 
-    safe_join([ tag.span(activity_actor(activity), class: "text-ink-100"), " ", activity_action(activity) ])
+    parts = [ tag.span(activity_actor(activity), class: "text-ink-100"), " ", activity_action(activity) ]
+    parts += [ " ", tag.span("via MCP", class: "chip chip-sm chip-iris", title: "Made from an AI client with an access token") ] if activity.via_mcp?
+    safe_join(parts)
   end
 
   private

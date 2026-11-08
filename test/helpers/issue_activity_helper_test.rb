@@ -11,4 +11,11 @@ class IssueActivityHelperTest < ActionView::TestCase
       activity_sentence(IssueActivity.new(kind: "reached_production"))
     assert_includes activity_marker(IssueActivity.new(kind: "reached_production")), "text-coral-300"
   end
+
+  test "changes made through the MCP endpoint say so" do
+    sentence = activity_sentence(IssueActivity.new(kind: "resolved", user: users(:philip), via: "mcp"))
+    assert_includes sentence, "resolved this"
+    assert_includes sentence, "via MCP"
+    assert_not_includes activity_sentence(IssueActivity.new(kind: "resolved", user: users(:philip))), "via MCP"
+  end
 end

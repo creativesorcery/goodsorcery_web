@@ -36,16 +36,17 @@ module Issue::Triage
   end
 
   class_methods do
-    def resolve_all(by:)
-      triage_all :resolved, by:, status: "resolved", resolved_at: Time.current, regressed_at: nil
+    # via: "mcp" marks changes made through the MCP endpoint (IssueActivity::VIAS).
+    def resolve_all(by:, via: nil)
+      triage_all :resolved, by:, via:, status: "resolved", resolved_at: Time.current, regressed_at: nil
     end
 
-    def ignore_all(by:)
-      triage_all :ignored, by:, status: "ignored"
+    def ignore_all(by:, via: nil)
+      triage_all :ignored, by:, via:, status: "ignored"
     end
 
-    def reopen_all(by:)
-      triage_all :reopened, by:, status: "unresolved", resolved_at: nil
+    def reopen_all(by:, via: nil)
+      triage_all :reopened, by:, via:, status: "unresolved", resolved_at: nil
     end
 
     def assign_all(user, by:)
@@ -57,13 +58,13 @@ module Issue::Triage
     private
       # Changes up to BULK_LIMIT issues of the current relation that are not
       # already in the target state; returns the ids that changed.
-      def triage_all(kind, by:, subject_user: nil, **changes)
+      def triage_all(kind, by:, subject_user: nil, via: nil, **changes)
         ids = pending_ids(changes)
         return ids if ids.empty?
 
         transaction do
           where(id: ids).update_all(changes.merge(updated_at: Time.current))
-          IssueActivity.record_all(ids, kind:, user: by, subject_user:)
+          IssueActivity.record_all(ids, kind:, user: by, subject_user:, via:)
         end
         broadcast_triage(ids)
         ids

@@ -16,7 +16,10 @@
 #   hourly rows, traces and transactions not seen within each account's
 #   apm_retention_days (a downgrade applies here); anything older than
 #   Entitlements::MAX_APM_RETENTION_DAYS + 1 days as a backstop; inbound
-#   performance batches after ApmInboundBatch::KEPT_FOR.
+#   performance batches after ApmInboundBatch::KEPT_FOR;
+# - personal access tokens revoked or expired more than
+#   PersonalAccessToken::KEPT_AFTER_END ago (their audit rows cascade), and
+#   MCP audit rows older than AccessTokenActivity::KEPT_FOR.
 class Ingest::Retention
   # The issue chart's 30d view reaches back 30 local days; one more covers
   # any time zone offset. Nothing reads issue counts further back, so they
@@ -45,6 +48,7 @@ class Ingest::Retention
     prune_alert_deliveries
     prune_uptime
     prune_apm
+    prune_access_tokens
   end
 
   # One batched delete per distinct retention period, not per project.
@@ -78,6 +82,12 @@ class Ingest::Retention
 
   # The down rows of a still open incident stay: they pick who gets its
   # recovered email, however long the monitor has been down.
+  def prune_access_tokens
+    ended = @now - PersonalAccessToken::KEPT_AFTER_END
+    PersonalAccessToken.where(revoked_at: ...ended).or(PersonalAccessToken.where(expires_at: ...ended)).in_batches(of: BATCH).delete_all
+    AccessTokenActivity.where(created_at: ...(@now - AccessTokenActivity::KEPT_FOR)).in_batches(of: BATCH).delete_all
+  end
+
   def prune_alert_deliveries
     open_down_keys = UptimeIncident.open.select(Arel.sql("'monitor_down:' || id"))
     AlertDelivery.where(created_at: ...(@now - AlertDelivery::KEPT_FOR)).where.not(dedupe_key: open_down_keys)

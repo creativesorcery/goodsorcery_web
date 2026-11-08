@@ -6,6 +6,7 @@ class User < ApplicationRecord
   has_many :memberships, dependent: :destroy, inverse_of: :user
   has_many :accounts, through: :memberships
   has_many :alert_deliveries # rows cascade in the database
+  has_many :personal_access_tokens # rows cascade in the database
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
   normalizes :name, with: ->(n) { n.squish }
