@@ -81,11 +81,22 @@ class DemoSeeds
     end
 
     def seed_project(spec)
-      project = @account.projects.create!(spec.slice(:name, :platform, :runtime_label, :issue_prefix, :issues_sequence, :color, :first_event_at))
+      project = beyond_app_limit { @account.projects.create!(spec.slice(:name, :platform, :runtime_label, :issue_prefix, :issues_sequence, :color, :first_event_at)) }
       project.api_keys.update_all(created_by_id: @users[:philip].id)
       (spec[:environments] - project.environments).each { |env| project.api_keys.create!(environment: env, created_by: @users[:philip]) }
       ISSUES.fetch(spec[:name], []).each { |row| DemoIssue.new(project, row, @users).seed }
       DemoProjectRollup.new(project).seed
+    end
+
+    # Seeded with GOODSORCERY_HOSTED=1, the demo account has more apps than
+    # max_projects allows, like an account that was over its limit before
+    # (docs/ARCHITECTURE.md §12.2.1): it keeps them all but can't add more.
+    def beyond_app_limit
+      hosted = Rails.configuration.x.hosted
+      Rails.configuration.x.hosted = false
+      yield
+    ensure
+      Rails.configuration.x.hosted = hosted
     end
 end
 

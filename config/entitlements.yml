@@ -8,3 +8,4 @@ shared:
     uptime_intervals: [10, 60]
     max_monitors: 1 # uptime monitors per app
     apm_retention_days: 1
+    max_projects: 2 # apps per account; accounts already over it keep their apps

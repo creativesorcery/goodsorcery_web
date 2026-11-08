@@ -29,6 +29,23 @@ module EntitlementsHelper
     tag.span(sentence, class: [ classes, "cursor-not-allowed" ], title: UpgradeOffer::COMING_SOON, aria: { disabled: "true" })
   end
 
+  # Whether the account is at its app limit (hosted with a max_projects).
+  # The count comes from the sidebar's switcher query when that holds every
+  # app, so it usually costs no query of its own.
+  def project_limit_reached?
+    return false if Current.account.nil? || entitlements.max_projects.nil?
+    return @project_limit_reached if defined?(@project_limit_reached)
+
+    @project_limit_reached = entitlements.project_limit_reached?(account_project_count)
+  end
+
+  # Takes the place of an "Add a new app" entry point at the app limit.
+  def new_app_limit_notice(classes: "text-[13px] text-ink-400")
+    return coming_soon_notice(Project::LIMIT_COMING_SOON, classes:) unless upgrade_offered?
+
+    tag.span(safe_join([ Project::LIMIT_REACHED, upgrade_to_unlock ], " "), class: classes)
+  end
+
   def entitlements
     @entitlements ||= Current.account.entitlements
   end

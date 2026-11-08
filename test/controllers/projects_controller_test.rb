@@ -105,6 +105,132 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_equal baseline, count_queries { get projects_path }
   end
 
+  # --- the app limit (hosted max_projects; acme has 3 apps, over the default of 2) ---
+
+  test "hosted at the app limit without an upgrade URL, every Add a new app entry point says coming soon" do
+    with_hosted_mode { with_upgrade_url(nil) { get projects_path } }
+
+    assert_response :success
+    assert_select "a[href=?]", new_project_path, count: 0
+    assert_select "#project_limit_notice span[aria-disabled=true][title='Coming soon']", "Cannot add more apps yet, but it's coming soon"
+    assert_select "#new_app_limit span[aria-disabled=true]", "Cannot add more apps yet, but it's coming soon"
+    assert_select "aside span[aria-disabled=true]", "Cannot add more apps yet, but it's coming soon"
+    assert_no_match "Upgrade", response.body
+    assert_select "h1", text: /Projects\s+— 3/, message: "apps over the limit are kept"
+  end
+
+  test "hosted at the app limit with an upgrade URL, the entry points offer the upgrade" do
+    with_hosted_mode { with_upgrade_url { get projects_path } }
+
+    assert_select "a[href=?]", new_project_path, count: 0
+    assert_select "#project_limit_notice", /App limit reached\.\s*Upgrade to unlock/
+    assert_select "#project_limit_notice a[href=?][target=_blank]", "https://billing.example/upgrade", text: "Upgrade to unlock"
+    assert_select "#new_app_limit a[href=?]", "https://billing.example/upgrade"
+    assert_select "aside a[href=?]", "https://billing.example/upgrade", text: "Upgrade to unlock"
+  end
+
+  test "hosted at the app limit, the switcher on an app page says coming soon instead of linking to the form" do
+    with_hosted_mode { with_upgrade_url(nil) { get project_issues_path(projects(:storefront)) } }
+
+    assert_response :success
+    assert_select "aside a[href=?]", new_project_path, count: 0
+    assert_select "aside [data-dropdown-target=menu] span[aria-disabled=true]", "Cannot add more apps yet, but it's coming soon"
+  end
+
+  test "hosted at the app limit, new renders the message instead of the form" do
+    with_hosted_mode { with_upgrade_url(nil) { get new_project_path } }
+
+    assert_response :success
+    assert_select "#project_limit h2", "Cannot add more apps yet, but it's coming soon"
+    assert_select "#project_limit a[href=?]", projects_path, text: "Back to Projects"
+    assert_select "form[action=?]", projects_path, count: 0
+    assert_no_match "Upgrade", response.body
+
+    with_hosted_mode { with_upgrade_url { get new_project_path } }
+
+    assert_response :success
+    assert_select "#project_limit h2", "This account has reached its limit of 2 apps."
+    assert_select "#project_limit a[href=?]", "https://billing.example/upgrade", text: "Upgrade to unlock"
+    assert_select "form[action=?]", projects_path, count: 0
+  end
+
+  test "hosted at the app limit, a crafted create is rejected" do
+    with_hosted_mode do
+      assert_no_difference -> { Project.count } do
+        with_upgrade_url(nil) { post projects_path, params: { project: { name: "Fourth", platform: "rails" } } }
+      end
+    end
+
+    assert_response :unprocessable_entity
+    assert_select "#project_limit h2", "Cannot add more apps yet, but it's coming soon"
+  end
+
+  test "hosted, an account at its app limit keeps every app it has" do
+    with_hosted_mode do
+      [ :storefront, :billing, :marketing ].each do |name|
+        get project_issues_path(projects(name))
+        assert_response :success
+      end
+      get edit_project_path(projects(:marketing))
+      assert_response :success
+    end
+  end
+
+  test "hosted under the app limit, the entry points link to the form until it is reached" do
+    sign_in_as users(:outsider) # umbrella has 1 app
+    accounts(:umbrella).update_entitlements!("max_projects" => 2)
+
+    with_hosted_mode do
+      get projects_path
+      assert_select "a.btn-primary[href=?]", new_project_path
+      get new_project_path
+      assert_select "form[action=?]", projects_path
+
+      assert_difference -> { accounts(:umbrella).projects.count } do
+        post projects_path, params: { project: { name: "Umbrella API", platform: "rails" } }
+      end
+
+      get projects_path
+      assert_select "a[href=?]", new_project_path, count: 0
+    end
+  end
+
+  test "hosted, a brand-new account can create its first app" do
+    ENV["GOODSORCERY_ENABLE_SIGNUPS"] = "1"
+    sign_out
+    with_hosted_mode do
+      post registration_path, params: { signup: { account_name: "Initech", name: "Peter", email_address: "peter@initech.test",
+                                                  password: "tps-reports-1", time_zone: "UTC" } }
+      User.find_by!(email_address: "peter@initech.test").update!(email_verified_at: Time.current)
+
+      get new_project_path
+      assert_select "form[action=?]", projects_path
+      post projects_path, params: { project: { name: "First App", platform: "rails" } }
+    end
+
+    assert_redirected_to project_setup_path(Project.find_by!(slug: "first-app"))
+  ensure
+    ENV.delete("GOODSORCERY_ENABLE_SIGNUPS")
+  end
+
+  test "hosted, the app limit costs the overview no extra query" do
+    get projects_path
+    self_hosted = count_queries { get projects_path }
+
+    assert_equal self_hosted, with_hosted_mode { count_queries { get projects_path } }
+  end
+
+  test "signed out, new and create redirect to sign in" do
+    sign_out
+
+    with_hosted_mode do
+      get new_project_path
+      assert_redirected_to new_session_path
+      post projects_path, params: { project: { name: "x" } }
+      assert_redirected_to new_session_path
+    end
+  end
+
   test "new shows the add a new app form" do
     get new_project_path
 

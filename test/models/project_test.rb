@@ -6,6 +6,61 @@ class ProjectTest < ActiveSupport::TestCase
   setup { Current.session = sessions(:philip_browser) }
   teardown { Current.reset }
 
+  test "hosted, an account at its app limit can't create another" do
+    with_hosted_mode do # acme stores no values: the hosted default is 2 apps, and it already has 3
+      project = accounts(:acme).projects.new(name: "Fourth")
+
+      with_upgrade_url { assert_not project.save }
+      assert_equal [ "This account has reached its limit of 2 apps." ], project.errors[:base]
+
+      with_upgrade_url(nil) { assert_not project.valid? }
+      assert_equal [ "Cannot add more apps yet, but it's coming soon" ], project.errors[:base]
+    end
+    assert_equal 3, accounts(:acme).projects.count
+  end
+
+  test "hosted, apps an account already has over its limit are kept and still save" do
+    with_hosted_mode do
+      projects(:billing).update!(name: "Billing renamed")
+
+      assert_equal 3, accounts(:acme).projects.count
+      assert accounts(:acme).projects.all?(&:valid?)
+    end
+  end
+
+  test "hosted, a brand-new account can create its first apps up to the limit" do
+    account = Account.create!(name: "Fresh")
+
+    with_hosted_mode do
+      assert account.projects.create(name: "First").persisted?
+      assert account.projects.create(name: "Second").persisted?
+      assert_not account.projects.create(name: "Third").persisted?
+    end
+  end
+
+  test "hosted, a stored max_projects wins: null means no cap and 0 allows none" do
+    account = Account.create!(name: "Capped", entitlement_values: { "max_projects" => nil })
+    with_hosted_mode { 3.times { |i| assert account.projects.create(name: "App #{i}").persisted? } }
+
+    account.update_entitlements!("max_projects" => 0)
+    with_hosted_mode do
+      project = account.projects.create(name: "One more")
+      assert_not project.persisted?
+      with_upgrade_url { project.validate }
+      assert_equal [ "Apps aren't included in this account." ], project.errors[:base]
+    end
+  end
+
+  test "the app limit counts only the account's own apps" do
+    accounts(:umbrella).update_entitlements!("max_projects" => 2)
+
+    with_hosted_mode { assert accounts(:umbrella).projects.create(name: "Umbrella API").persisted? }
+  end
+
+  test "self-hosted has no app limit beyond the hard cap" do
+    with_hosted_mode(false) { assert accounts(:acme).projects.create(name: "Fourth").persisted? }
+  end
+
   test "to_param is the slug" do
     assert_equal "storefront", projects(:storefront).to_param
   end

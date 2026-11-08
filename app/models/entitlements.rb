@@ -9,16 +9,19 @@ class Entitlements
   UPTIME_INTERVALS = [ 1, 5, 10, 60 ].freeze
   DEFAULT_UPTIME_INTERVAL = 10
   MAX_APM_RETENTION_DAYS = 30
-  KEYS = %w[ uptime_intervals max_monitors apm_retention_days ].freeze
+  KEYS = %w[ uptime_intervals max_monitors apm_retention_days max_projects ].freeze
+  # Keys whose value is a cap: nil (no cap) or a whole number of 0 or more.
+  CAP_KEYS = %w[ max_monitors max_projects ].freeze
 
-  # The self-hosted values of the uptime keys; apm_retention_days reads the
-  # instance setting instead (#unlimited_value).
-  UNLIMITED = { "uptime_intervals" => UPTIME_INTERVALS, "max_monitors" => nil }.freeze
+  # The self-hosted values of the uptime and app keys; apm_retention_days
+  # reads the instance setting instead (#unlimited_value).
+  UNLIMITED = { "uptime_intervals" => UPTIME_INTERVALS, "max_monitors" => nil, "max_projects" => nil }.freeze
 
   PROBLEMS = {
     "uptime_intervals" => "Uptime intervals must be a non-empty list of distinct values from #{UPTIME_INTERVALS.to_sentence}.",
     "max_monitors" => "Max monitors must be empty (no limit) or a whole number of 0 or more.",
-    "apm_retention_days" => "APM retention days must be a whole number from 1 to #{MAX_APM_RETENTION_DAYS}."
+    "apm_retention_days" => "APM retention days must be a whole number from 1 to #{MAX_APM_RETENTION_DAYS}.",
+    "max_projects" => "Max projects must be empty (no limit) or a whole number of 0 or more."
   }.freeze
 
   # Whole-sentence messages for the known keys that hold invalid values.
@@ -31,7 +34,7 @@ class Entitlements
   def self.valid_value?(key, value)
     case key
     when "uptime_intervals" then valid_uptime_intervals?(value)
-    when "max_monitors" then value.nil? || (value.is_a?(Integer) && value >= 0)
+    when *CAP_KEYS then value.nil? || (value.is_a?(Integer) && value >= 0)
     when "apm_retention_days" then value.is_a?(Integer) && value.between?(1, MAX_APM_RETENTION_DAYS)
     else false
     end
@@ -75,7 +78,7 @@ class Entitlements
     uptime_intervals.find { |allowed| allowed >= minutes } || uptime_intervals.last
   end
 
-  # An Integer, or nil for no cap.
+  # Uptime monitors per app: an Integer, or nil for no cap.
   def max_monitors
     resolved("max_monitors")
   end
@@ -88,6 +91,15 @@ class Entitlements
     return if max_monitors.nil?
 
     [ max_monitors - count, 0 ].max
+  end
+
+  # Apps (projects) per account: an Integer, or nil for no cap.
+  def max_projects
+    resolved("max_projects")
+  end
+
+  def project_limit_reached?(count)
+    !max_projects.nil? && count >= max_projects
   end
 
   # Days of performance data kept (1..30).

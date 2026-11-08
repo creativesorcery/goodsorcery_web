@@ -1,12 +1,12 @@
 require "test_helper"
 
 class EntitlementsTest < ActiveSupport::TestCase
-  HOSTED_DEFAULTS = { uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1 }.freeze
+  HOSTED_DEFAULTS = { uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1, max_projects: 2 }.freeze
 
-  test "the configured hosted defaults are 10 and 60 minute intervals, one monitor and a day of performance data" do
+  test "the configured hosted defaults are 10 and 60 minute intervals, one monitor per app, a day of performance data and two apps" do
     defaults = Rails.configuration.x.entitlements.hosted_defaults
 
-    assert_equal({ uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1 }, defaults.to_h.symbolize_keys)
+    assert_equal({ uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1, max_projects: 2 }, defaults.to_h.symbolize_keys)
     assert_empty Entitlements.problems(defaults.to_h)
   end
 
@@ -25,6 +25,8 @@ class EntitlementsTest < ActiveSupport::TestCase
     assert_nil entitlements.max_monitors
     assert_nil entitlements.monitors_left(1_000)
     assert_not entitlements.monitor_limit_reached?(1_000)
+    assert_nil entitlements.max_projects
+    assert_not entitlements.project_limit_reached?(1_000)
     assert_equal 10, entitlements.default_uptime_interval
     Entitlements::UPTIME_INTERVALS.each { |minutes| assert entitlements.allows_uptime_interval?(minutes) }
   end
@@ -36,6 +38,7 @@ class EntitlementsTest < ActiveSupport::TestCase
     assert_equal [ 10, 60 ], entitlements.uptime_intervals
     assert_equal [ 1, 5 ], entitlements.locked_uptime_intervals
     assert_equal 1, entitlements.max_monitors
+    assert_equal 2, entitlements.max_projects
     assert_not entitlements.allows_uptime_interval?(1)
     assert entitlements.allows_uptime_interval?(60)
   end
@@ -114,6 +117,43 @@ class EntitlementsTest < ActiveSupport::TestCase
 
     assert_equal [ 60 ], entitlements.uptime_intervals
     assert_nil entitlements.max_monitors
+    assert_nil entitlements.max_projects
+  end
+
+  test "max_projects: hosted default 2, a stored value wins, null means no cap" do
+    assert_equal 2, hosted({}).max_projects
+    assert_equal 5, hosted("max_projects" => 5).max_projects
+    assert_equal 0, hosted("max_projects" => 0).max_projects
+    assert_nil hosted("max_projects" => nil).max_projects
+    with_hosted_mode { assert_equal 2, Entitlements.new({}).max_projects }
+  end
+
+  test "max_projects: invalid stored values fall back to the default and are logged by key name only" do
+    [ -1, "5", 1.5, true, [ 2 ], {} ].each do |value|
+      log = capture_log { assert_equal 2, hosted("max_projects" => value).max_projects, value.inspect }
+      assert_includes log, "Ignoring invalid entitlement max_projects"
+    end
+  end
+
+  test "project limit counts the account's apps" do
+    entitlements = hosted("max_projects" => 2)
+
+    assert_not entitlements.project_limit_reached?(1)
+    assert entitlements.project_limit_reached?(2)
+    assert entitlements.project_limit_reached?(3), "an account already over its limit"
+    assert hosted("max_projects" => 0).project_limit_reached?(0)
+    assert_not hosted("max_projects" => nil).project_limit_reached?(500)
+  end
+
+  test "problems describes an invalid max_projects" do
+    assert_includes Entitlements::KEYS, "max_projects"
+    assert_empty Entitlements.problems("max_projects" => nil)
+    assert_empty Entitlements.problems("max_projects" => 0)
+    assert_empty Entitlements.problems(max_projects: 25)
+    [ -1, "2", 2.5, true, [ 2 ] ].each do |value|
+      assert_equal [ Entitlements::PROBLEMS["max_projects"] ], Entitlements.problems("max_projects" => value), value.inspect
+    end
+    assert_match(/\A[A-Z].*\.\z/, Entitlements::PROBLEMS["max_projects"])
   end
 
   test "the arguments default to the application configuration" do

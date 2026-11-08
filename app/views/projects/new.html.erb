@@ -11,6 +11,16 @@
   </div>
 
   <section class="panel p-6 mt-6 rise rise-1">
-    <%= render "projects/form", project: @project %>
+    <% if project_limit_reached? %>
+      <div id="project_limit" class="text-center py-4">
+        <h2 class="font-display text-[20px] text-ink-50"><%= Project.limit_message(entitlements.max_projects) %></h2>
+        <div class="mt-4 flex items-center justify-center gap-3 text-[13.5px]">
+          <%= upgrade_to_unlock %>
+          <%= link_to "Back to Projects", projects_path, class: "btn btn-ghost" %>
+        </div>
+      </div>
+    <% else %>
+      <%= render "projects/form", project: @project %>
+    <% end %>
   </section>
 </div>

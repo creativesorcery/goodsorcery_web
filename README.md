@@ -204,7 +204,7 @@ Every variable below is read by the app's code or config.
 | `RAILS_LOG_LEVEL` | no | `info` | Keep `info`. `debug` logs SQL, which includes the (redacted) issue titles. |
 | `GOODSORCERY_ENABLE_SIGNUPS` | no | sign-up is open only until the first account exists | `1` keeps public sign-up open (hosted service). |
 | `GOODSORCERY_DISABLE_SIGNUPS` | no | none | `1` closes sign-up completely, even before the first account exists. It overrides `ENABLE`. |
-| `GOODSORCERY_HOSTED` | no | `false` | `true` (or `1`) marks this as the managed hosting service. Read once at boot. The sidebar shows "Hosted" instead of "Self-hosted", and the setup page's install snippets drop the `config.endpoint` / `GOODSORCERY_ENDPOINT` line. It also turns on entitlements: each account's stored values (`accounts.entitlement_values`) decide which uptime intervals it can use and how many monitors each of its apps can have, and missing values fall back to the hosted defaults in `config/entitlements.yml` (intervals of 10 and 60 minutes, 1 monitor per app). Self-hosted (unset), every entitlement is unlimited and stored values are ignored. After switching it on or off, run `bin/rails goodsorcery:fit_uptime_monitors` (switching off resumes monitors that hosted limits paused). |
+| `GOODSORCERY_HOSTED` | no | `false` | `true` (or `1`) marks this as the managed hosting service. Read once at boot. The sidebar shows "Hosted" instead of "Self-hosted", and the setup page's install snippets drop the `config.endpoint` / `GOODSORCERY_ENDPOINT` line. It also turns on entitlements: each account's stored values (`accounts.entitlement_values`) decide which uptime intervals it can use, how many monitors each of its apps can have and how many apps it can create, and missing values fall back to the hosted defaults in `config/entitlements.yml` (intervals of 10 and 60 minutes, 1 monitor per app, 2 apps per account; accounts already over the app limit keep their apps but can't add more). Self-hosted (unset), every entitlement is unlimited and stored values are ignored. After switching it on or off, run `bin/rails goodsorcery:fit_uptime_monitors` (switching off resumes monitors that hosted limits paused). |
 | `GOODSORCERY_APM_RETENTION_DAYS` | no | `30` | Self-hosted only: how many days of performance data (hourly figures and slow-request traces) to keep, 1–30. Read once at boot; `goodsorcery:prune` deletes older data. Hosted accounts use their `apm_retention_days` entitlement instead (default 1 day in `config/entitlements.yml`). Per-minute figures are always kept 2 days. |
 | `GOODSORCERY_UPGRADE_URL` | no | none | Hosted mode only. Where the "Upgrade to unlock" link next to locked options goes (opens in a new tab). Unset, no upgrade text is shown at all: locked options stay greyed out and say "Coming soon" on hover, and a limit reads "Cannot add more yet, but it's coming soon". |
 | `GOODSORCERY_UPTIME_ALLOW_PRIVATE_ADDRESSES` | no | off | `1` lets uptime checks reach loopback and private addresses, for testing monitors against a local server in development. Ignored in production, where checks always refuse private, loopback, link-local and cloud-metadata addresses. |
@@ -222,8 +222,8 @@ Ingest returns `429 quota_exceeded` once an account reaches it.
 
 Entitlements aren't environment variables either. In hosted mode each account's
 values live in the `accounts.entitlement_values` jsonb column
-(`{"uptime_intervals": [5, 10, 60], "max_monitors": 3}`, where `max_monitors` counts per app; `"max_monitors": null`
-means no limit) and are written with `account.update_entitlements!(values)`.
+(`{"uptime_intervals": [5, 10, 60], "max_monitors": 3, "max_projects": 5}`, where `max_monitors` counts per app
+and `max_projects` per account; `null` means no limit) and are written with `account.update_entitlements!(values)`.
 See `docs/ARCHITECTURE.md` §12.2–12.3.
 
 ### Secrets

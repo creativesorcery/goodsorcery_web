@@ -8,6 +8,8 @@ class Project < ApplicationRecord
   # Occurrences are deleted after retention_days; no app keeps them longer.
   MAX_RETENTION_DAYS = 30
   UNRESOLVED_COUNT_TTL = 10.seconds
+  LIMIT_COMING_SOON = "Cannot add more apps yet, but it's coming soon".freeze
+  LIMIT_REACHED = "App limit reached.".freeze
 
   belongs_to :account, inverse_of: :projects
   has_many :api_keys, -> { order(:id) }, inverse_of: :project
@@ -25,6 +27,10 @@ class Project < ApplicationRecord
 
   attr_readonly :slug
 
+  # First, so that in hosted mode the account row lock it takes is held
+  # while the uniqueness validations below read the account's apps.
+  validate :within_project_limit, on: :create
+
   normalizes :name, with: ->(name) { name.squish }
   normalizes :issue_prefix, with: ->(prefix) { prefix.strip.upcase }
   normalizes :scrub_fields, with: ->(fields) { Array(fields).map { |f| f.to_s.strip.downcase }.compact_blank.uniq.first(50) }
@@ -39,6 +45,19 @@ class Project < ApplicationRecord
 
   before_validation :assign_defaults, on: :create
   after_create :create_default_api_keys
+
+  # The max_projects error (docs/ARCHITECTURE.md §12.2), also the panel on
+  # the "Add a new app" page at the limit: the limit when an upgrade is on
+  # offer, else LIMIT_COMING_SOON (UpgradeOffer).
+  def self.limit_message(max_projects)
+    UpgradeOffer.limit_message(limit_sentence(max_projects), coming_soon: LIMIT_COMING_SOON)
+  end
+
+  def self.limit_sentence(max_projects)
+    return "Apps aren't included in this account." if max_projects.zero?
+
+    "This account has reached its limit of #{max_projects} #{'app'.pluralize(max_projects)}."
+  end
 
   def to_param = slug
 
@@ -93,6 +112,19 @@ class Project < ApplicationRecord
       return unless account && account.projects.count >= MAX_PER_ACCOUNT
 
       errors.add(:base, "An account can have at most #{MAX_PER_ACCOUNT} apps")
+    end
+
+    # Hosted only (max_projects is nil self-hosted). Validations run inside
+    # save's transaction, so the account row lock serialises concurrent
+    # creates and the uncached count sees committed apps. Apps an account
+    # already has over its limit are kept; it just can't add more.
+    def within_project_limit
+      allowed = account&.entitlements
+      return if allowed.nil? || allowed.max_projects.nil?
+
+      Account.where(id: account_id).lock("FOR NO KEY UPDATE").pick(:id)
+      count = self.class.uncached { self.class.where(account_id:).count }
+      errors.add(:base, self.class.limit_message(allowed.max_projects)) if allowed.project_limit_reached?(count)
     end
 
     def assign_defaults

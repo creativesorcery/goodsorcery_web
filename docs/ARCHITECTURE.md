@@ -1299,8 +1299,9 @@ This section is the binding blueprint for the uptime build. It comes in four sli
 - goodsorcery_web never knows about plan tiers. The words "free", "premium" or any tier name never appear in code, config, copy or tests. It stores entitlement **values** per account and nothing else.
 - Entitlements are stored per account, but `max_monitors` is a limit **per app**: each app of the account may have that many uptime monitors (changed from per account on 2026-11-07).
 - **Hosted mode** is `GOODSORCERY_HOSTED`, read once at boot into `config.x.hosted`.
-  - **Self-hosted** (the default, switch off): every entitlement is unlimited, meaning all four intervals and no monitor cap. Stored values are ignored, and the UI never shows a locked option or "Upgrade to unlock".
-  - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]` and `max_monitors: 1` (one monitor per app).
+  - **Self-hosted** (the default, switch off): every entitlement is unlimited, meaning all four intervals, no monitor cap and no app cap. Stored values are ignored, and the UI never shows a locked option or "Upgrade to unlock".
+  - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]`, `max_monitors: 1` (one monitor per app) and `max_projects: 2` (two apps per account).
+- **Apps per account** (`max_projects`, approved 2026-11-07, §12.2.1): hosted accounts may create up to `max_projects` apps. Accounts already over it keep every app they have; they just can't add more.
 - Entitlements are enforced in model validations, so a crafted POST can't get past them, and they are also reflected in the views.
 - Locked options say **"Upgrade to unlock"**, linking to `GOODSORCERY_UPGRADE_URL` (`config.x.upgrade_url`), when that is set. When it isn't, no upgrade text renders anywhere: locked options stay visible, greyed out and unselectable, titled **"Coming soon"** (a native hover tooltip, on a span rather than a disabled button so every browser shows it), and an add button at a limit becomes the greyed-out sentence "Cannot add more yet, but it's coming soon" (for apps: "Cannot add more apps yet, but it's coming soon"). `UpgradeOffer` is the one place that decides between the two (approved 2026-11-07).
 - **Monitors** belong to an app (project), and every lookup is scoped through `Current.account`.
@@ -1406,6 +1407,8 @@ shared:
   hosted_defaults:
     uptime_intervals: [10, 60]
     max_monitors: 1        # per app
+    apm_retention_days: 1  # §13.7
+    max_projects: 2        # apps per account (§12.2.1)
 ```
 
 `ApplicationHelper#hosted?` returns `Rails.configuration.x.hosted`. Existing tests that set `ENV["GOODSORCERY_HOSTED"]` switch to the `with_hosted_mode` test helper.
@@ -1415,7 +1418,8 @@ shared:
 ```ruby
 Entitlements::UPTIME_INTERVALS        # => [1, 5, 10, 60]  every interval uptime supports
 Entitlements::DEFAULT_UPTIME_INTERVAL # => 10
-Entitlements::KEYS                    # => %w[uptime_intervals max_monitors]
+Entitlements::KEYS                    # => %w[uptime_intervals max_monitors apm_retention_days max_projects]
+Entitlements::CAP_KEYS                # => %w[max_monitors max_projects]  nil or an integer >= 0
 
 entitlements = account.entitlements   # Entitlements.new(account.entitlement_values)
 Entitlements.new(values, hosted: Rails.configuration.x.hosted,
@@ -1430,12 +1434,14 @@ entitlements.nearest_uptime_interval(1)      # smallest allowed >= minutes, else
 entitlements.max_monitors                    # Integer (monitors per app), or nil for no cap
 entitlements.monitor_limit_reached?(count)   # count is one app's monitors; false when max_monitors is nil
 entitlements.monitors_left(count)            # nil when uncapped, else [max - count, 0].max
+entitlements.max_projects                    # Integer (apps per account), or nil for no cap
+entitlements.project_limit_reached?(count)   # count is the account's apps; false when max_projects is nil
 Entitlements.problems(values)                # => [] or whole-sentence messages, for Account validation
 ```
 
-Resolution per key: self-hosted gives the unlimited value. Hosted gives the stored value if the key is present and valid, otherwise the hosted default. A present but invalid stored value (impossible through `Account` validation, but possible if the column is edited by hand) falls back to the default. It is logged as `"Ignoring invalid entitlement #{key} for account #{id}"`, with the key name only. In stored JSON, `"max_monitors": null` explicitly means no cap, which is different from a missing key.
+Resolution per key: self-hosted gives the unlimited value. Hosted gives the stored value if the key is present and valid, otherwise the hosted default. A present but invalid stored value (impossible through `Account` validation, but possible if the column is edited by hand) falls back to the default. It is logged as `"Ignoring invalid entitlement #{key} for account #{id}"`, with the key name only. In stored JSON, `"max_monitors": null` (or `"max_projects": null`) explicitly means no cap, which is different from a missing key.
 
-Valid values: `uptime_intervals` is a non-empty array of distinct integers from `UPTIME_INTERVALS`. `max_monitors` is `null` or an integer ≥ 0.
+Valid values: `uptime_intervals` is a non-empty array of distinct integers from `UPTIME_INTERVALS`. `max_monitors` and `max_projects` are each `null` or an integer ≥ 0 (`PROBLEMS["max_projects"]` = "Max projects must be empty (no limit) or a whole number of 0 or more.").
 
 **`Account`** (slice 1):
 - `#entitlements` returns an `Entitlements` object.
@@ -1446,7 +1452,15 @@ Valid values: `uptime_intervals` is a non-empty array of distinct integers from 
 - `upgrade_to_unlock(text = "Upgrade to unlock", classes: …)` renders a link to `config.x.upgrade_url` (`target: "_blank"`, `rel: "noopener noreferrer"`) when the URL is set, and nothing (nil) otherwise.
 - `upgrade_offered?`, `locked_note` ("Upgrade to unlock" or "Coming soon"), `locked_option(content, classes:, aria:)` (a greyed-out span titled `locked_note`) and `coming_soon_notice(sentence)` (the greyed-out sentence that replaces an add button at a limit). They all ask `UpgradeOffer` (`.url`, `.available?`, `.locked_note`, `.limit_message(limit_sentence, coming_soon:)`), which model validations also use to word their limit errors.
 - `entitlements` returns `Current.account.entitlements`, memoised per request.
+- `project_limit_reached?` and `new_app_limit_notice` (§12.2.1).
 - Views only call these helpers when `!entitlements.unlimited?`.
+
+#### 12.2.1 Apps per account (`max_projects`, approved 2026-11-07)
+
+- **Enforced** by `Project`'s `validate :within_project_limit, on: :create`, declared first: when `max_projects` is not nil (hosted) it locks the account row (`FOR NO KEY UPDATE`, inside `save`'s transaction, so concurrent creates serialise; `test/models/project/concurrent_create_test.rb`) and counts the account's apps uncached. At the limit the error on `:base` is `Project.limit_message(max)`: "This account has reached its limit of N app(s)." ("Apps aren't included in this account." for 0) with an upgrade URL, and "Cannot add more apps yet, but it's coming soon" without one. `Project::MAX_PER_ACCOUNT` (100) still caps every instance.
+- **Existing apps are kept.** Nothing is disabled or deleted when an account is over its limit (acme's fixtures have 3 apps against the default of 2); updates and every app page work as before. There is nothing to fit.
+- **Onboarding:** a new account has 0 apps, so it can always create its first one unless its stored `max_projects` is 0.
+- **UI:** `EntitlementsHelper#project_limit_reached?` (false self-hosted or without an account; the count comes from the sidebar switcher's query when it holds every app, `NavigationHelper#account_project_count`, so it costs no query of its own). At the limit, every "Add a new app" entry point (the Projects header button, the overview's new-app tile, the switcher menu item and the switcher's no-app button) is replaced by `new_app_limit_notice`: the greyed-out "Cannot add more apps yet, but it's coming soon" (not a link) without an upgrade URL, or "App limit reached." plus `upgrade_to_unlock` with one. `GET /projects/new` at the limit answers 200 with a panel (`#project_limit`, `Project.limit_message`, the upgrade link when set and "Back to Projects") instead of the form; a crafted `POST /projects` gets 422 with the same panel.
 
 **Test helpers** (`test/test_helper.rb`): `with_hosted_mode(hosted = true) { … }` sets and restores `Rails.configuration.x.hosted`; `with_upgrade_url(url = "https://billing.example/upgrade") { … }` does the same for `config.x.upgrade_url` (`with_upgrade_url(nil)` for "coming soon").
 
@@ -1459,8 +1473,8 @@ A separate private billing app will **push** values to goodsorcery_web. Nothing 
   - Compare with `ActiveSupport::SecurityUtils.secure_compare`.
   - Reject a `t` more than 5 minutes from now.
   - Rate-limit per IP.
-- **Body:** `{"entitlements":{"uptime_intervals":[1,5,10,60],"max_monitors":25},"sequence":42}`.
-  - The document is complete: an omitted key falls back to the hosted defaults, and `"max_monitors": null` means no cap.
+- **Body:** `{"entitlements":{"uptime_intervals":[1,5,10,60],"max_monitors":25,"apm_retention_days":30,"max_projects":10},"sequence":42}`.
+  - The document is complete: an omitted key falls back to the hosted defaults, and `"max_monitors": null` or `"max_projects": null` means no cap. `max_monitors` counts per app; `max_projects` counts the account's apps, and lowering it below the current count keeps every existing app and only blocks new ones.
   - `sequence` increases monotonically per account. A push whose `sequence` is ≤ the stored one is acknowledged and ignored, so out-of-order delivery is harmless. The push slice adds `accounts.entitlements_sequence bigint` for this; it is not added now.
 - **Responses:**
   - `204` when applied or ignored as stale.

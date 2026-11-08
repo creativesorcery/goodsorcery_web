@@ -61,7 +61,20 @@ class AccountTest < ActiveSupport::TestCase
       assert_equal 3, accounts(:umbrella).entitlements.max_monitors
       assert_equal [ 10, 60 ], accounts(:acme).entitlements.uptime_intervals
       assert_equal 1, accounts(:acme).entitlements.max_monitors
+      assert_equal 2, accounts(:acme).entitlements.max_projects
     end
+  end
+
+  test "update_entitlements! stores max_projects, validated like max_monitors" do
+    account = accounts(:acme)
+    account.update_entitlements!("max_projects" => 10)
+
+    assert_equal({ "max_projects" => 10 }, account.reload.entitlement_values)
+    with_hosted_mode { assert_equal 10, account.entitlements.max_projects }
+    with_hosted_mode(false) { assert_nil account.entitlements.max_projects }
+
+    error = assert_raises(ActiveRecord::RecordInvalid) { account.update_entitlements!("max_projects" => -1) }
+    assert_includes error.record.errors[:base], Entitlements::PROBLEMS["max_projects"]
   end
 
   test "entitlements reflect a fresh update" do

@@ -64,6 +64,13 @@ module NavigationHelper
       .select("projects.*", "#{ProjectOverview::LAST_SEEN_SQL} AS last_issue_seen_at", "#{DOWN_MONITORS_SQL} AS down_monitors_count").to_a
   end
 
+  # Every app of the account, counted from the switcher list unless that
+  # was cut short at SWITCHER_LIMIT.
+  def account_project_count
+    projects = sidebar_projects
+    projects.size < SWITCHER_LIMIT ? projects.size : Current.account.projects.count
+  end
+
   def remembered_project
     id = session[:last_project_id]
     return unless id && Current.account

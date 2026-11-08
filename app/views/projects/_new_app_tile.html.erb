@@ -1,8 +1,17 @@
-<%= link_to new_project_path,
-      class: "rounded-[14px] border border-dashed border-paper-600 hover:border-iris-500/50 grid place-items-center p-5 min-h-[214px] text-center transition group rise rise-5" do %>
-  <div>
-    <div class="w-12 h-12 mx-auto rounded-full border border-iris-500/40 grid place-items-center text-iris-300 text-[22px] group-hover:bg-iris-500/10 transition" aria-hidden="true">+</div>
-    <div class="font-display text-[18px] text-ink-50 mt-3">Add a new app</div>
-    <div class="text-[12.5px] text-ink-400 mt-1">One gem, one key, two minutes.</div>
+<% if project_limit_reached? %>
+  <div id="new_app_limit" class="rounded-[14px] border border-dashed border-paper-600 grid place-items-center p-5 min-h-[214px] text-center rise rise-5">
+    <div>
+      <div class="w-12 h-12 mx-auto rounded-full border border-paper-600 grid place-items-center text-ink-400 text-[22px] opacity-50" aria-hidden="true">+</div>
+      <div class="mt-3"><%= new_app_limit_notice(classes: "text-[13.5px] text-ink-400") %></div>
+    </div>
   </div>
+<% else %>
+  <%= link_to new_project_path,
+        class: "rounded-[14px] border border-dashed border-paper-600 hover:border-iris-500/50 grid place-items-center p-5 min-h-[214px] text-center transition group rise rise-5" do %>
+    <div>
+      <div class="w-12 h-12 mx-auto rounded-full border border-iris-500/40 grid place-items-center text-iris-300 text-[22px] group-hover:bg-iris-500/10 transition" aria-hidden="true">+</div>
+      <div class="font-display text-[18px] text-ink-50 mt-3">Add a new app</div>
+      <div class="text-[12.5px] text-ink-400 mt-1">One gem, one key, two minutes.</div>
+    </div>
+  <% end %>
 <% end %>

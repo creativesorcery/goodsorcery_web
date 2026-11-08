@@ -23,11 +23,17 @@
         <% end %>
       </div>
       <div class="mt-1 border-t border-paper-700 pt-1">
-        <%= link_to new_project_path, class: "menu-item text-iris-300" do %>
-          <%= icon :plus, classes: "w-4 h-4" %>Add a new app
+        <% if project_limit_reached? %>
+          <div class="px-3 py-2"><%= new_app_limit_notice(classes: "text-[12.5px] text-ink-400") %></div>
+        <% else %>
+          <%= link_to new_project_path, class: "menu-item text-iris-300" do %>
+            <%= icon :plus, classes: "w-4 h-4" %>Add a new app
+          <% end %>
         <% end %>
       </div>
     </div>
+  <% elsif project_limit_reached? %>
+    <div class="rounded-lg border border-dashed border-paper-600 px-3 py-2"><%= new_app_limit_notice(classes: "text-[12.5px] text-ink-400") %></div>
   <% else %>
     <%= link_to new_project_path, class: "w-full flex items-center gap-2.5 rounded-lg border border-dashed border-iris-500/40 px-3 py-2 text-[13px] font-medium text-iris-300 hover:bg-iris-500/[.04] transition" do %>
       <%= icon :plus, classes: "w-4 h-4" %>Add a new app
