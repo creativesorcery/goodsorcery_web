@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::TraceCleanerTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   setup { @cleaner = Apm::TraceCleaner.new }
 
   test "path drops a leading origin with credentials" do

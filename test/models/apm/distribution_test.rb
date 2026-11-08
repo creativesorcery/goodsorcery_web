@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::DistributionTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   def dist(buckets, count: buckets.sum { it[1] }, duration_ms: 0.0, **options)
     Apm::Distribution.from_buckets(count:, failed: 0, duration_ms:, buckets:, **options)
   end

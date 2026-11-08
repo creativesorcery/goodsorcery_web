@@ -1,6 +1,8 @@
 require "application_system_test_case"
 
 class PerformanceSystemTest < ApplicationSystemTestCase
+  include ApmFixtureClock
+
   include ActionView::RecordIdentifier
 
   setup { sign_in }

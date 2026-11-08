@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ApmTransactionTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   test "scopes: listed, totals, kinds, environment" do
     storefront = projects(:storefront).apm_transactions
     assert_equal %w[CheckoutsController#create Orders::PlaceJob ProductsController#show], storefront.listed.pluck(:name).sort

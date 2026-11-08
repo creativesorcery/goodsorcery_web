@@ -2,6 +2,8 @@ require "test_helper"
 require_relative "apm_test_support"
 
 class Apm::TraceNormalizerTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   include ApmTestSupport
 
   def normalize(trace = trace_hash) = Apm::TraceNormalizer.new.normalize(trace.deep_stringify_keys)

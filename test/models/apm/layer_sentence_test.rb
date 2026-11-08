@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::LayerSentenceTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   Bar = Apm::EndpointReport::Bar
 
   test "the same layer around p95 and p99, and typical requests waiting elsewhere" do

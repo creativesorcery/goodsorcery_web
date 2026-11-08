@@ -3,6 +3,8 @@ require_relative "../../../../models/apm/apm_test_support"
 require_relative "../../../../models/ingest/ingest_test_support"
 
 class Api::V1::Apm::TracesControllerTest < ActionDispatch::IntegrationTest
+  include ApmFixtureClock
+
   include ApmTestSupport
   include IngestTestSupport
   include ActiveJob::TestHelper

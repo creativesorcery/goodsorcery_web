@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ShellTest < ActionDispatch::IntegrationTest
+  include ApmFixtureClock
+
   test "sign-in page uses the auth layout and sends a strict CSP" do
     get new_session_path
 

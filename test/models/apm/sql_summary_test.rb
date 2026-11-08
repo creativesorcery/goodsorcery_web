@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::SqlSummaryTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   test "labels name the verb, table and condition" do
     assert_equal 'SELECT "users" WHERE "id" = $1', label('SELECT "users".* FROM "users" WHERE "users"."id" = $1 LIMIT $2')
     assert_equal 'INSERT INTO "orders"', label('INSERT INTO "orders" ("total") VALUES ($1) RETURNING "id"')

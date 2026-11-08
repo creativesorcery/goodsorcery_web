@@ -1,6 +1,8 @@
 require "test_helper"
 
 class PerformanceHelperTest < ActionView::TestCase
+  include ApmFixtureClock
+
   include PerformanceHelper, ChipHelper, ::NumberHelper
 
   test "durations keep three significant digits and switch to seconds at 1,000 ms" do

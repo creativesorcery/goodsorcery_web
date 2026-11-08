@@ -2,6 +2,8 @@ require "test_helper"
 
 # Captured data must be ciphertext at rest, including rows written by bulk inserts.
 class EncryptionTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   test "fixture rows are stored encrypted" do
     assert_ciphertext Occurrence, occurrences(:nomethod_latest).id, :payload, "mara@example.com"
     assert_ciphertext ApiKey, api_keys(:storefront_production).id, :token, FIXTURE_TOKENS[:storefront_production]

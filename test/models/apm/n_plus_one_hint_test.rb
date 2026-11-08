@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::NPlusOneHintTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   test "names the association after the table" do
     hint = Apm::NPlusOneHint.new('SELECT "products".* FROM "products" WHERE "products"."id" = $1 LIMIT $2')
     assert_equal "Load the products in one query instead:", hint.lead

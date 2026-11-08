@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::StatsQueryTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   setup do
     @checkout = apm_transactions(:checkout_create)
     @products = apm_transactions(:products_show)
@@ -70,6 +72,8 @@ class Apm::StatsQueryTest < ActiveSupport::TestCase
 end
 
 class Apm::StatsQueryRankedTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   test "ranked sorts transactions with data by time consumed, p95, rate or failed" do
     ids = ApmTransaction.listed.where(project: projects(:storefront)).ids
     stats = Apm::StatsQuery.new(Apm::Range.new("1h"))

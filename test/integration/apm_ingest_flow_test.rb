@@ -4,6 +4,8 @@ require_relative "../models/apm/apm_test_support"
 # The whole performance path: both endpoints, the job, the merged rows and
 # the stored trace, and where captured trace data must never appear.
 class ApmIngestFlowTest < ActionDispatch::IntegrationTest
+  include ApmFixtureClock
+
   include ApmTestSupport
   include ActiveJob::TestHelper
 

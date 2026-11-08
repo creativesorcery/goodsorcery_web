@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::TraceLookupTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   setup { @project = projects(:storefront) }
 
   def lookup(id, values: {}, hosted: false, self_hosted_days: 30, now: Time.current, project: @project)

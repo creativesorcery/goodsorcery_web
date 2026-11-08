@@ -5,6 +5,8 @@ require_relative "apm_test_support"
 # minute at once. Runs outside a test transaction so each thread commits on
 # its own connection.
 class Apm::ConcurrentBatchesTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   include ApmTestSupport
 
   self.use_transactional_tests = false

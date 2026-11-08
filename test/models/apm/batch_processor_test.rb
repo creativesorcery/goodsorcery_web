@@ -2,6 +2,8 @@ require "test_helper"
 require_relative "apm_test_support"
 
 class Apm::BatchProcessorTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   include ApmTestSupport
 
   setup do

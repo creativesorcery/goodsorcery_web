@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::SlowerTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   def dist(count, bucket) = Apm::Distribution.from_buckets(count:, failed: 0, duration_ms: 0, buckets: [ [ bucket, count, 0, 0, 0, 0 ] ])
 
   test "the fixture checkout is Slower and the steady endpoint is not" do

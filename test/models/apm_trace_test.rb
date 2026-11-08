@@ -2,6 +2,8 @@ require "test_helper"
 require_relative "ingest/ingest_test_support"
 
 class ApmTraceTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   include IngestTestSupport
 
   test "the payload is ciphertext at rest and decrypts into details" do

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class TrimApmTracesJobTest < ActiveJob::TestCase
+  include ApmFixtureClock
+
   test "trims closed hours to the 3 slowest traces per transaction" do
     transaction = apm_transactions(:products_show)
     hour = TimeSeries.align(Time.current, 1.hour) - 1.hour

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class PerformanceChartHelperTest < ActionView::TestCase
+  include ApmFixtureClock
+
   include PerformanceChartHelper, PerformanceHelper, ChartHelper, ::NumberHelper
 
   Bin = Apm::Overview::Bin

@@ -1,5 +1,6 @@
 # One accepted, not yet processed metrics batch (body encrypted on insert).
-<% minute = TimeSeries.align(1.minute.ago, 1.minute).utc.iso8601 %>
+<% require Rails.root.join("test/test_helpers/apm_fixture_stats").to_s %>
+<% minute = TimeSeries.align(ApmFixtureStats::ANCHOR - 1.minute, 1.minute).utc.iso8601 %>
 storefront_pending_metrics:
   project: storefront
   environment: production
@@ -9,4 +10,4 @@ storefront_pending_metrics:
               minutes: [ { minute:, transactions: [ { kind: "web", name: "CheckoutsController#create", method: "POST", route: "/checkout",
                                                       count: 2, failed: 0, duration_ms: 500.0,
                                                       buckets: [ [ 15, 2, 200.0, 100.0, 100.0, 100.0 ] ] } ] } ] }.to_json.to_json %>
-  received_at: <%= 1.minute.ago.to_fs(:db) %>
+  received_at: <%= (ApmFixtureStats::ANCHOR - 1.minute).to_fs(:db) %>

@@ -2,6 +2,8 @@ require "test_helper"
 require_relative "../models/apm/apm_test_support"
 
 class ProcessApmBatchJobTest < ActiveJob::TestCase
+  include ApmFixtureClock
+
   include ApmTestSupport
 
   test "processes the batch by id on the apm queue" do

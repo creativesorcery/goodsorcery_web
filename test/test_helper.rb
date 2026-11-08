@@ -2,6 +2,19 @@ ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "rails/test_help"
 require_relative "test_helpers/session_test_helper"
+require_relative "test_helpers/apm_fixture_stats"
+
+# Freezes the clock at the instant the APM fixtures were built from
+# (ApmFixtureStats::ANCHOR) for the whole test. Include it in every test that
+# reads APM stats or traces; otherwise a minute or hour boundary passing during
+# the run moves the windows and the counts no longer match the fixtures.
+module ApmFixtureClock
+  extend ActiveSupport::Concern
+
+  included do
+    setup { travel_to ApmFixtureStats::ANCHOR }
+  end
+end
 
 # Raw API key tokens for the api_keys fixtures (the fixtures store them
 # encrypted plus a SHA-256 digest). Use these to authenticate ingest requests.

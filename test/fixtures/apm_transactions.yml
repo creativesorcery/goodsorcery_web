@@ -1,6 +1,7 @@
 # storefront production: two endpoints, one job and the two total rows.
 # checkout_create is Slower (see test/test_helpers/apm_fixture_stats.rb).
-<% seen = { first_seen_at: 20.days.ago.to_fs(:db), last_seen_at: 10.minutes.ago.to_fs(:db) } %>
+<% require Rails.root.join("test/test_helpers/apm_fixture_stats").to_s %>
+<% seen = { first_seen_at: (ApmFixtureStats::ANCHOR - 20.days).to_fs(:db), last_seen_at: (ApmFixtureStats::ANCHOR - 10.minutes).to_fs(:db) } %>
 checkout_create:
   project: storefront
   environment: production

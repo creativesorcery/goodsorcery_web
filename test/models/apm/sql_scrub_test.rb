@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::SqlScrubTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   def scrub(sql) = Apm::SqlScrub.new.scrub(sql)
 
   test "literals become ?, placeholders and identifiers stay" do

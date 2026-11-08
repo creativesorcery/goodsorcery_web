@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::TraceTrimTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   setup do
     @transaction = apm_transactions(:products_show)
     @now = Time.current

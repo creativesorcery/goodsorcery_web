@@ -2,6 +2,8 @@ require "test_helper"
 require_relative "../../test_helpers/performance_pages_test_helper"
 
 class Apm::SelectionTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   include PerformancePagesTestHelper
 
   setup { @project = projects(:storefront) }

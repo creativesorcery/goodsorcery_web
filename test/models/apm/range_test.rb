@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::RangeTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   NOW = Time.utc(2026, 11, 4, 14, 32, 40)
 
   def entitlements(days, hosted: true)

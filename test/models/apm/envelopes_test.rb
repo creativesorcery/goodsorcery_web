@@ -2,6 +2,8 @@ require "test_helper"
 require_relative "apm_test_support"
 
 class Apm::EnvelopesTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   include ApmTestSupport
 
   def metrics_errors(transactions = nil, **body)

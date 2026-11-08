@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::TracePageTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   test "title, request id, layers and the N+1 group" do
     page = page_for(:checkout_slow)
 

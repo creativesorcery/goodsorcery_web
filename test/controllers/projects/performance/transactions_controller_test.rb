@@ -2,6 +2,8 @@ require "test_helper"
 require_relative "../../../test_helpers/performance_pages_test_helper"
 
 class Projects::Performance::TransactionsControllerTest < ActionDispatch::IntegrationTest
+  include ApmFixtureClock
+
   include PerformancePagesTestHelper, ActionView::RecordIdentifier
 
   setup do

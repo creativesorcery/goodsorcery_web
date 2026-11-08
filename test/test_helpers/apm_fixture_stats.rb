@@ -17,11 +17,17 @@ module ApmFixtureStats
   LABELS = %w[checkout_create products_show place_order_job storefront_web_total storefront_jobs_total
               billing_invoices umbrella_home].freeze
 
+  # Every APM fixture is placed relative to this one instant, taken once when
+  # the test process loads. Tests that read APM data include ApmFixtureClock,
+  # which travels to it, so a minute or hour passing between loading the
+  # fixtures and running a test can't shift the windows the tests count in.
+  ANCHOR = Time.current.change(usec: 0)
+
   module_function
 
-  def now_minute = TimeSeries.align(Time.current, 1.minute)
+  def now_minute = TimeSeries.align(ANCHOR, 1.minute)
 
-  def now_hour = TimeSeries.align(Time.current, 1.hour)
+  def now_hour = TimeSeries.align(ANCHOR, 1.hour)
 
   # The Distribution of one transaction for the minute `minutes_ago` minutes back.
   def minute(label, minutes_ago)

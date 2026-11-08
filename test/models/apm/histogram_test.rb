@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::HistogramTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   test "the gs-v1 bounds, element by element (shared with the gem; never change without a new scheme)" do
     expected = [ 1, 1.5, 2, 3, 4.5, 6.5, 9.5, 14, 20, 28,
                  40, 60, 85, 125, 180, 260, 380, 550, 800, 1_150,

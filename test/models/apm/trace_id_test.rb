@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Apm::TraceIdTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   test "generate embeds the time and is a UUIDv7" do
     at = Time.utc(2026, 11, 4, 14, 32, 8.114r)
     id = Apm::TraceId.generate(at)

@@ -2,6 +2,8 @@ require "test_helper"
 require_relative "apm_test_support"
 
 class Apm::TransactionRegistryTest < ActiveSupport::TestCase
+  include ApmFixtureClock
+
   include ApmTestSupport
 
   Entry = Struct.new(:kind, :name, :labels)

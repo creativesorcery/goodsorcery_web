@@ -2,9 +2,10 @@
 # code context carry apm-fixture-secret: tests assert it never leaves the
 # trace page (job args, logs, cache, other pages) and that the raw column is
 # ciphertext.
+<% require Rails.root.join("test/test_helpers/apm_fixture_stats").to_s %>
 <%
-  now_minute = TimeSeries.align(Time.current, 1.minute)
-  now_hour = TimeSeries.align(Time.current, 1.hour)
+  now_minute = ApmFixtureStats.now_minute
+  now_hour = ApmFixtureStats.now_hour
   trace = lambda do |minute:, offset: 8.114, duration:, layers:, transaction:, project: "storefront", **columns|
     started_at = minute + offset.seconds
     { "project" => project, "apm_transaction" => transaction, "uuid" => Apm::TraceId.generate(started_at),
