@@ -1,0 +1,37 @@
+# The monthly event quota becomes the monthly_event_quota entitlement
+# (docs/ARCHITECTURE.md §12.2.2). Every quota set in the old column is copied
+# into entitlement_values, unless the account already stores that key, and
+# the column goes. A null column (no quota) copies nothing: hosted accounts
+# then get the hosted default, and self-hosted ones stay unlimited.
+#
+# Rolling back restores the column, copies the stored values back and
+# removes the key again.
+class MoveMonthlyEventQuotaToEntitlements < ActiveRecord::Migration[8.1]
+  COPY_TO_ENTITLEMENTS = <<~SQL.squish.freeze
+    UPDATE accounts
+    SET entitlement_values = entitlement_values || jsonb_build_object('monthly_event_quota', monthly_event_quota)
+    WHERE monthly_event_quota IS NOT NULL AND NOT entitlement_values ? 'monthly_event_quota'
+  SQL
+
+  # A stored null (no quota) or a value the column can't hold copies back as null.
+  COPY_TO_COLUMN = <<~SQL.squish.freeze
+    UPDATE accounts
+    SET monthly_event_quota = CASE
+          WHEN jsonb_typeof(entitlement_values -> 'monthly_event_quota') = 'number'
+            AND (entitlement_values ->> 'monthly_event_quota') ~ '^[1-9][0-9]{0,17}$'
+          THEN (entitlement_values ->> 'monthly_event_quota')::bigint
+        END,
+        entitlement_values = entitlement_values - 'monthly_event_quota'
+    WHERE entitlement_values ? 'monthly_event_quota'
+  SQL
+
+  def up
+    execute COPY_TO_ENTITLEMENTS
+    remove_column :accounts, :monthly_event_quota
+  end
+
+  def down
+    add_column :accounts, :monthly_event_quota, :bigint
+    execute COPY_TO_COLUMN
+  end
+end

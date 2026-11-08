@@ -4,10 +4,9 @@ class Account < ApplicationRecord
   has_many :projects, inverse_of: :account # rows cascade in the database
 
   # After has_many :projects, which its has_many :through needs.
-  include Account::UptimeMonitoring
+  include Account::UptimeMonitoring, Account::EventQuota
 
   validates :name, presence: true, length: { maximum: 80 }
-  validates :monthly_event_quota, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validate :entitlement_values_well_formed, if: :entitlement_values_changed?
 
   def entitlements
@@ -27,30 +26,6 @@ class Account < ApplicationRecord
   end
 
   def member?(user) = accessible_by?(user)
-
-  # Cached for five minutes; only a number is stored.
-  def events_this_month
-    month = Time.current.utc.beginning_of_month
-    Rails.cache.fetch([ self, :events_this_month, month.strftime("%Y-%m") ], expires_in: 5.minutes) do
-      ProjectHourlyCount.where(project_id: projects.select(:id), hour: month..).sum(:count)
-    end
-  end
-
-  # Ingest's quota gate, cached for a minute; only a boolean is stored.
-  def self.over_quota?(id)
-    Rails.cache.fetch([ "account_over_quota", id ], expires_in: 1.minute) { find_by(id:)&.over_quota? || false }
-  end
-
-  def over_quota?
-    monthly_event_quota.present? && events_this_month >= monthly_event_quota
-  end
-
-  # 0..1, or nil when the account has no quota (self-hosted).
-  def event_quota_fraction
-    return if monthly_event_quota.nil?
-
-    [ events_this_month.fdiv(monthly_event_quota), 1.0 ].min
-  end
 
   private
     def entitlement_values_well_formed

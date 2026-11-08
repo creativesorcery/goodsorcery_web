@@ -1,13 +1,14 @@
-<% account = Current.account %>
-<% if account&.monthly_event_quota %>
-  <% used = account.events_this_month %>
+<%# The monthly_event_quota entitlement: hosted only (self-hosted has no quota). -%>
+<% quota = Current.account && entitlements.monthly_event_quota %>
+<% if quota %>
+  <% used = Current.account.events_this_month %>
   <div class="m-3 rounded-xl border border-iris-500/15 bg-paper-850/80 p-3">
     <div class="flex items-center justify-between text-[11.5px]">
       <span class="text-ink-300">Events this month</span>
       <span class="font-mono text-ink-100">
-        <%= compact_count(used) %> <span class="text-ink-400">/ <%= compact_count(account.monthly_event_quota) %></span>
+        <%= compact_count(used) %> <span class="text-ink-400">/ <%= compact_count(quota) %></span>
       </span>
     </div>
-    <div class="mt-2"><%= meter_svg(used.fdiv(account.monthly_event_quota)) %></div>
+    <div class="mt-2"><%= meter_svg(used.fdiv(quota)) %></div>
   </div>
 <% end %>

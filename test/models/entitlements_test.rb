@@ -1,12 +1,13 @@
 require "test_helper"
 
 class EntitlementsTest < ActiveSupport::TestCase
-  HOSTED_DEFAULTS = { uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1, max_projects: 2 }.freeze
+  HOSTED_DEFAULTS = { uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1, max_projects: 2,
+                      monthly_event_quota: 3_000 }.freeze
 
-  test "the configured hosted defaults are 10 and 60 minute intervals, one monitor per app, a day of performance data and two apps" do
+  test "the configured hosted defaults: 10 and 60 minute intervals, one monitor per app, a day of performance data, two apps, 3,000 events a month" do
     defaults = Rails.configuration.x.entitlements.hosted_defaults
 
-    assert_equal({ uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1, max_projects: 2 }, defaults.to_h.symbolize_keys)
+    assert_equal HOSTED_DEFAULTS, defaults.to_h.symbolize_keys
     assert_empty Entitlements.problems(defaults.to_h)
   end
 
@@ -154,6 +155,37 @@ class EntitlementsTest < ActiveSupport::TestCase
       assert_equal [ Entitlements::PROBLEMS["max_projects"] ], Entitlements.problems("max_projects" => value), value.inspect
     end
     assert_match(/\A[A-Z].*\.\z/, Entitlements::PROBLEMS["max_projects"])
+  end
+
+  test "monthly_event_quota: hosted default 3,000, a stored value wins, null means no quota" do
+    assert_equal 3_000, hosted({}).monthly_event_quota
+    assert_equal 50_000, hosted("monthly_event_quota" => 50_000).monthly_event_quota
+    assert_nil hosted("monthly_event_quota" => nil).monthly_event_quota
+    with_hosted_mode { assert_equal 3_000, Entitlements.new({}).monthly_event_quota }
+  end
+
+  test "monthly_event_quota self-hosted is unlimited, whatever is stored" do
+    assert_nil self_hosted({}).monthly_event_quota
+    assert_nil self_hosted("monthly_event_quota" => 10).monthly_event_quota
+    assert_nil Entitlements.new({}).monthly_event_quota
+  end
+
+  test "monthly_event_quota: invalid stored values fall back to the default and are logged by key name only" do
+    [ 0, -1, "5000", 1.5, true, [ 2 ], {} ].each do |value|
+      log = capture_log { assert_equal 3_000, hosted("monthly_event_quota" => value).monthly_event_quota, value.inspect }
+      assert_includes log, "Ignoring invalid entitlement monthly_event_quota"
+    end
+  end
+
+  test "problems describes an invalid monthly_event_quota" do
+    assert_includes Entitlements::KEYS, "monthly_event_quota"
+    assert_empty Entitlements.problems("monthly_event_quota" => nil)
+    assert_empty Entitlements.problems("monthly_event_quota" => 1)
+    assert_empty Entitlements.problems(monthly_event_quota: 10_000_000_000)
+    [ 0, -1, "2", 2.5, true, [ 2 ] ].each do |value|
+      assert_equal [ Entitlements::PROBLEMS["monthly_event_quota"] ], Entitlements.problems("monthly_event_quota" => value), value.inspect
+    end
+    assert_match(/\A[A-Z].*\.\z/, Entitlements::PROBLEMS["monthly_event_quota"])
   end
 
   test "the arguments default to the application configuration" do

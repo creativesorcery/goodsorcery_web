@@ -2,7 +2,6 @@
 # defaults. umbrella stores its own, which win in hosted mode.
 acme:
   name: Acme Labs
-  monthly_event_quota: 1000000
   entitlement_values: {}
 
 umbrella:

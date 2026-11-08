@@ -173,12 +173,43 @@ class Api::V1::EventsControllerTest < ActionDispatch::IntegrationTest
       assert_response :accepted, "other accounts are unaffected"
     end
 
-    test "429 quota_exceeded once the monthly quota is used up" do
-      accounts(:acme).update!(monthly_event_quota: 1)
+    test "hosted, 429 quota_exceeded once the monthly quota is used up" do
+      accounts(:acme).update_entitlements!("monthly_event_quota" => 1)
 
-      assert_no_difference(-> { InboundEvent.count }) { post_event }
+      with_hosted_mode { assert_no_difference(-> { InboundEvent.count }) { post_event } }
       assert_response :too_many_requests
       assert_equal({ "error" => "quota_exceeded" }, response.parsed_body)
+    end
+
+    test "hosted, an account with no stored quota gets the hosted default of 3,000" do
+      add_events_this_month(projects(:storefront), 3_000)
+      assert_operator accounts(:umbrella).events_this_month, :<, 3_000
+
+      with_hosted_mode { assert_no_difference(-> { InboundEvent.count }) { post_event } }
+      assert_response :too_many_requests
+
+      with_hosted_mode { assert_difference(-> { InboundEvent.count }, 1) { post_event FIXTURE_TOKENS[:umbrella_production] } }
+      assert_response :accepted, "umbrella has used less than 3,000 this month"
+    end
+
+    test "hosted, raising the quota lets events in at once" do
+      account = accounts(:acme)
+      with_hosted_mode do
+        account.update_entitlements!("monthly_event_quota" => 1)
+        post_event
+        assert_response :too_many_requests
+
+        account.update_entitlements!("monthly_event_quota" => account.events_this_month + 1_000)
+        post_event
+        assert_response :accepted
+      end
+    end
+
+    test "self-hosted never answers quota_exceeded, whatever is stored" do
+      accounts(:acme).update_entitlements!("monthly_event_quota" => 1)
+
+      post_event
+      assert_response :accepted
     end
 
     test "requests under the limits are counted and accepted" do

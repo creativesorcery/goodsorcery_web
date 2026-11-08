@@ -24,8 +24,8 @@ class Api::V1::VerificationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "does not count toward the monthly quota" do
-    accounts(:acme).update!(monthly_event_quota: 1)
-    verify
+    accounts(:acme).update_entitlements!("monthly_event_quota" => 1)
+    with_hosted_mode { verify }
     assert_response :ok
   end
 

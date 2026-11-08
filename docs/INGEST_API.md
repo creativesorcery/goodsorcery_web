@@ -176,7 +176,7 @@ Scrub as much as you can **in the client**. The Ruby gem applies `Rails.applicat
 | `415 Unsupported Media Type` | `{"error":"unsupported_media_type"}` | `Content-Type` is not `application/json`, or `Content-Encoding` is neither absent, `identity` nor `gzip`. |
 | `422 Unprocessable Entity` | `{"error":"invalid_payload","messages":["exception.class is required"]}` | Valid JSON with the wrong shape. |
 | `429 Too Many Requests` | `{"error":"rate_limited"}` | Includes a `Retry-After` header in seconds (`60`). A rejected request uses up none of the key's or account's allowance. |
-| `429 Too Many Requests` | `{"error":"quota_exceeded"}` | The account has used its monthly event quota (hosted plans only). |
+| `429 Too Many Requests` | `{"error":"quota_exceeded"}` | The account has used its monthly event quota: on the hosted service, 3,000 error events per UTC month unless the account has another quota. Self-hosted instances have no quota. A changed quota applies at the next request; otherwise the answer can lag the count by a few minutes. |
 
 Checks run in this order: per-IP rate limit, API key (`401`), per-key and per-account rate limits, monthly quota, media type (`415`), body size (`413`), JSON (`400`), shape (`422`). For a batch, the per-key and per-account limits are charged one unit per event: one unit before the body is read (as for a single event, so a key or account with no room left gets `429` straight away), and the rest once the body is parsed and the `events` array checked (after `422` for a malformed array, before the events themselves are validated).
 

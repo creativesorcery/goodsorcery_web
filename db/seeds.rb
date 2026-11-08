@@ -71,7 +71,8 @@ class DemoSeeds
 
   private
     def create_people
-      @account = Account.create!(name: "Acme Labs", monthly_event_quota: 1_000_000)
+      # Hosted, a stored quota above the demo traffic; self-hosted ignores it.
+      @account = Account.create!(name: "Acme Labs", entitlement_values: { "monthly_event_quota" => 1_000_000 })
       @users = {
         philip: User.create!(name: "Philip Nguyen", email_address: EMAIL, password: PASSWORD, email_verified_at: Time.current),
         jo: User.create!(name: "Jo Martin", email_address: "jo@example.com", password: PASSWORD, email_verified_at: Time.current)

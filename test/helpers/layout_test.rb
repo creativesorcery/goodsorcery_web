@@ -53,15 +53,39 @@ class LayoutTest < ActionView::TestCase
     assert_select "aside button", text: /Sign out/, count: 0
   end
 
-  test "the usage meter appears only when the account has a quota" do
-    account = accounts(:acme)
-    account.update!(monthly_event_quota: 1_000_000)
-    Current.session = users(:philip).sessions.create!(account:)
+  test "hosted, the usage meter shows this month's events against the hosted default quota" do
+    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
 
-    render_shell
+    with_hosted_mode { render_shell }
 
     assert_select "aside", text: /Events this month/
+    assert_select "aside", text: %r{Events this month\s*[\d.]+k?\s*/ 3k}
     assert_select "aside svg[aria-label$=?]", "% used"
+  end
+
+  test "hosted, the usage meter reads the account's stored quota" do
+    account = accounts(:acme)
+    account.update_entitlements!("monthly_event_quota" => 1_000_000)
+    Current.session = users(:philip).sessions.create!(account:)
+
+    with_hosted_mode { render_shell }
+
+    assert_select "aside", text: %r{Events this month\s*[\d.]+k?\s*/ 1M}
+  end
+
+  test "hosted with no quota stored as null, and self-hosted whatever is stored, show no usage meter" do
+    account = accounts(:acme)
+    account.update_entitlements!("monthly_event_quota" => nil)
+    Current.session = users(:philip).sessions.create!(account:)
+
+    with_hosted_mode { render_shell }
+    assert_select "aside", text: /Events this month/, count: 0
+
+    account.update_entitlements!("monthly_event_quota" => 5_000)
+    reset_view
+    Current.session = users(:philip).sessions.create!(account:)
+    render_shell
+    assert_select "aside", text: /Events this month/, count: 0
   end
 
   test "the sidebar's query count does not grow with the number of projects" do

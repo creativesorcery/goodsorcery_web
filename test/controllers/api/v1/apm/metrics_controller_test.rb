@@ -95,9 +95,9 @@ class Api::V1::Apm::MetricsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "accepted when the account is over its monthly event quota" do
-    accounts(:acme).update!(monthly_event_quota: 1)
-    Rails.cache.write([ "account_over_quota", accounts(:acme).id ], true)
-    post_metrics
+    accounts(:acme).update_entitlements!("monthly_event_quota" => 1)
+    Rails.cache.write(Account.over_quota_key(accounts(:acme).id), true)
+    with_hosted_mode { post_metrics }
     assert_response :accepted
   end
 

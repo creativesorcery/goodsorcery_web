@@ -23,24 +23,86 @@ class AccountTest < ActiveSupport::TestCase
 
   test "event quota fraction is capped at 1 and nil without a quota" do
     account = accounts(:acme)
-    account.monthly_event_quota = 1
-    assert_equal 1.0, account.event_quota_fraction
+    with_hosted_mode do
+      account.entitlement_values = { "monthly_event_quota" => 1 }
+      assert_equal 1.0, account.event_quota_fraction
 
-    account.monthly_event_quota = 10_000_000
-    assert_in_delta account.events_this_month / 10_000_000.0, account.event_quota_fraction
+      account.entitlement_values = { "monthly_event_quota" => 10_000_000 }
+      assert_in_delta account.events_this_month / 10_000_000.0, account.event_quota_fraction
 
-    assert_nil accounts(:umbrella).event_quota_fraction
+      account.entitlement_values = { "monthly_event_quota" => nil }
+      assert_nil account.event_quota_fraction
+    end
+    assert_nil account.event_quota_fraction, "self-hosted has no quota"
   end
 
-  test "over_quota? compares this month's events with the quota" do
+  test "over_quota? compares this month's events with the resolved monthly_event_quota" do
     account = accounts(:acme)
-    assert_not account.over_quota?, "no quota"
+    add_events_this_month(projects(:storefront), 3_000)
 
-    account.update!(monthly_event_quota: 1)
-    assert account.over_quota?
-    account.update!(monthly_event_quota: account.events_this_month + 1)
+    with_hosted_mode do
+      assert account.over_quota?, "the hosted default of 3,000"
+      assert Account.over_quota?(account.id)
+
+      account.update_entitlements!("monthly_event_quota" => account.events_this_month + 1)
+      assert_not account.over_quota?
+      assert_not Account.over_quota?(account.id)
+
+      account.update_entitlements!("monthly_event_quota" => nil)
+      assert_not account.over_quota?, "a stored null is no quota"
+    end
+  end
+
+  test "self-hosted is never over quota, whatever is stored, and reads nothing" do
+    account = accounts(:acme)
+    account.update_entitlements!("monthly_event_quota" => 1)
+
     assert_not account.over_quota?
-    assert_not Account.over_quota?(account.id)
+    assert_no_queries { assert_not Account.over_quota?(account.id) }
+  end
+
+  test "Account.over_quota? caches the answer per id and forgets it when entitlement_values change" do
+    account = accounts(:acme)
+    add_events_this_month(projects(:storefront), 3_000)
+    with_memory_cache do
+      with_hosted_mode do
+        assert Account.over_quota?(account.id)
+        assert_no_queries { assert Account.over_quota?(account.id) }
+
+        account.update_entitlements!("monthly_event_quota" => 10_000_000)
+        assert_not Account.over_quota?(account.id), "expired on commit"
+        assert_no_queries { assert_not Account.over_quota?(account.id) }
+
+        account.update!(name: "Acme Renamed")
+        assert_equal false, Rails.cache.read(Account.over_quota_key(account.id)), "other changes keep it"
+      end
+    end
+  end
+
+  test "Account.over_quota? keeps the answer for a minute only" do
+    account = accounts(:acme)
+    add_events_this_month(projects(:storefront), 3_000)
+    with_memory_cache do
+      with_hosted_mode do
+        assert Account.over_quota?(account.id)
+        account.update_column(:entitlement_values, { "monthly_event_quota" => 10_000_000 })
+        assert Account.over_quota?(account.id), "a write that skips callbacks waits for the cache"
+
+        travel Account::OVER_QUOTA_TTL + 1.second
+        assert_not Account.over_quota?(account.id)
+      end
+    end
+  end
+
+  test "update_entitlements! stores monthly_event_quota and rejects invalid values" do
+    account = accounts(:acme)
+    account.update_entitlements!("monthly_event_quota" => 50_000)
+    assert_equal({ "monthly_event_quota" => 50_000 }, account.reload.entitlement_values)
+
+    [ 0, -5, "100", 1.5, true, [ 10 ] ].each do |value|
+      error = assert_raises(ActiveRecord::RecordInvalid, value.inspect) { account.update_entitlements!("monthly_event_quota" => value) }
+      assert_equal [ Entitlements::PROBLEMS["monthly_event_quota"] ], error.record.errors[:base]
+    end
   end
 
   test "new accounts store no entitlement values" do
@@ -62,6 +124,7 @@ class AccountTest < ActiveSupport::TestCase
       assert_equal [ 10, 60 ], accounts(:acme).entitlements.uptime_intervals
       assert_equal 1, accounts(:acme).entitlements.max_monitors
       assert_equal 2, accounts(:acme).entitlements.max_projects
+      assert_equal 3_000, accounts(:acme).entitlements.monthly_event_quota
     end
   end
 

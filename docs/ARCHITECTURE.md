@@ -61,8 +61,9 @@ All `id`s are `bigint`. FKs are real `add_foreign_key` constraints. "cascade" me
 | column | type | null | default |
 |---|---|---|---|
 | name | string | false | |
-| monthly_event_quota | bigint | true | nil means unlimited (self-host) |
 | created_at / updated_at | datetime | false | |
+
+The `monthly_event_quota` column of v1 became the `monthly_event_quota` entitlement in `entitlement_values` (§12.2.2; migration `move_monthly_event_quota_to_entitlements`).
 
 **users** (generator plus extra columns)
 | column | type | null | default |
@@ -290,7 +291,7 @@ Never plaintext: anything else in the payload. User identifiers are stored only 
 Associations use `inverse_of`, so `@project.issues` sets `issue.project` without a query. Short-ID rendering depends on this.
 
 - **Current** (`ActiveSupport::CurrentAttributes`): `session`, `delegate :user, to: :session, allow_nil: true`, `def account = session&.account`.
-- **Account**: `has_many :memberships, :users (through), :projects`. `#accessible_by?(user)` checks `memberships.exists?(user_id: user.id)`. `#events_this_month` returns the cached (5 min) sum of `project_hourly_counts` for this month. `#event_quota_fraction` returns 0..1 or nil.
+- **Account**: `has_many :memberships, :users (through), :projects`. `#accessible_by?(user)` checks `memberships.exists?(user_id: user.id)`. `Account::EventQuota` (§12.2.2): `#events_this_month` returns the cached (5 min) sum of `project_hourly_counts` for this month, `#over_quota?` compares it with `entitlements.monthly_event_quota`, `.over_quota?(id)` is ingest's cached gate and `#event_quota_fraction` returns 0..1 or nil.
 - **User**: `has_secure_password`, `normalizes :email_address`, `has_many :sessions, :memberships, :accounts, :alert_deliveries`. `#default_account`, `#initials`, `#first_name`, `scope :email_verified`, `#alert_mute_token(project, stream: "alerts")` (§11).
 - **Membership**: `enum :role, { owner: "owner", member: "member" }`. Alert preferences (§11): `has_many :notification_preferences`; scopes `with_verified_email`, `receiving_alerts_for(project)`, `receiving_digest_for(project)`; `#receives_alerts?(project)`, `#receives_digest?(project)`, `#notification_preference_for(project)` (saved row or an unsaved default, built by id), `#update_notification_preference(project, **attributes)`.
 - **Session**: `belongs_to :user, :account`.
@@ -856,6 +857,7 @@ A creates `app/models/issue/broadcasting.rb` and `app/models/project/broadcastin
 | `last_used_at` throttle gate | `["api_key_used", id]` | 1 min | A |
 | Live-update debounce gates | `["live", "issue"/"project", id]` | 2 s | G |
 | Account events-this-month | `[account, :events_this_month, month]` | 5 min | A |
+| Over the monthly event quota (hosted only, a boolean; §12.2.2) | `["account_over_quota", account.id]` | 1 min; deleted when `entitlement_values` change | A |
 | Issue list summary numbers | `["summary", project.id, env, period]` | 30 s | E |
 | Unresolved counts (sidebar badge, list heading), per environment or all (nil) | `["unresolved_count", project.id, env]` | 10 s; triage deletes the all and per-key-environment entries | A |
 | Issue chart series 7d/30d (numbers only) | `["issue_chart", issue.id, period]` | 5 min (24h is uncached so live reloads are fresh) | F |
@@ -948,7 +950,7 @@ Other rules:
   - nav section "Grimoire": Projects; Issues with an unresolved badge for `sidebar_project` (`sidebar_issues_badge`), counted for the environment its issue list shows (`issues_environment_for`, §4.2), tinted in that environment's tone (`environment_bar_classes`; coral for all environments) with a title such as "23 unresolved in staging"; Alerts → Settings › Alerts of `sidebar_project` (`key: "alerts"`; a plain non-link row when there is no project)
   - Uptime → the app's Uptime page (§12.8). This replaces the old "Coming from the suite: Uptime (soon)" placeholder.
   - "Project": "Settings & setup" → `project_setup_path(sidebar_project)`; Docs → `docs_url` (external)
-  - `layouts/_usage_meter` (events this month / quota, hidden when quota is nil)
+  - `layouts/_usage_meter` (events this month / `entitlements.monthly_event_quota`, hidden when that is nil, so always self-hosted)
   - `layouts/_user_menu` (initials, name, "Account name · Hosted" or "Self-hosted" by `ENV["GOODSORCERY_HOSTED"]`, dropdown with Notifications (`notifications_path`) and Sign out)
 - `layouts/_topbar.html.erb` is a sticky `h-14` bar with the breadcrumb trail on the left and the global search form (GET `search_path`, `name="q"`, placeholder "Search projects and issues…") on the right.
 - `layouts/auth.html.erb` is a centred single panel with the sigil, used by sessions, passwords and registrations.
@@ -1299,9 +1301,10 @@ This section is the binding blueprint for the uptime build. It comes in four sli
 - goodsorcery_web never knows about plan tiers. The words "free", "premium" or any tier name never appear in code, config, copy or tests. It stores entitlement **values** per account and nothing else.
 - Entitlements are stored per account, but `max_monitors` is a limit **per app**: each app of the account may have that many uptime monitors (changed from per account on 2026-11-07).
 - **Hosted mode** is `GOODSORCERY_HOSTED`, read once at boot into `config.x.hosted`.
-  - **Self-hosted** (the default, switch off): every entitlement is unlimited, meaning all four intervals, no monitor cap and no app cap. Stored values are ignored, and the UI never shows a locked option or "Upgrade to unlock".
-  - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]`, `max_monitors: 1` (one monitor per app) and `max_projects: 2` (two apps per account).
+  - **Self-hosted** (the default, switch off): every entitlement is unlimited, meaning all four intervals, no monitor cap, no app cap and no monthly event quota. Stored values are ignored, and the UI never shows a locked option or "Upgrade to unlock".
+  - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]`, `max_monitors: 1` (one monitor per app), `max_projects: 2` (two apps per account) and `monthly_event_quota: 3000` (error events per UTC month).
 - **Apps per account** (`max_projects`, approved 2026-11-07, §12.2.1): hosted accounts may create up to `max_projects` apps. Accounts already over it keep every app they have; they just can't add more.
+- **Monthly event quota** (`monthly_event_quota`, approved 2026-11-07, §12.2.2): the v1 `accounts.monthly_event_quota` column became an entitlement. Hosted accounts get 3,000 error events per UTC month unless a value is stored; ingest answers `429 quota_exceeded` past it. Self-hosted instances never have a quota.
 - Entitlements are enforced in model validations, so a crafted POST can't get past them, and they are also reflected in the views.
 - Locked options say **"Upgrade to unlock"**, linking to `GOODSORCERY_UPGRADE_URL` (`config.x.upgrade_url`), when that is set. When it isn't, no upgrade text renders anywhere: locked options stay visible, greyed out and unselectable, titled **"Coming soon"** (a native hover tooltip, on a span rather than a disabled button so every browser shows it), and an add button at a limit becomes the greyed-out sentence "Cannot add more yet, but it's coming soon" (for apps: "Cannot add more apps yet, but it's coming soon"). `UpgradeOffer` is the one place that decides between the two (approved 2026-11-07).
 - **Monitors** belong to an app (project), and every lookup is scoped through `Current.account`.
@@ -1409,6 +1412,7 @@ shared:
     max_monitors: 1        # per app
     apm_retention_days: 1  # §13.7
     max_projects: 2        # apps per account (§12.2.1)
+    monthly_event_quota: 3000 # error events per UTC month (§12.2.2)
 ```
 
 `ApplicationHelper#hosted?` returns `Rails.configuration.x.hosted`. Existing tests that set `ENV["GOODSORCERY_HOSTED"]` switch to the `with_hosted_mode` test helper.
@@ -1418,7 +1422,7 @@ shared:
 ```ruby
 Entitlements::UPTIME_INTERVALS        # => [1, 5, 10, 60]  every interval uptime supports
 Entitlements::DEFAULT_UPTIME_INTERVAL # => 10
-Entitlements::KEYS                    # => %w[uptime_intervals max_monitors apm_retention_days max_projects]
+Entitlements::KEYS                    # => %w[uptime_intervals max_monitors apm_retention_days max_projects monthly_event_quota]
 Entitlements::CAP_KEYS                # => %w[max_monitors max_projects]  nil or an integer >= 0
 
 entitlements = account.entitlements   # Entitlements.new(account.entitlement_values)
@@ -1436,12 +1440,13 @@ entitlements.monitor_limit_reached?(count)   # count is one app's monitors; fals
 entitlements.monitors_left(count)            # nil when uncapped, else [max - count, 0].max
 entitlements.max_projects                    # Integer (apps per account), or nil for no cap
 entitlements.project_limit_reached?(count)   # count is the account's apps; false when max_projects is nil
+entitlements.monthly_event_quota             # Integer (error events per UTC month), or nil for no quota
 Entitlements.problems(values)                # => [] or whole-sentence messages, for Account validation
 ```
 
-Resolution per key: self-hosted gives the unlimited value. Hosted gives the stored value if the key is present and valid, otherwise the hosted default. A present but invalid stored value (impossible through `Account` validation, but possible if the column is edited by hand) falls back to the default. It is logged as `"Ignoring invalid entitlement #{key} for account #{id}"`, with the key name only. In stored JSON, `"max_monitors": null` (or `"max_projects": null`) explicitly means no cap, which is different from a missing key.
+Resolution per key: self-hosted gives the unlimited value. Hosted gives the stored value if the key is present and valid, otherwise the hosted default. A present but invalid stored value (impossible through `Account` validation, but possible if the column is edited by hand) falls back to the default. It is logged as `"Ignoring invalid entitlement #{key} for account #{id}"`, with the key name only. In stored JSON, `"max_monitors": null` (or `"max_projects": null`, `"monthly_event_quota": null`) explicitly means no cap, which is different from a missing key.
 
-Valid values: `uptime_intervals` is a non-empty array of distinct integers from `UPTIME_INTERVALS`. `max_monitors` and `max_projects` are each `null` or an integer ≥ 0 (`PROBLEMS["max_projects"]` = "Max projects must be empty (no limit) or a whole number of 0 or more.").
+Valid values: `uptime_intervals` is a non-empty array of distinct integers from `UPTIME_INTERVALS`. `max_monitors` and `max_projects` are each `null` or an integer ≥ 0 (`PROBLEMS["max_projects"]` = "Max projects must be empty (no limit) or a whole number of 0 or more."). `monthly_event_quota` is `null` or an integer > 0 ("Monthly event quota must be empty (no limit) or a whole number greater than 0.").
 
 **`Account`** (slice 1):
 - `#entitlements` returns an `Entitlements` object.
@@ -1462,6 +1467,13 @@ Valid values: `uptime_intervals` is a non-empty array of distinct integers from 
 - **Onboarding:** a new account has 0 apps, so it can always create its first one unless its stored `max_projects` is 0.
 - **UI:** `EntitlementsHelper#project_limit_reached?` (false self-hosted or without an account; the count comes from the sidebar switcher's query when it holds every app, `NavigationHelper#account_project_count`, so it costs no query of its own). At the limit, every "Add a new app" entry point (the overview's new-app tile, the switcher menu item and the switcher's no-app button) is replaced by `new_app_limit_notice`, and the Projects header button is left out so the overview doesn't show the sentence twice: the greyed-out "Cannot add more apps yet, but it's coming soon" (not a link) without an upgrade URL, or "App limit reached." plus `upgrade_to_unlock` with one. `GET /projects/new` at the limit answers 200 with a panel (`#project_limit`, `Project.limit_message`, the upgrade link when set and "Back to Projects") instead of the form; a crafted `POST /projects` gets 422 with the same panel.
 
+#### 12.2.2 Monthly event quota (`monthly_event_quota`, approved 2026-11-07)
+
+- **Values:** `nil` (no quota) or an integer > 0, counting error events per UTC month (the sum of `project_hourly_counts` since the month started, so events dropped by rate limits or rejected don't count; performance data never counts). Hosted default 3,000; self-hosted always unlimited, whatever is stored.
+- **Migration** `move_monthly_event_quota_to_entitlements`: copies every non-null `accounts.monthly_event_quota` into `entitlement_values["monthly_event_quota"]` unless the key is already stored, then drops the column. `down` restores the column, copies the stored values back (a stored null, or anything not a positive integer, as NULL) and removes the key. `test/migrations/move_monthly_event_quota_to_entitlements_test.rb` runs both directions.
+- **Enforced at ingest** by `IngestEndpoint#enforce_quota` → `Account.over_quota?(account_id)` (`Account::EventQuota`), after the rate limits and before the body is read: `429 {"error":"quota_exceeded"}`. Self-hosted it returns false without touching the cache or the database. Hosted it is one cache read of a boolean keyed `["account_over_quota", id]`, kept for `OVER_QUOTA_TTL` (1 minute); a miss loads the account and compares `events_this_month` (itself cached 5 minutes) with the resolved `entitlements.monthly_event_quota`, the hosted default included. An `after_update_commit` that changes `entitlement_values` deletes the key, so a pushed quota applies at the next request; a changed hosted default (a restart) applies within the minute. No per-event query is added. `GET /api/v1/verify` and the APM endpoints never check the quota.
+- **UI:** the sidebar's `layouts/_usage_meter` reads `entitlements.monthly_event_quota`: hosted shows "N / 3k" with a meter; nil (always self-hosted) shows nothing.
+
 **Test helpers** (`test/test_helper.rb`): `with_hosted_mode(hosted = true) { … }` sets and restores `Rails.configuration.x.hosted`; `with_upgrade_url(url = "https://billing.example/upgrade") { … }` does the same for `config.x.upgrade_url` (`with_upgrade_url(nil)` for "coming soon").
 
 ### 12.3 Future billing push contract (documented only; do not build)
@@ -1473,8 +1485,8 @@ A separate private billing app will **push** values to goodsorcery_web. Nothing 
   - Compare with `ActiveSupport::SecurityUtils.secure_compare`.
   - Reject a `t` more than 5 minutes from now.
   - Rate-limit per IP.
-- **Body:** `{"entitlements":{"uptime_intervals":[1,5,10,60],"max_monitors":25,"apm_retention_days":30,"max_projects":10},"sequence":42}`.
-  - The document is complete: an omitted key falls back to the hosted defaults, and `"max_monitors": null` or `"max_projects": null` means no cap. `max_monitors` counts per app; `max_projects` counts the account's apps, and lowering it below the current count keeps every existing app and only blocks new ones.
+- **Body:** `{"entitlements":{"uptime_intervals":[1,5,10,60],"max_monitors":25,"apm_retention_days":30,"max_projects":10,"monthly_event_quota":100000},"sequence":42}`.
+  - The document is complete: an omitted key falls back to the hosted defaults, and `"max_monitors": null`, `"max_projects": null` or `"monthly_event_quota": null` means no cap. `max_monitors` counts per app; `max_projects` counts the account's apps, and lowering it below the current count keeps every existing app and only blocks new ones. `monthly_event_quota` counts error events per UTC month; a new value applies at the next ingest request (§12.2.2).
   - `sequence` increases monotonically per account. A push whose `sequence` is ≤ the stored one is acknowledged and ignored, so out-of-order delivery is harmless. The push slice adds `accounts.entitlements_sequence bigint` for this; it is not added now.
 - **Responses:**
   - `204` when applied or ignored as stale.
@@ -1482,7 +1494,7 @@ A separate private billing app will **push** values to goodsorcery_web. Nothing 
   - `404 {"error":"unknown_account"}`.
   - `422 {"error":"invalid_entitlements","messages":[…]}`, built from `Entitlements.problems`.
 - **Values only.** Tier names, prices and customer data are never sent or stored. The billing app maps its plans to values itself.
-- **Effect:** `account.update_entitlements!(values)`. Its `after_update_commit` runs `fit_uptime_monitors_to_entitlements` (§12.3.1).
+- **Effect:** `account.update_entitlements!(values)`. Its `after_update_commit` callbacks run `fit_uptime_monitors_to_entitlements` (§12.3.1) and expire the cached quota answer (§12.2.2).
 
 #### 12.3.1 Fitting monitors to entitlements (slice 2, built now)
 

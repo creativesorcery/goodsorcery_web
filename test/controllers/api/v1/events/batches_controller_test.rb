@@ -290,10 +290,10 @@ class Api::V1::Events::BatchesControllerTest < ActionDispatch::IntegrationTest
       assert_response :too_many_requests
     end
 
-    test "429 quota_exceeded once the monthly quota is used up" do
-      accounts(:acme).update!(monthly_event_quota: 1)
+    test "hosted, 429 quota_exceeded once the monthly quota is used up" do
+      accounts(:acme).update_entitlements!("monthly_event_quota" => 1)
 
-      assert_no_difference(-> { InboundEvent.count }) { post_batch 2 }
+      with_hosted_mode { assert_no_difference(-> { InboundEvent.count }) { post_batch 2 } }
       assert_response :too_many_requests
       assert_equal({ "error" => "quota_exceeded" }, response.parsed_body)
     end

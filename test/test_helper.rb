@@ -40,5 +40,20 @@ module ActiveSupport
     ensure
       Rails.configuration.x.upgrade_url = previous
     end
+
+    # The test cache store is a null store; this swaps in a real one.
+    def with_memory_cache
+      previous = Rails.cache
+      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+      yield
+    ensure
+      Rails.cache = previous
+    end
+
+    # Counts events toward this UTC month's total (the monthly quota) in an
+    # environment no fixture rolls up, so the total doesn't depend on the date.
+    def add_events_this_month(project, count)
+      ProjectHourlyCount.create!(project:, environment: "quota-test", hour: Time.current.utc.beginning_of_hour, count:)
+    end
   end
 end
