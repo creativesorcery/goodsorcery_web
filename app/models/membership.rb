@@ -18,8 +18,9 @@ class Membership < ApplicationRecord
     with_verified_email.where.not(id: NotificationPreference.where(project:, digest_enabled: false).select(:membership_id))
   end
 
-  # Losing access must also end any browser session working in that account.
-  after_destroy_commit :end_sessions
+  # Losing access must also end any browser session working in that account,
+  # and revoke the member's MCP tokens for it (re-joining must not revive them).
+  after_destroy_commit :end_sessions, :revoke_access_tokens
 
   # Never mails an unconfirmed address. Checked again at send time.
   def receives_alerts?(project)
@@ -52,5 +53,9 @@ class Membership < ApplicationRecord
   private
     def end_sessions
       Session.where(user_id:, account_id:).delete_all
+    end
+
+    def revoke_access_tokens
+      PersonalAccessToken.revoke_all(user_id:, account_id:)
     end
 end

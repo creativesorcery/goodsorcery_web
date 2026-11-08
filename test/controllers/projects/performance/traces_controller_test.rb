@@ -31,7 +31,8 @@ class Projects::Performance::TracesControllerTest < ActionDispatch::IntegrationT
   test "the timeline groups repeated queries and the N+1 detail explains them" do
     get project_performance_trace_path(@project, @trace)
 
-    assert_select "span", "Action"
+    assert_select "span", "Request"
+    assert_select "span", text: "Action", count: 0
     assert_select "span[title=?]", 'SELECT "users" WHERE "id" = $1'
     assert_select "a[href='#span-detail'][aria-current=true] .chip-lilac", "N+1 ×38"
     assert_select "span", "POST api.taxjar.com/v2/taxes"
@@ -49,6 +50,18 @@ class Projects::Performance::TracesControllerTest < ActionDispatch::IntegrationT
       assert_select "p", "This query ran 38 times in one request. Load the rows in one query (a join, an IN list or a batch load) instead of one per item."
       assert_select "p", text: /includes/, count: 0
     end
+  end
+
+  test "a trace without a request path names its transaction once and skips GC rows" do
+    payload = JSON.parse(@trace.payload)
+    payload["request"] = payload["request"].except("path")
+    @trace.update!(payload: payload.except("gc", "allocations").to_json)
+
+    get project_performance_trace_path(@project, @trace)
+
+    assert_select "h1", @trace.apm_transaction.name
+    assert_select "div.font-mono", /\A\s*\w{3} \d+, \d\d:\d\d:\d\d · web-2 · request 7f3a9c1e\s*\z/
+    assert_equal %w[Status Host Started Runtime], css_select("#apm_request_heading + dl dt").map(&:text)
   end
 
   test "the request panel and no errors" do

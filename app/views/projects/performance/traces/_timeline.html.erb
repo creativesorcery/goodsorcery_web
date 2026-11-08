@@ -13,7 +13,7 @@
       </div>
       <div class="<%= PerformanceHelper::TIMELINE_GRID %> px-4 sm:px-5 py-2 border-b border-paper-700/70">
         <span class="<%= PerformanceHelper::TIMELINE_LABEL %> flex items-center gap-2 min-w-0">
-          <span class="w-11 shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-ink-400"><%= page.web? ? "Action" : "Job" %></span>
+          <span class="w-14 shrink-0 text-[10.5px] font-semibold uppercase tracking-wide text-ink-400"><%= page.web? ? "Request" : "Job" %></span>
           <span class="font-mono text-[12.5px] text-ink-50 truncate"><%= page.transaction.name %></span>
         </span>
         <%= apm_timeline_bar_svg(0, total, total, color: PerformanceChartHelper::IRIS_SOFT, ticks:) %>

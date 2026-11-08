@@ -5,9 +5,9 @@
     <div class="eyebrow">
       Slow trace · <%= page.open_hour? ? "the slowest #{page.web? ? 'request' : 'run'} in its minute" : "one of the 3 slowest in its hour" %>
     </div>
-    <h1 class="page-title break-words"><%= page.title %></h1>
-    <div class="mt-2 font-mono text-[13px] text-ink-200 break-words">
-      <%= [ transaction.name, trace.started_at.in_time_zone.strftime("%b %-d, %H:%M:%S"), details.host.presence,
+    <h1 class="page-title break-words lg:break-all"><%= page.title %></h1>
+    <div class="mt-2 font-mono text-[13px] text-ink-200 break-words lg:break-all">
+      <%= [ (transaction.name unless transaction.name == page.title), trace.started_at.in_time_zone.strftime("%b %-d, %H:%M:%S"), details.host.presence,
             (page.web? ? (page.request_id && "request #{page.request_id}") : apm_route_line(transaction)) ].compact.join(" · ") %>
     </div>
   </div>

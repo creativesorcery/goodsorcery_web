@@ -55,6 +55,12 @@ module GoodsorceryWeb
     config.x.terms_url = HttpUrl.parse(ENV["GOODSORCERY_TERMS_URL"])
     config.x.privacy_url = HttpUrl.parse(ENV["GOODSORCERY_PRIVACY_URL"])
 
+    # The instance's public URL (GOODSORCERY_PUBLIC_URL, required in
+    # production), or nil. The Access tokens page builds MCP client snippets
+    # from it, and the MCP endpoint accepts browser Origins of it only.
+    public_url = ENV[PublicUrl::VARIABLE].to_s.strip
+    config.x.public_url = (PublicUrl.new(public_url) unless public_url.empty?)
+
     # Days of performance data a self-hosted instance keeps (1..30, default
     # 30); hosted accounts use their apm_retention_days entitlement instead.
     config.x.apm_retention_days = (ENV["GOODSORCERY_APM_RETENTION_DAYS"].presence || 30).to_i.clamp(1, 30)

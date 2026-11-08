@@ -17,6 +17,15 @@ class RuntimeListTest < ActiveSupport::TestCase
     assert_equal "Ruby 3.4", RuntimeList.new({ "ruby" => "3.4.1" }).label
   end
 
+  test "the older object form skips keys without a version" do
+    list = RuntimeList.new({ "ruby" => "3.4.1", "rails" => nil })
+
+    assert_equal "Ruby 3.4.1", list.full_label
+    assert_equal "Ruby 3.4", list.label
+    assert_equal [ { "name" => "Ruby", "version" => "3.4.1" } ], list.to_a
+    assert_equal "Ruby 3.4.1", RuntimeList.new({ "rails" => " ", "ruby" => "3.4.1" }).full_label
+  end
+
   test "an object with other keys reads them as names" do
     assert_equal "Node.js 22.11 · express 4.21", RuntimeList.new({ "Node.js" => "22.11.0", "express" => "4.21.1" }).label
   end

@@ -16,7 +16,7 @@
       <%= hidden_field_tag :sort, list.sort, id: nil %>
     <% end %>
     <%= form.search_field :text, value: query.text, autocomplete: "off",
-          placeholder: "Search message, class, controller#action, user email…",
+          placeholder: "Search message, class, transaction, user email…",
           "aria-label": "Search issues (chips such as level:error work too)",
           class: "flex-1 min-w-[8rem] lg:min-w-[12rem] bg-transparent outline-none placeholder:text-ink-400/60 text-[14px]" %>
   <% end %>

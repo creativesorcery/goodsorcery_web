@@ -101,7 +101,7 @@ module PerformanceHelper
 
   # Web: "POST /checkout"; jobs: "sidekiq · critical · waits 0.8 s (p95)".
   def apm_route_line(transaction, queue_wait_ms: nil)
-    return transaction.route_label if transaction.web?
+    return apm_distinct_route(transaction) if transaction.web?
 
     wait = queue_wait_ms && "waits #{apm_duration(queue_wait_ms)} (p95)"
     [ transaction.adapter, transaction.queue, wait ].compact_blank.join(" · ").presence
@@ -109,7 +109,7 @@ module PerformanceHelper
 
   # "POST /checkout • app/controllers/checkouts_controller.rb" under an endpoint's name.
   def apm_source_line(transaction)
-    first = transaction.web? ? transaction.route_label : [ transaction.adapter, transaction.queue ].compact_blank.join(" · ")
+    first = transaction.web? ? apm_distinct_route(transaction) : [ transaction.adapter, transaction.queue ].compact_blank.join(" · ")
     [ first.presence, transaction.source_file.presence ].compact
   end
 
@@ -178,7 +178,7 @@ module PerformanceHelper
     facts = [ [ "Status", apm_status_label(trace) ], [ "Host", [ details.host, details.process ].compact_blank.join(" · ").presence || "—" ],
               [ "Started", trace.started_at.in_time_zone.strftime("%H:%M:%S.%L") ] ]
     facts += apm_job_facts(details.job) unless page.web?
-    facts + [ [ "Runtime", apm_runtime(details.runtime) ], [ "GC", apm_gc(details.gc) ], [ "Allocations", apm_allocations(details.allocations) ] ]
+    facts + [ [ "Runtime", apm_runtime(details.runtime) ] ] + apm_runtime_counters(details)
   end
 
   # What the locked 7d/30d ranges say in their hover titles, for touch screens
@@ -193,6 +193,13 @@ module PerformanceHelper
   end
 
   private
+    # The route label, unless the client already named the transaction after it
+    # ("POST /checkout" twice says nothing new).
+    def apm_distinct_route(transaction)
+      label = transaction.route_label
+      label unless label == transaction.name
+    end
+
     def apm_value_parts(format, value)
       case format
       when :duration then apm_duration_parts(value)
@@ -221,11 +228,15 @@ module PerformanceHelper
 
     def apm_runtime(runtime) = runtime.full_label || "—"
 
-    def apm_gc(gc)
-      return "—" unless gc["time_ms"] || gc["count"]
-
-      [ (apm_duration(gc["time_ms"]) if gc["time_ms"]), (pluralize(gc["count"], "run") if gc["count"]) ].compact.join(" · ")
+    # GC and allocation rows only for runtimes that report them (both are
+    # optional in the protocol): a runtime without a garbage collector shows neither.
+    def apm_runtime_counters(details)
+      gc, allocations = details.gc, details.allocations
+      [ ([ "GC", apm_gc(gc) ] if gc["time_ms"] || gc["count"]),
+        ([ "Allocations", "#{compact_count(allocations)} objects" ] if allocations) ].compact
     end
 
-    def apm_allocations(count) = count ? "#{compact_count(count)} objects" : "—"
+    def apm_gc(gc)
+      [ (apm_duration(gc["time_ms"]) if gc["time_ms"]), (pluralize(gc["count"], "run") if gc["count"]) ].compact.join(" · ")
+    end
 end

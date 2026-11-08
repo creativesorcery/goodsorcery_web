@@ -68,13 +68,24 @@ class MobileSystemTest < ApplicationSystemTestCase
     paths = [
       projects_path, project_issues_path(@project), project_issue_path(@project, issues(:nomethod)),
       project_performance_path(@project), project_uptime_monitors_path(@project), project_uptime_monitor_path(@project, uptime_monitors(:storefront_home)),
-      project_setup_path(@project), edit_project_path(@project), project_alerts_path(@project), notifications_path, search_path(q: "error")
+      project_setup_path(@project), edit_project_path(@project), project_alerts_path(@project), notifications_path, search_path(q: "error"),
+      project_performance_trace_path(@project, apm_traces(:checkout_slow)), access_tokens_path
     ]
     paths.each do |path|
       visit_connected path
       overflow = page.evaluate_script("document.documentElement.scrollWidth - window.innerWidth")
       assert_operator overflow, :<=, 0, "#{path} scrolls sideways by #{overflow}px"
     end
+  end
+
+  test "a newly created access token and its client snippets fit the screen" do
+    visit_connected access_tokens_path
+    type_into find_field("Name"), "Phone Claude"
+    press find_button("Create token")
+    assert_selector "h2", text: "Copy your token now"
+
+    overflow = page.evaluate_script("document.documentElement.scrollWidth - window.innerWidth")
+    assert_operator overflow, :<=, 0, "the created-token page scrolls sideways by #{overflow}px"
   end
 
   test "fields are at least 16px so iOS doesn't zoom in on focus" do

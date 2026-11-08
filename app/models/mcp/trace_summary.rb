@@ -1,0 +1,87 @@
+# A trace for get_trace (from Apm::TracePage): the layer split, the slowest
+# MAX_SPANS spans (in timeline order), up to MAX_N_PLUS_ONE N+1 groups with
+# call site, code and the language-neutral advice, and the reported error.
+# Spans are captured data (SQL is normalised, paths have no query strings).
+# Span labels and the N+1 groups each spend a byte budget (Mcp::OutputBudget):
+# the slowest spans are taken while it lasts.
+class Mcp::TraceSummary
+  MAX_SPANS = 40
+  MAX_N_PLUS_ONE = 5
+  SPAN_BYTES = 8_000
+  N_PLUS_ONE_BYTES = 6_000
+  ADVICE = "Load the rows in one query (a join, an IN list or a batch load) instead of one per item."
+
+  def initialize(page, context)
+    @page = page
+    @context = context
+    @trace = page.trace
+    @span_budget = Mcp::OutputBudget.new(SPAN_BYTES)
+    @n_plus_one_budget = Mcp::OutputBudget.new(N_PLUS_ONE_BYTES)
+  end
+
+  def to_h
+    @to_h ||= { id: @trace.uuid, title: Mcp::Captured.string(@page.title), transaction: transaction, started_at: Mcp::Text.time(@trace.started_at),
+      duration_ms: @trace.duration_ms.round(1), status: @trace.status, failed: @trace.failed,
+      layers: @page.layers.map { |layer, ms, share| { layer:, ms: ms.round(1), share: share.round(4) } },
+      sql_count: @trace.sql_count, http_count: @trace.http_count, spans: spans, spans_total: @page.spans.size,
+      spans_dropped: @page.spans_dropped, n_plus_one: n_plus_one, error_issue: @page.error_issue&.short_id,
+      url: @context.trace_url(@trace) }
+  end
+
+  def text_lines
+    data = to_h
+    [ "#{data[:title]} · #{data[:transaction][:name]} · #{data[:transaction][:environment]} · #{data[:duration_ms]}ms at #{data[:started_at]}",
+      "Layers: #{data[:layers].map { |layer| "#{layer[:layer]} #{layer[:ms]}ms (#{Mcp::Text.percent(layer[:share])})" }.join(', ')}",
+      ("Reported error: #{data[:error_issue]}" if data[:error_issue]),
+      "Slowest spans (#{data[:spans].size} of #{data[:spans_total]}):", *data[:spans].map { |span| span_line(span) },
+      *data[:n_plus_one].flat_map { |group| n_plus_one_lines(group) } ]
+  end
+
+  private
+    def transaction
+      record = @page.transaction
+      { name: record.name, route: record.route_label, kind: record.kind, environment: record.environment }
+    end
+
+    # The slowest spans while the budget lasts, in timeline order.
+    def spans
+      @spans ||= @page.spans.max_by(MAX_SPANS) { |span| span.duration_ms.to_f }.lazy.take_while { @span_budget.available? }
+        .map { |span| span_hash(span) }.to_a.sort_by { |span| span[:offset_ms].to_f }
+    end
+
+    def span_hash(span)
+      { type: span.type, layer: span.layer, offset_ms: span.offset_ms&.round(1), duration_ms: span.duration_ms&.round(1),
+        count: span.count, label: @span_budget.string(span_label(span), 500) }.compact
+    end
+
+    def span_label(span)
+      return span.sql || span.name if span.type == "sql"
+      return [ span.http_method, span.host, span.path, span.status ].compact.join(" ") if span.type == "http"
+
+      span.template || span.job || span.name
+    end
+
+    def n_plus_one
+      @n_plus_one ||= @page.details.n_plus_one_spans.first(MAX_N_PLUS_ONE).lazy.take_while { @n_plus_one_budget.available? }.map do |span|
+        { sql: @n_plus_one_budget.string(span.sql, 500), calls: span.calls, total_ms: span.duration_ms.to_f.round(1),
+          average_ms: span.average_ms.round(2), call_site: call_site(span.call_site), hint: ADVICE }
+      end.to_a
+    end
+
+    def call_site(site)
+      return unless site
+
+      lines = site.lines.first(11).each_with_index.map { |text, index| { line: site.start_line.to_i + index, text: @n_plus_one_budget.string(text, 200) } }
+      { file: @n_plus_one_budget.string(site.file, 300), line: site.line, method: @n_plus_one_budget.string(site.method_name, 120),
+        code: lines }
+    end
+
+    def span_line(span) = "  +#{span[:offset_ms]}ms #{span[:duration_ms]}ms [#{span[:type]}#{" ×#{span[:count]}" if span[:count].to_i > 1}] #{span[:label]}"
+
+    def n_plus_one_lines(group)
+      site = group[:call_site]
+      [ "N+1: #{group[:calls]} calls, #{group[:total_ms]}ms total: #{group[:sql]}",
+        ("  at #{site[:file]}:#{site[:line]} in #{site[:method]}" if site),
+        *Array(site&.dig(:code)).map { |code| "    #{code[:line].to_s.rjust(5)} | #{code[:text]}" }, "  #{group[:hint]}" ].compact
+    end
+end

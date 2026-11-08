@@ -124,4 +124,16 @@ class Issue::TriageTest < ActiveSupport::TestCase
       assert_empty projects(:marketing).issues.resolve_all(by: @philip)
     end
   end
+
+  test "bulk triage marks its activity rows with where the change came from" do
+    Issue.where(id: [ issues(:nomethod).id, issues(:card_error).id ]).ignore_all(by: @philip, via: "mcp")
+
+    assert_equal %w[mcp mcp], IssueActivity.where(issue: [ issues(:nomethod), issues(:card_error) ], kind: "ignored").pluck(:via)
+    Issue.where(id: issues(:nomethod).id).reopen_all(by: @philip)
+    assert_nil issues(:nomethod).activities.recent.first.via
+  end
+
+  test "only known vias" do
+    assert_not IssueActivity.new(issue: issues(:nomethod), kind: "resolved", via: "email").valid?
+  end
 end

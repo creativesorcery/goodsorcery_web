@@ -57,9 +57,11 @@ class RuntimeList
       end
     end
 
-    # Rails before Ruby, then any other keys in the order sent.
+    # Rails before Ruby, then any other keys in the order sent. A key without a
+    # version is skipped: the Ruby gem 0.3.x sent "rails" => nil from plain-Ruby
+    # apps, and that must not read as a Rails runtime.
     def legacy_pairs
-      known, other = @value.partition { |key, _| LEGACY_NAMES.key?(key) }
+      known, other = @value.select { |_, version| version_text(version) }.partition { |key, _| LEGACY_NAMES.key?(key) }
       known.sort_by { |key, _| LEGACY_NAMES.keys.index(key) }.map { |key, version| [ LEGACY_NAMES[key], version ] } + other
     end
 

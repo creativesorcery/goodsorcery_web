@@ -10,10 +10,20 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_08_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_08_000005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
+
+  create_table "access_token_activities", force: :cascade do |t|
+    t.bigint "personal_access_token_id", null: false
+    t.bigint "user_id", null: false
+    t.string "action", null: false
+    t.bigint "issue_ids", default: [], null: false, array: true
+    t.datetime "created_at", null: false
+    t.index ["personal_access_token_id", "created_at"], name: "index_access_token_activities_on_token_and_created_at"
+    t.index ["user_id"], name: "index_access_token_activities_on_user_id"
+  end
 
   create_table "accounts", force: :cascade do |t|
     t.string "name", null: false
@@ -191,6 +201,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_000002) do
     t.bigint "subject_user_id"
     t.text "body"
     t.datetime "created_at", null: false
+    t.string "via"
     t.index ["issue_id", "created_at"], name: "index_issue_activities_on_issue_id_and_created_at"
     t.index ["subject_user_id"], name: "index_issue_activities_on_subject_user_id"
     t.index ["user_id"], name: "index_issue_activities_on_user_id"
@@ -294,6 +305,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_000002) do
     t.index ["issue_id", "id"], name: "index_occurrences_on_issue_id_and_id"
     t.index ["project_id", "received_at"], name: "index_occurrences_on_project_id_and_received_at"
     t.index ["project_id", "uuid"], name: "index_occurrences_on_project_id_and_uuid", unique: true
+  end
+
+  create_table "personal_access_tokens", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "scopes", default: ["read"], null: false, array: true
+    t.string "token_digest", null: false
+    t.string "token_last4", null: false
+    t.datetime "expires_at"
+    t.datetime "revoked_at"
+    t.datetime "last_used_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_personal_access_tokens_on_account_id"
+    t.index ["token_digest"], name: "index_personal_access_tokens_on_token_digest", unique: true
+    t.index ["user_id", "created_at"], name: "index_personal_access_tokens_on_user_id_and_created_at"
   end
 
   create_table "project_hourly_counts", primary_key: ["project_id", "environment", "hour"], force: :cascade do |t|
@@ -434,6 +462,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_000002) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
+  add_foreign_key "access_token_activities", "personal_access_tokens", on_delete: :cascade
+  add_foreign_key "access_token_activities", "users", on_delete: :cascade
   add_foreign_key "alert_deliveries", "issues", on_delete: :cascade
   add_foreign_key "alert_deliveries", "projects", on_delete: :cascade
   add_foreign_key "alert_deliveries", "users", on_delete: :cascade
@@ -463,6 +493,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_000002) do
   add_foreign_key "notification_preferences", "projects", on_delete: :cascade
   add_foreign_key "occurrences", "issues", on_delete: :cascade
   add_foreign_key "occurrences", "projects", on_delete: :cascade
+  add_foreign_key "personal_access_tokens", "accounts", on_delete: :cascade
+  add_foreign_key "personal_access_tokens", "users", on_delete: :cascade
   add_foreign_key "project_hourly_counts", "projects", on_delete: :cascade
   add_foreign_key "projects", "accounts", on_delete: :cascade
   add_foreign_key "sessions", "accounts", on_delete: :cascade

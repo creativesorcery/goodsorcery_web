@@ -3,6 +3,7 @@ require_relative "../config/environment"
 require "rails/test_help"
 require_relative "test_helpers/session_test_helper"
 require_relative "test_helpers/apm_fixture_stats"
+require_relative "test_helpers/mcp_test_helper"
 
 # Freezes the clock at the instant the APM fixtures were built from
 # (ApmFixtureStats::ANCHOR) for the whole test. Include it in every test that
@@ -23,6 +24,18 @@ FIXTURE_TOKENS = {
   storefront_staging: "gs_test_StorefrontStagingFixtureToken000001",
   marketing_production: "gs_live_MarketingProductionFixtureToken00001",
   umbrella_production: "gs_live_UmbrellaProductionFixtureToken000001"
+}.freeze
+
+# Raw personal access tokens for the personal_access_tokens fixtures (stored
+# as SHA-256 digests only). Use these to authenticate MCP requests.
+PAT_FIXTURE_TOKENS = {
+  philip_read: "gs_pat_PhilipReadFixtureToken000000000000000000",
+  philip_triage: "gs_pat_PhilipTriageFixtureToken0000000000000000",
+  philip_full: "gs_pat_PhilipFullFixtureToken00000000000000000",
+  jo_read: "gs_pat_JoReadFixtureToken0000000000000000000000",
+  philip_expired: "gs_pat_PhilipExpiredFixtureToken000000000000000",
+  philip_revoked: "gs_pat_PhilipRevokedFixtureToken000000000000000",
+  outsider_read: "gs_pat_OutsiderReadFixtureToken00000000000000"
 }.freeze
 
 module ActiveSupport

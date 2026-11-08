@@ -16,6 +16,9 @@
       <%= link_to notifications_path, class: "menu-item", aria: { current: ("page" if current_nav?("notifications")) } do %>
         <%= icon :alerts, classes: "w-4 h-4 text-ink-400" %>Notifications
       <% end %>
+      <%= link_to access_tokens_path, class: "menu-item", aria: { current: ("page" if current_nav?("access_tokens")) } do %>
+        <%= icon :lock, classes: "w-4 h-4 text-ink-400" %>Access tokens
+      <% end %>
       <%= button_to session_path, method: :delete, class: "menu-item" do %>
         <%= icon :sign_out, classes: "w-4 h-4 text-ink-400" %>Sign out
       <% end %>

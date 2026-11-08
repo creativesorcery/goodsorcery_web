@@ -29,6 +29,11 @@ Rails.application.routes.draw do
   resource :alert_mute, only: %i[show create]
 
   resource :notifications, only: :show
+  # Personal access tokens for AI clients (docs/MCP.md); destroy revokes.
+  resources :access_tokens, only: %i[index create destroy]
+
+  # The MCP endpoint (docs/ARCHITECTURE.md §14.2): POST only; GET and DELETE answer 405.
+  resource :mcp, only: %i[show create destroy], controller: "mcp"
 
   resource :search, only: :show
   resource :recent_issues, only: :show
