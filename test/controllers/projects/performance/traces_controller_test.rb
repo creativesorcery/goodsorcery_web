@@ -148,6 +148,16 @@ class Projects::Performance::TracesControllerTest < ActionDispatch::IntegrationT
     end
   end
 
+  test "hosted without an upgrade URL, a trace beyond the account's days drops the upgrade line" do
+    with_hosted_mode { with_upgrade_url(nil) { get project_performance_trace_path(@project, Apm::TraceId.generate(5.days.ago)) } }
+
+    assert_response :gone
+    assert_select "h1", "This trace is no longer kept"
+    assert_select "p", /Good Sorcery keeps performance data for 1 day on this account/
+    assert_select "a[href=?]", project_performance_path(@project), text: "Back to Performance"
+    assert_no_match "Upgrade", response.body
+  end
+
   test "unknown, non-v7, future and other apps' trace ids are 404s" do
     [ SecureRandom.uuid, "not-a-uuid", Apm::TraceId.generate(2.hours.from_now), Apm::TraceId.generate(400.days.ago) ].each do |id|
       get project_performance_trace_path(@project, id)

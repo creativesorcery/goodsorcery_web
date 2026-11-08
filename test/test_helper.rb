@@ -30,5 +30,15 @@ module ActiveSupport
     ensure
       Rails.configuration.x.hosted = previous
     end
+
+    # GOODSORCERY_UPGRADE_URL is read once at boot into config.x.upgrade_url;
+    # nil means no upgrade is offered and hosted limits say "coming soon".
+    def with_upgrade_url(url = "https://billing.example/upgrade")
+      previous = Rails.configuration.x.upgrade_url
+      Rails.configuration.x.upgrade_url = url
+      yield
+    ensure
+      Rails.configuration.x.upgrade_url = previous
+    end
   end
 end

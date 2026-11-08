@@ -80,21 +80,36 @@ class UptimeMonitorTest < ActiveSupport::TestCase
 
   test "hosted counts the monitors of every app in the account against the limit" do
     with_hosted_mode do
-      2.times { |i| assert build(projects(:umbrella_app), name: "Site #{i}", interval_minutes: 5).save }
-      over = build(projects(:umbrella_app), name: "One too many", interval_minutes: 5)
-
-      assert_not over.save
-      assert_equal [ "This account has reached its limit of 3 monitors." ], over.errors[:base]
-      assert_equal 3, accounts(:umbrella).uptime_monitors.count
+      with_upgrade_url { over_the_limit_after_two }.then do |over|
+        assert_equal [ "This account has reached its limit of 3 monitors." ], over.errors[:base]
+      end
     end
+  end
+
+  def over_the_limit_after_two
+    2.times { |i| assert build(projects(:umbrella_app), name: "Site #{i}", interval_minutes: 5).save }
+    over = build(projects(:umbrella_app), name: "One too many", interval_minutes: 5)
+
+    assert_not over.save
+    assert_equal 3, accounts(:umbrella).uptime_monitors.count
+    over
   end
 
   test "hosted defaults apply when the account stores no limit" do
     with_hosted_mode do
       monitor = build(projects(:marketing)) # acme already has 3 monitors, over its default of 1
 
-      assert_not monitor.save
+      with_upgrade_url { assert_not monitor.save }
       assert_equal [ "This account has reached its limit of 1 monitor." ], monitor.errors[:base]
+    end
+  end
+
+  test "without an upgrade URL, the limit error says more are coming soon" do
+    with_hosted_mode do
+      monitor = build(projects(:marketing))
+
+      with_upgrade_url(nil) { assert_not monitor.save }
+      assert_equal [ "Cannot add more yet, but it's coming soon" ], monitor.errors[:base]
     end
   end
 

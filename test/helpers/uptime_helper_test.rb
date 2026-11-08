@@ -69,12 +69,28 @@ class UptimeHelperTest < ActionView::TestCase
       uptime_interval_options
   end
 
-  test "hosted, locked interval options say Upgrade to unlock" do
+  test "hosted with an upgrade URL, locked interval options say Upgrade to unlock" do
     Current.session = users(:philip).sessions.create!(account: accounts(:acme))
 
     with_hosted_mode do
-      assert_equal [ [ "Every minute · Upgrade to unlock", 1 ], [ "Every 5 minutes · Upgrade to unlock", 5 ],
-                     [ "Every 10 minutes", 10 ], [ "Every hour", 60 ] ], uptime_interval_options
+      with_upgrade_url do
+        assert_equal [ [ "Every minute · Upgrade to unlock", 1, { title: "Upgrade to unlock" } ],
+                       [ "Every 5 minutes · Upgrade to unlock", 5, { title: "Upgrade to unlock" } ],
+                       [ "Every 10 minutes", 10 ], [ "Every hour", 60 ] ], uptime_interval_options
+      end
+    end
+  end
+
+  test "hosted without an upgrade URL, locked interval options say Coming soon" do
+    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
+
+    with_hosted_mode do
+      with_upgrade_url(nil) do
+        assert_equal [ [ "Every minute · Coming soon", 1, { title: "Coming soon" } ],
+                       [ "Every 5 minutes · Coming soon", 5, { title: "Coming soon" } ],
+                       [ "Every 10 minutes", 10 ], [ "Every hour", 60 ] ], uptime_interval_options
+        assert_equal "Some intervals are coming soon.", uptime_locked_intervals_hint
+      end
     end
   end
 

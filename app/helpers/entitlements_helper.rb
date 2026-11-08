@@ -1,14 +1,32 @@
 # Views call these only when `!entitlements.unlimited?`, so self-hosted
-# instances never show a locked option (docs/ARCHITECTURE.md §12.2).
+# instances never show a locked option (docs/ARCHITECTURE.md §12.2). Whether
+# a locked option offers an upgrade or says "Coming soon" is UpgradeOffer's
+# call; views ask these helpers and never read the upgrade URL themselves.
 module EntitlementsHelper
-  UPGRADE_TO_UNLOCK = "Upgrade to unlock".freeze
+  LOCKED_CLASSES = "opacity-50 cursor-not-allowed".freeze
 
-  # A link to GOODSORCERY_UPGRADE_URL when it is set, plain text otherwise.
-  def upgrade_to_unlock(text = UPGRADE_TO_UNLOCK, classes: "text-iris-300")
-    url = Rails.configuration.x.upgrade_url
-    return tag.span(text, class: classes) if url.blank?
+  # A link to GOODSORCERY_UPGRADE_URL, or nil when none is set: there is
+  # nothing to upgrade to yet, so no upgrade text renders at all.
+  def upgrade_to_unlock(text = UpgradeOffer::UPGRADE_TO_UNLOCK, classes: "text-iris-300")
+    return unless upgrade_offered?
 
-    link_to text, url, class: [ classes, "hover:underline" ], target: "_blank", rel: "noopener noreferrer"
+    link_to text, UpgradeOffer.url, class: [ classes, "hover:underline" ], target: "_blank", rel: "noopener noreferrer"
+  end
+
+  def upgrade_offered? = UpgradeOffer.available?
+
+  # "Upgrade to unlock", or "Coming soon" without an upgrade URL.
+  def locked_note = UpgradeOffer.locked_note
+
+  # A greyed-out, unselectable option titled #locked_note. A span rather than
+  # a disabled button, which some browsers never send hover events to.
+  def locked_option(content = nil, classes: nil, aria: {}, &)
+    tag.span(content, class: [ classes, LOCKED_CLASSES ], title: locked_note, aria: { disabled: "true", **aria }, &)
+  end
+
+  # Takes the place of an "add" button at a limit when no upgrade is offered.
+  def coming_soon_notice(sentence, classes: "text-[13px] text-ink-400")
+    tag.span(sentence, class: [ classes, "cursor-not-allowed" ], title: UpgradeOffer::COMING_SOON, aria: { disabled: "true" })
   end
 
   def entitlements

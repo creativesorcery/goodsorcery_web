@@ -32,7 +32,7 @@
           class: "field max-w-[22rem]",
           aria: { invalid: (monitor.errors[:interval_minutes].any? ? "true" : nil), describedby: ("uptime_monitor_interval_hint" if intervals_locked) } %>
     <% if intervals_locked %>
-      <p id="uptime_monitor_interval_hint" class="hint">Some intervals aren't available on this account. <%= upgrade_to_unlock %></p>
+      <p id="uptime_monitor_interval_hint" class="hint"><%= uptime_locked_intervals_hint %></p>
     <% end %>
   </div>
 

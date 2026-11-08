@@ -18,6 +18,7 @@ class UptimeMonitor < ApplicationRecord
   # The shortest gap between "Check now" requests (UptimeMonitor::Checking#check_now_gap).
   RECHECK_GAP = 30.seconds
   URL_MESSAGE = "must be a public http:// or https:// address".freeze
+  LIMIT_COMING_SOON = "Cannot add more yet, but it's coming soon".freeze
 
   belongs_to :project, inverse_of: :uptime_monitors
   has_many :checks, class_name: "UptimeCheck", inverse_of: :uptime_monitor
@@ -44,8 +45,13 @@ class UptimeMonitor < ApplicationRecord
   before_save :schedule_now, if: -> { new_record? || url_changed? || interval_minutes_changed? }
   after_destroy_commit :refit_account
 
-  # Also the "limit reached" panel's text on the new monitor page.
+  # Also the "limit reached" panel's text on the new monitor page: the limit
+  # when an upgrade is on offer, else LIMIT_COMING_SOON (UpgradeOffer).
   def self.limit_message(max_monitors)
+    UpgradeOffer.limit_message(limit_sentence(max_monitors), coming_soon: LIMIT_COMING_SOON)
+  end
+
+  def self.limit_sentence(max_monitors)
     return "Uptime monitors aren't included in this account." if max_monitors.zero?
 
     "This account has reached its limit of #{max_monitors} #{'monitor'.pluralize(max_monitors)}."

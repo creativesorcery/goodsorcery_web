@@ -39,12 +39,4 @@ module PerformancePagesTestHelper
     ActiveSupport::Notifications.subscribed(counter, "sql.active_record", &block)
     count
   end
-
-  def with_upgrade_url(url)
-    previous = Rails.configuration.x.upgrade_url
-    Rails.configuration.x.upgrade_url = url
-    yield
-  ensure
-    Rails.configuration.x.upgrade_url = previous
-  end
 end

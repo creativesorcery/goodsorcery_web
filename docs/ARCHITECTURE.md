@@ -1302,7 +1302,7 @@ This section is the binding blueprint for the uptime build. It comes in four sli
   - **Self-hosted** (the default, switch off): every entitlement is unlimited, meaning all four intervals and no monitor cap. Stored values are ignored, and the UI never shows a locked option or "Upgrade to unlock".
   - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]` and `max_monitors: 1`.
 - Entitlements are enforced in model validations, so a crafted POST can't get past them, and they are also reflected in the views.
-- Locked options say **"Upgrade to unlock"**. The text links to `GOODSORCERY_UPGRADE_URL` (`config.x.upgrade_url`) when that is set, and is plain text when it isn't.
+- Locked options say **"Upgrade to unlock"**, linking to `GOODSORCERY_UPGRADE_URL` (`config.x.upgrade_url`), when that is set. When it isn't, no upgrade text renders anywhere: locked options stay visible, greyed out and unselectable, titled **"Coming soon"** (a native hover tooltip, on a span rather than a disabled button so every browser shows it), and an add button at a limit becomes the greyed-out sentence "Cannot add more yet, but it's coming soon" (for apps: "Cannot add more apps yet, but it's coming soon"). `UpgradeOffer` is the one place that decides between the two (approved 2026-11-07).
 - **Monitors** belong to an app (project), and every lookup is scoped through `Current.account`.
   - Intervals are 1, 5, 10 or 60 minutes, and the default is 10. Entitlements narrow the allowed set further.
   - A check is an HTTP(S) GET with a 10-second total budget. "Up" means a 2xx or 3xx response arrived in time. A failed check is retried once at once before the monitor is marked down. Response bodies are never stored.
@@ -1443,11 +1443,12 @@ Valid values: `uptime_intervals` is a non-empty array of distinct integers from 
 - `#update_entitlements!(values)` replaces the whole document. It stores only `KEYS` and drops unknown keys, logging the key names only. This is the single write path the future push uses.
 
 **`EntitlementsHelper`** (slice 1):
-- `upgrade_to_unlock(text = "Upgrade to unlock", classes: …)` renders a link to `config.x.upgrade_url` (`target: "_blank"`, `rel: "noopener noreferrer"`) when the URL is set, and a plain span otherwise.
+- `upgrade_to_unlock(text = "Upgrade to unlock", classes: …)` renders a link to `config.x.upgrade_url` (`target: "_blank"`, `rel: "noopener noreferrer"`) when the URL is set, and nothing (nil) otherwise.
+- `upgrade_offered?`, `locked_note` ("Upgrade to unlock" or "Coming soon"), `locked_option(content, classes:, aria:)` (a greyed-out span titled `locked_note`) and `coming_soon_notice(sentence)` (the greyed-out sentence that replaces an add button at a limit). They all ask `UpgradeOffer` (`.url`, `.available?`, `.locked_note`, `.limit_message(limit_sentence, coming_soon:)`), which model validations also use to word their limit errors.
 - `entitlements` returns `Current.account.entitlements`, memoised per request.
 - Views only call these helpers when `!entitlements.unlimited?`.
 
-**Test helper** (slice 1, `test/test_helper.rb`): `with_hosted_mode(hosted = true) { … }` sets and restores `Rails.configuration.x.hosted`.
+**Test helpers** (`test/test_helper.rb`): `with_hosted_mode(hosted = true) { … }` sets and restores `Rails.configuration.x.hosted`; `with_upgrade_url(url = "https://billing.example/upgrade") { … }` does the same for `config.x.upgrade_url` (`with_upgrade_url(nil)` for "coming soon").
 
 ### 12.3 Future billing push contract (documented only; do not build)
 
@@ -1668,7 +1669,7 @@ The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_mon
   - When any unpaused monitor of the sidebar project is down, a coral dot badge shows, titled "N down". The count is a correlated subquery (`NavigationHelper::DOWN_MONITORS_SQL`) in the app switcher's existing projects query, so it costs no extra query; `#sidebar_down_monitors_count` falls back to one count when the project isn't in the switcher list.
 - **Uptime index:**
   - Header: eyebrow "<app> · uptime", then "Uptime — N monitors", then an "Add a monitor" `btn-primary`.
-  - When hosted and the limit is reached, the button (here and in the empty state) is replaced by a muted chip with the account's real usage, "3 of 1 monitor used", plus `upgrade_to_unlock` (`_add_button`). With a limit of 0 there is no chip, only the link.
+  - When hosted and the limit is reached, the button (here and in the empty state) is replaced by a muted chip with the account's real usage, "3 of 1 monitor used", plus `upgrade_to_unlock` (`_add_button`). With a limit of 0 there is no chip, only the link. Without an upgrade URL it is replaced by the greyed-out "Cannot add more yet, but it's coming soon" (`coming_soon_notice`) and no chip.
   - The table is a `div` grid like the issue rows, with the name link stretched over the row. Columns:
     - a status chip: "Up" mint, "Down" coral with dot plus "for 12 min" (`down_since`), "Pending" muted, "Paused" muted;
     - name with `host` in small mono below;
@@ -1677,7 +1678,7 @@ The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_mon
     - last response time ("212 ms");
     - uptime 24h/7d/30d ("99.93%", "—" for no data);
     - a 24-segment hourly status bar.
-  - A paused row (and the detail hero) adds `uptime_paused_note`: "Over this account's monitor limit. Upgrade to unlock" when hosted, and how to resume with the fit task when self-hosted (§12.3.1).
+  - A paused row (and the detail hero) adds `uptime_paused_note`: "Over this account's monitor limit. Upgrade to unlock" when hosted (without an upgrade URL just the first sentence), and how to resume with the fit task when self-hosted (§12.3.1).
 - **Status bar:** `UptimeHelper#uptime_bar_svg(buckets, height: 22)` is pure SVG built with `tag`, like `ChartHelper`. Each segment has a `<title>` such as "Oct 3, 14:00 · 98.3% up · 60 checks". Colours come from `ChartHelper` constants:
   - no checks: `PAPER` at 0.45 opacity;
   - all up: `MINT`;
@@ -1697,9 +1698,9 @@ The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_mon
 - **Form** (`_form`, used by new and edit):
   - Name, optional; the hint says it is filled from the host.
   - URL: `url_field`, `autocomplete: "off"`, placeholder `https://example.com/up`. The hint says "Kept encrypted. Lists and emails show only the host."
-  - Check interval (the label matches the error messages' "Check interval"): a `select` of `INTERVALS` with `INTERVAL_LABELS`, default `entitlements.default_uptime_interval`. Locked intervals are `disabled` options labelled "Every minute · Upgrade to unlock". Below the select, a hint with `upgrade_to_unlock` (`#uptime_monitor_interval_hint`, the select's `aria-describedby`) renders when any interval is locked. This only happens when hosted.
+  - Check interval (the label matches the error messages' "Check interval"): a `select` of `INTERVALS` with `INTERVAL_LABELS`, default `entitlements.default_uptime_interval`. Locked intervals are `disabled` options labelled and titled with `locked_note`: "Every minute · Upgrade to unlock", or "Every minute · Coming soon" without an upgrade URL. Below the select, a hint (`uptime_locked_intervals_hint`: "Some intervals aren't available on this account." with `upgrade_to_unlock`, or "Some intervals are coming soon."; `#uptime_monitor_interval_hint`, the select's `aria-describedby`) renders when any interval is locked. This only happens when hosted.
   - Errors are whole sentences in coral, with `aria-invalid`, like Settings › Alerts.
-  - `new`, when the limit is reached, renders a panel "This account has reached its limit of N monitor(s)." with `upgrade_to_unlock` instead of the form. `create` is still rejected by validation.
+  - `new`, when the limit is reached, renders a panel "This account has reached its limit of N monitor(s)." with `upgrade_to_unlock` instead of the form, or "Cannot add more yet, but it's coming soon" without an upgrade URL (`UptimeMonitor.limit_message`, also the validation error). `create` is still rejected by validation.
 
 ### 12.9 Alerts (slice 4)
 
@@ -2158,7 +2159,7 @@ Flat pastel theme, existing tokens and component classes (`.panel`, `.chip-*`, `
 **Sidebar:** "Performance" (`nav_link_to "Performance", project_performance_path(project), key: "performance", icon: :performance`) in Grimoire **after Issues**, before Uptime; `nav_placeholder "Performance", icon: :performance` without a project. `IconHelper` gains `:performance` (a gauge).
 
 **1 · Performance overview**
-- Header: eyebrow "storefront · production", title "Performance — last 24 hours" (`range.label`), the environment dropdown ("production ▾", environments with APM data) and the range `.segmented` 15m · 1h · 1d · 7d · 30d. Locked ranges render as disabled segments; when hosted, "Upgrade to unlock" (`upgrade_to_unlock`) follows them. Self-hosted never shows upgrade copy; a self-hosted range beyond the setting is disabled with the title "This instance keeps N days".
+- Header: eyebrow "storefront · production", title "Performance — last 24 hours" (`range.label`), the environment dropdown ("production ▾", environments with APM data) and the range `.segmented` 15m · 1h · 1d · 7d · 30d. Locked ranges render as disabled segments; when hosted, they are titled "Upgrade to unlock" and `upgrade_to_unlock` follows them, or, without an upgrade URL, they are greyed out with no lock icon, titled "Coming soon", and no upgrade text follows. Self-hosted never shows upgrade copy; a self-hosted range beyond the setting is disabled with the title "This instance keeps N days".
 - KPI tiles, one row of seven: **Requests per minute**, **Average**, **p75**, **p90**, **p95**, **p99**, **Failed requests** (jobs tab: "Runs per minute", "Failed runs"). Each shows the range value and a **"Last hour X"** subline: "Last hour 1,310 per minute", "Last hour 164 ms", …, "Last hour 0.31% · see issues" (link to the issue list for `env`). The p95 subline turns coral with "· ▲ 49%" (`(last_hour_p95 / past_day_p95 − 1)`, rounded) when the total row is Slower. "—" when there is no data.
 - "Where request time goes" ("Where job time goes" on the jobs tab) panel: "Average time per request by layer, every 15 minutes. The line is p95." (the bin wording follows the range). Stacked layer bars per bin (`apm_layer_bars_svg`) with the p95 line on top, y-axis ticks, x labels "−24h … now" (relative to the range), legend Database · External HTTP · Views · Ruby · p95. The tiles and the chart follow the tab: web shows the web total row, jobs the job total row.
 - Tabs "Web requests 23" / "Background jobs 14" (transactions with data in the range), the filter input ("Filter endpoints" / "Filter jobs", GET form) and "Sort: Time consumed ▾" (dropdown: Time consumed, Slowest p95, Most requests, Most failed).
@@ -2181,7 +2182,7 @@ Flat pastel theme, existing tokens and component classes (`.panel`, `.chip-*`, `
 - N+1 detail (when any): "One query, run 38 times" with the N+1 chip; the full normalised SQL formatted one clause per line (`formatted_sql`: keywords `tok-k`, placeholders `tok-n`); "Values become $1, $2 inside your app, before anything is sent."; Calls / Total / Average / Rows each; "Called from app/services/cart_total.rb:27 in total_cents" with the code context (mono, the call line highlighted, plain text); the hint "Load the products in one query instead:" with `….includes(:product)` (table from the first `FROM "x"`, singularised; without a table: "Preload the association with includes so it loads in one query.").
 - Request panel: Status, Host ("web-2 · Puma worker 3"), Started ("14:32:08.114"), Runtime ("Ruby 3.4.1 · Rails 8.0.2"), GC ("14 ms · 3 runs"), Allocations ("1.4M objects"); jobs add Queue and Queue wait. Footnote "Traces carry no params, headers, cookies or bodies."
 - "Errors in this request": the linked issue row (class, title, short id) when `error_event_uuid` resolves; "Error reported, but its event is no longer stored." when it doesn't; otherwise "None. Requests that raise link straight to their issue."
-- **Expired page** (`traces/expired`, 410): title "This trace is no longer kept"; body by reason: `:retention`/`:plan` "Good Sorcery keeps performance data for N day(s) on this account." (self-hosted: "This instance keeps performance data for N days.") and, for `:plan` only when hosted, `upgrade_to_unlock("Upgrade to keep more days")`; `:trimmed` "We keep the slowest request each minute this hour, and the 3 slowest of each earlier hour. A slower request replaced this one." A "Back to Performance" link.
+- **Expired page** (`traces/expired`, 410): title "This trace is no longer kept"; body by reason: `:retention`/`:plan` "Good Sorcery keeps performance data for N day(s) on this account." (self-hosted: "This instance keeps performance data for N days.") and, for `:plan` only when hosted with an upgrade URL, `upgrade_to_unlock("Upgrade to keep more days")`; `:trimmed` "We keep the slowest request each minute this hour, and the 3 slowest of each earlier hour. A slower request replaced this one." A "Back to Performance" link.
 
 **SVG helpers** (`PerformanceChartHelper`, pure `tag`-built SVG like `ChartHelper`, numbers to 1 dp, a `<title>` per bar/point): `apm_layer_bars_svg(bins, line:)` (stacked bars + p95 line), `apm_lines_svg(series)` (five lines), `apm_split_bar_svg(split, scale_ms:)` (one horizontal stacked bar), `apm_timeline_bar_svg(offset_ms, width_ms, total_ms, color:)`, and the overview sparkline through the existing `sparkline_svg`. `PerformanceHelper`: `apm_duration`, `apm_rate`, `apm_percent`, `apm_tile`, `apm_slower_chip`, `apm_n_plus_one_chip`, `apm_sql_label`, `formatted_sql`, `apm_route_line`, `apm_status_label`.
 

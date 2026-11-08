@@ -77,26 +77,55 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
   test "hosted with a limit of zero, the empty state offers the upgrade instead of the form" do
     accounts(:acme).update!(entitlement_values: { "max_monitors" => 0 })
 
-    with_hosted_mode { get project_uptime_monitors_path(projects(:marketing)) }
+    with_hosted_mode { with_upgrade_url { get project_uptime_monitors_path(projects(:marketing)) } }
 
     assert_select "h2", "Watch your app from the outside"
     assert_select "a[href=?]", new_project_uptime_monitor_path(projects(:marketing)), count: 0
-    assert_select "span", "Upgrade to unlock"
+    assert_select "a[href=?]", "https://billing.example/upgrade", text: "Upgrade to unlock"
     assert_select ".chip", count: 0
 
-    with_hosted_mode { get new_project_uptime_monitor_path(projects(:marketing)) }
+    with_hosted_mode { with_upgrade_url { get new_project_uptime_monitor_path(projects(:marketing)) } }
     assert_select "#uptime_monitor_limit h2", "Uptime monitors aren't included in this account."
+  end
+
+  test "hosted at the limit without an upgrade URL, the add button says more are coming soon" do
+    with_hosted_mode { with_upgrade_url(nil) { get project_uptime_monitors_path(@project) } }
+
+    assert_select "a[href=?]", new_project_uptime_monitor_path(@project), count: 0
+    assert_select "span[aria-disabled=true][title='Coming soon']", text: "Cannot add more yet, but it's coming soon"
+    assert_select ".chip", text: /monitor used/, count: 0
+    assert_no_match "Upgrade", response.body
+  end
+
+  test "hosted with a limit of zero and no upgrade URL, the empty state says coming soon" do
+    accounts(:acme).update!(entitlement_values: { "max_monitors" => 0 })
+
+    with_hosted_mode { with_upgrade_url(nil) { get project_uptime_monitors_path(projects(:marketing)) } }
+
+    assert_select "h2", "Watch your app from the outside"
+    assert_select "a[href=?]", new_project_uptime_monitor_path(projects(:marketing)), count: 0
+    assert_select "span[aria-disabled=true]", "Cannot add more yet, but it's coming soon"
+    assert_no_match "Upgrade", response.body
   end
 
   test "hosted, a paused monitor says it is over the limit" do
     @monitor.update_columns(paused_at: Time.current)
 
-    with_hosted_mode { get project_uptime_monitors_path(@project) }
+    with_hosted_mode { with_upgrade_url { get project_uptime_monitors_path(@project) } }
 
     assert_select "turbo-frame##{dom_id(@monitor, :row)}" do
       assert_select ".chip-muted", "Paused"
       assert_select "p", /Over this account's monitor limit\.\s*Upgrade to unlock/
     end
+  end
+
+  test "hosted without an upgrade URL, a paused monitor's note has no upgrade text" do
+    @monitor.update_columns(paused_at: Time.current)
+
+    with_hosted_mode { with_upgrade_url(nil) { get project_uptime_monitor_path(@project, @monitor) } }
+
+    assert_select "p", "Over this account's monitor limit."
+    assert_no_match "Upgrade", response.body
   end
 
   test "self-hosted never shows locked options or the upgrade text" do
@@ -132,7 +161,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
 
   test "the interval select is labelled Check interval and tied to its hint when intervals are locked" do
     accounts(:acme).update!(entitlement_values: { "max_monitors" => 10 })
-    with_hosted_mode { get new_project_uptime_monitor_path(projects(:marketing)) }
+    with_hosted_mode { with_upgrade_url { get new_project_uptime_monitor_path(projects(:marketing)) } }
     assert_response :success
 
     assert_select "label[for=uptime_monitor_interval_minutes]", "Check interval"
@@ -210,21 +239,43 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
   test "hosted, new disables the locked intervals with Upgrade to unlock" do
     sign_in_as users(:outsider)
 
-    with_hosted_mode { get new_project_uptime_monitor_path(projects(:umbrella_app)) }
+    with_hosted_mode { with_upgrade_url { get new_project_uptime_monitor_path(projects(:umbrella_app)) } }
 
-    assert_select "option[value='1'][disabled]", "Every minute · Upgrade to unlock"
+    assert_select "option[value='1'][disabled][title='Upgrade to unlock']", "Every minute · Upgrade to unlock"
     assert_select "option[value='5']:not([disabled])", "Every 5 minutes"
     assert_select "option[value='10'][selected]"
     assert_select "p.hint", /Some intervals aren't available on this account\.\s*Upgrade to unlock/
   end
 
+  test "hosted without an upgrade URL, new greys out the locked intervals as coming soon" do
+    accounts(:acme).update!(entitlement_values: { "max_monitors" => 10 })
+    with_hosted_mode { with_upgrade_url(nil) { get new_project_uptime_monitor_path(projects(:marketing)) } }
+
+    assert_select "option[value='1'][disabled][title='Coming soon']", "Every minute · Coming soon"
+    assert_select "option[value='5'][disabled][title='Coming soon']", "Every 5 minutes · Coming soon"
+    assert_select "option[value='10']:not([disabled])", "Every 10 minutes"
+    assert_select "p#uptime_monitor_interval_hint", "Some intervals are coming soon."
+    assert_no_match "Upgrade", response.body
+  end
+
   test "hosted at the limit, new shows the limit panel instead of the form" do
-    with_hosted_mode { get new_project_uptime_monitor_path(@project) }
+    with_hosted_mode { with_upgrade_url { get new_project_uptime_monitor_path(@project) } }
 
     assert_response :success
     assert_select "#uptime_monitor_limit h2", "This account has reached its limit of 1 monitor."
-    assert_select "#uptime_monitor_limit span", "Upgrade to unlock"
+    assert_select "#uptime_monitor_limit a[href=?]", "https://billing.example/upgrade", text: "Upgrade to unlock"
     assert_select "form[action=?]", project_uptime_monitors_path(@project), count: 0
+  end
+
+  test "hosted at the limit without an upgrade URL, new says more are coming soon" do
+    with_hosted_mode { with_upgrade_url(nil) { get new_project_uptime_monitor_path(@project) } }
+
+    assert_response :success
+    assert_select "#uptime_monitor_limit h2", "Cannot add more yet, but it's coming soon"
+    assert_select "#uptime_monitor_limit p", count: 0
+    assert_select "#uptime_monitor_limit a[href=?]", project_uptime_monitors_path(@project), text: "Back to Uptime"
+    assert_select "form[action=?]", project_uptime_monitors_path(@project), count: 0
+    assert_no_match "Upgrade", response.body
   end
 
   test "create adds a monitor, names it after the host and keeps the URL out of the logs" do
@@ -265,12 +316,23 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
   test "hosted, a crafted create over the account's limit is rejected" do
     with_hosted_mode do
       assert_no_difference -> { UptimeMonitor.count } do
-        post project_uptime_monitors_path(projects(:marketing)), params: { uptime_monitor: { url: "https://shop.example/" } }
+        with_upgrade_url { post project_uptime_monitors_path(projects(:marketing)), params: { uptime_monitor: { url: "https://shop.example/" } } }
       end
     end
 
     assert_response :unprocessable_entity
     assert_select "#uptime_monitor_limit h2", "This account has reached its limit of 1 monitor."
+  end
+
+  test "hosted without an upgrade URL, a crafted create over the limit says coming soon" do
+    with_hosted_mode do
+      assert_no_difference -> { UptimeMonitor.count } do
+        with_upgrade_url(nil) { post project_uptime_monitors_path(projects(:marketing)), params: { uptime_monitor: { url: "https://shop.example/" } } }
+      end
+    end
+
+    assert_response :unprocessable_entity
+    assert_select "#uptime_monitor_limit h2", "Cannot add more yet, but it's coming soon"
   end
 
   test "hosted, a crafted create with a locked interval is rejected" do
@@ -422,13 +484,5 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
       counter = ->(*, payload) { count += 1 unless payload[:name] == "SCHEMA" || payload[:cached] }
       ActiveSupport::Notifications.subscribed(counter, "sql.active_record", &block)
       count
-    end
-
-    def with_upgrade_url(url)
-      previous = Rails.configuration.x.upgrade_url
-      Rails.configuration.x.upgrade_url = url
-      yield
-    ensure
-      Rails.configuration.x.upgrade_url = previous
     end
 end

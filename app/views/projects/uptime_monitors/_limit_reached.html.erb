@@ -1,7 +1,7 @@
 <%# locals: (project:) -%>
 <div id="uptime_monitor_limit" class="text-center py-4">
   <h2 class="font-display text-[20px] text-ink-50"><%= UptimeMonitor.limit_message(entitlements.max_monitors) %></h2>
-  <% if entitlements.max_monitors.positive? %>
+  <% if upgrade_offered? && entitlements.max_monitors.positive? %>
     <p class="mt-2 text-[13.5px] text-ink-400">The limit counts the monitors of every app in <%= Current.account.name %>.</p>
   <% end %>
   <div class="mt-4 flex items-center justify-center gap-3 text-[13.5px]">

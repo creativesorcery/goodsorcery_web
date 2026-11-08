@@ -1,11 +1,13 @@
 <%# locals: (project:, limit_reached:, count: nil) -%>
-<% if limit_reached %>
+<% if limit_reached && upgrade_offered? %>
   <div class="flex flex-wrap items-center justify-center gap-3 text-[13px]">
     <% if entitlements.max_monitors.positive? %>
       <%= chip "#{count} of #{entitlements.max_monitors} #{'monitor'.pluralize(entitlements.max_monitors)} used", tone: :muted %>
     <% end %>
     <%= upgrade_to_unlock %>
   </div>
+<% elsif limit_reached %>
+  <%= coming_soon_notice UptimeMonitor::LIMIT_COMING_SOON %>
 <% else %>
   <%= link_to new_project_uptime_monitor_path(project), class: "btn btn-primary" do %>
     <%= icon :plus, classes: "w-4 h-4" %> Add a monitor

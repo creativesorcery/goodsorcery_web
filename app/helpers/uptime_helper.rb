@@ -14,12 +14,21 @@ module UptimeHelper
   ERROR_ATTRIBUTE_LABELS = { url: "URL", name: "Name", interval_minutes: "Check interval" }.freeze
 
   # [[label, minutes], ...] for the interval select. Locked intervals (hosted
-  # only) read "Every minute · Upgrade to unlock"; the form disables them.
+  # only) read "Every minute · Upgrade to unlock", or "Every minute · Coming
+  # soon" without an upgrade URL, with that note as their title too; the
+  # form disables them.
   def uptime_interval_options
     locked = entitlements.locked_uptime_intervals
     UptimeMonitor::INTERVAL_LABELS.map do |minutes, label|
-      [ locked.include?(minutes) ? "#{label} · #{EntitlementsHelper::UPGRADE_TO_UNLOCK}" : label, minutes ]
+      locked.include?(minutes) ? [ "#{label} · #{locked_note}", minutes, { title: locked_note } ] : [ label, minutes ]
     end
+  end
+
+  # Below the interval select when some intervals are locked (hosted only).
+  def uptime_locked_intervals_hint
+    return "Some intervals are coming soon." unless upgrade_offered?
+
+    safe_join([ "Some intervals aren't available on this account.", upgrade_to_unlock ], " ")
   end
 
   # Whole sentences: "URL must be a public http:// or https:// address." The
@@ -35,7 +44,7 @@ module UptimeHelper
   # monitor limit); a self-hosted instance that used to be hosted resumes
   # them with the fit task.
   def uptime_paused_note
-    return safe_join([ "Over this account's monitor limit.", upgrade_to_unlock ], " ") unless entitlements.unlimited?
+    return safe_join([ "Over this account's monitor limit.", upgrade_to_unlock ].compact, " ") unless entitlements.unlimited?
 
     safe_join([ "Paused while this instance was hosted. Run", tag.code("bin/rails goodsorcery:fit_uptime_monitors", class: "font-mono"),
                 "to resume it." ], " ")

@@ -1,7 +1,9 @@
 <%# locals: (range:, path_for:) -%>
 <%# 15m · 1h · 1d always; 7d and 30d when the retention covers them. Locked
-    ranges are disabled; hosted, "Upgrade to unlock" follows them, while a
-    self-hosted instance only says how many days it keeps (§13.9). -%>
+    ranges are greyed out. Hosted, they are titled "Upgrade to unlock" and
+    the upgrade link follows them, or "Coming soon" with no link when no
+    upgrade URL is set; a self-hosted instance only says how many days it
+    keeps (§13.9). -%>
 <% locked = Apm::Range::KEYS.select { |key| Apm::Range.new(key).locked?(entitlements) } %>
 <div class="flex flex-wrap items-center gap-2">
   <nav class="segmented items-center" aria-label="Time range">
@@ -9,9 +11,15 @@
       <% if key == "7d" %><span class="w-px! h-4 p-0! mx-1 bg-paper-700" aria-hidden="true"></span><% end %>
       <% if locked.include?(key) %>
         <% days = Apm::Range::SPECS.fetch(key).days %>
-        <span class="inline-flex items-center gap-1 opacity-50 cursor-not-allowed" aria-disabled="true"
-              title="<%= entitlements.unlimited? ? "This instance keeps #{pluralize(entitlements.apm_retention_days, 'day')}" : EntitlementsHelper::UPGRADE_TO_UNLOCK %>"
-              aria-label="<%= days %> days, <%= entitlements.unlimited? ? 'not kept on this instance' : 'upgrade to unlock' %>"><%= icon :lock, classes: "w-[11px] h-[11px]" %><%= key %></span>
+        <% if entitlements.unlimited? %>
+          <span class="inline-flex items-center gap-1 opacity-50 cursor-not-allowed" aria-disabled="true"
+                title="This instance keeps <%= pluralize(entitlements.apm_retention_days, 'day') %>"
+                aria-label="<%= days %> days, not kept on this instance"><%= icon :lock, classes: "w-[11px] h-[11px]" %><%= key %></span>
+        <% else %>
+          <%= locked_option classes: "inline-flex items-center gap-1", aria: { label: "#{days} days, #{locked_note.downcase}" } do %>
+            <% if upgrade_offered? %><%= icon :lock, classes: "w-[11px] h-[11px]" %><% end %><%= key %>
+          <% end %>
+        <% end %>
       <% else %>
         <%= link_to key, path_for.call(key), aria: { current: ("true" if key == range.key) }, data: { turbo_prefetch: false } %>
       <% end %>

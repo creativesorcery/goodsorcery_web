@@ -168,7 +168,19 @@ class Projects::Performance::OverviewsControllerTest < ActionDispatch::Integrati
     assert_select "h1", /last 24 hours/
     assert_select "nav[aria-label='Time range'] a", 3
     assert_select "nav[aria-label='Time range'] span[aria-disabled=true][title='Upgrade to unlock']", 2
+    assert_select "nav[aria-label='Time range'] span[aria-label='7 days, upgrade to unlock'] svg", 1
     assert_select "a[href='https://billing.example/upgrade']", "Upgrade to unlock"
+  end
+
+  test "hosted without an upgrade URL, 7d and 30d are greyed out and say Coming soon on hover" do
+    with_hosted_mode { with_upgrade_url(nil) { get project_performance_path(@project) } }
+
+    assert_select "nav[aria-label='Time range'] a", 3
+    assert_select "nav[aria-label='Time range'] span.opacity-50.cursor-not-allowed[aria-disabled=true][title='Coming soon']", 2
+    assert_select "nav[aria-label='Time range'] span[title='Coming soon']", text: "7d"
+    assert_select "nav[aria-label='Time range'] span[aria-label='30 days, coming soon']", text: "30d"
+    assert_select "nav[aria-label='Time range'] span[title='Coming soon'] svg", 0
+    assert_no_match "Upgrade", response.body
   end
 
   test "the per-transaction figures are cached as numbers only" do
