@@ -104,6 +104,13 @@ class PerformanceHelperTest < ActionView::TestCase
     assert_equal "—", facts.({ "runtime" => nil })["Runtime"]
   end
 
+  test "a plain-Ruby trace stored before revision 1.1 is not labelled Rails" do
+    trace = ApmTrace.find(apm_traces(:checkout_slow).id)
+    trace.payload = JSON.parse(trace.payload).merge("runtime" => { "ruby" => "3.4.1", "rails" => nil }).to_json
+
+    assert_equal "Ruby 3.4.1", apm_trace_facts(Apm::TracePage.new(trace, cutoff: 30.days.ago)).to_h["Runtime"]
+  end
+
   test "the N+1 advice names no language or library" do
     span = Apm::TraceDetails::Span.from({ "type" => "sql", "count" => 38, "duration_ms" => 1180.0 })
     assert_equal "This query ran 38 times in one request. Load the rows in one query (a join, an IN list or a batch load) " \
