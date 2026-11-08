@@ -190,6 +190,21 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", project_issue_path(projects(:storefront), issues(:resolved_issue)), 0
   end
 
+  test "every active token stays listed and revocable however many ended tokens are newer" do
+    old = personal_access_tokens(:philip_full)
+    old.update_columns(created_at: 1.year.ago, expires_at: nil)
+    travel 1.minute do
+      55.times { |n| users(:philip).personal_access_tokens.create!(account: accounts(:acme), name: "Throwaway #{n}").revoke }
+    end
+
+    get access_tokens_path
+
+    assert_select "##{dom_id(old)}" do
+      assert_select "form[action=?]", access_token_path(old)
+    end
+    assert_select "li[id^='personal_access_token_']", PersonalAccessToken.active.where(user: users(:philip)).count + AccessTokensController::ENDED_LIMIT
+  end
+
   test "renders in a fixed number of queries however many tokens and activities there are" do
     get access_tokens_path
     baseline = count_queries { get access_tokens_path }

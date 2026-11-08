@@ -64,6 +64,20 @@ class PersonalAccessTokenTest < ActiveSupport::TestCase
     assert_nil PersonalAccessToken.authenticate(token.token)
   end
 
+  test "losing the membership revokes the tokens for that account, so re-joining doesn't revive them or keep cap slots" do
+    token = create_token
+    accounts(:umbrella).memberships.create!(user: users(:jo))
+    other = users(:jo).personal_access_tokens.create!(account: accounts(:umbrella), name: "Other")
+    memberships(:jo_acme).destroy!
+
+    assert token.reload.revoked?
+    assert_not other.reload.revoked?, "tokens for the accounts they still belong to keep working"
+    assert_equal 0, users(:jo).personal_access_tokens.where(account: accounts(:acme)).active.count
+
+    Membership.create!(account: accounts(:acme), user: users(:jo), role: "member")
+    assert_nil PersonalAccessToken.authenticate(token.token)
+  end
+
   test "the user must belong to the token's account" do
     token = users(:jo).personal_access_tokens.new(account: accounts(:umbrella), name: "Sneaky")
 

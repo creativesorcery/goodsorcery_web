@@ -9,7 +9,9 @@ class AccessTokensController < ApplicationController
 
   require_verified_email only: :create
 
-  TOKEN_LIMIT = 50
+  # Every active token is listed (at most PersonalAccessToken::MAX_ACTIVE_PER_USER),
+  # then up to this many revoked or expired ones, newest first.
+  ENDED_LIMIT = 30
 
   def index
     @access_token = PersonalAccessToken.new(account: Current.account)
@@ -51,10 +53,12 @@ class AccessTokensController < ApplicationController
       end
     end
 
+    # Active tokens first, all of them, so none can be pushed off the page.
     helper_method def access_tokens
-      @access_tokens ||= Current.user.personal_access_tokens.where(account: Current.user.accounts)
-        .includes(:account).recent_first.limit(TOKEN_LIMIT).to_a
+      @access_tokens ||= own_tokens.active.to_a + own_tokens.ended.limit(ENDED_LIMIT).to_a
     end
+
+    def own_tokens = Current.user.personal_access_tokens.where(account: Current.user.accounts).includes(:account).recent_first
 
     helper_method def token_activities
       @token_activities ||= AccessTokenActivity.recent_by_token(access_tokens.map(&:id))

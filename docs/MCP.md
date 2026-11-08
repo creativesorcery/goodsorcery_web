@@ -124,7 +124,7 @@ Every result has a short text part and the same facts as `structuredContent`. Un
 
 | HTTP | Meaning |
 |---|---|
-| 401 | Missing, invalid, expired or revoked token, or you're no longer a member of its account. The response says only "invalid token". |
+| 401 | Missing, invalid, expired or revoked token, or you're no longer a member of its account (leaving an account revokes your tokens for it). The response says only "invalid token". |
 | 403 | A browser request from another origin. |
 | 405 | `GET` or `DELETE`: the server is stateless and has no streams or sessions. |
 | 413 | The request body is over 1 MiB. |

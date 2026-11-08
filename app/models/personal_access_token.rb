@@ -41,9 +41,17 @@ class PersonalAccessToken < ApplicationRecord
   before_validation :assign_token, on: :create
 
   scope :active, ->(now = Time.current) { where(revoked_at: nil).where("expires_at IS NULL OR expires_at > ?", now) }
+  scope :ended, ->(now = Time.current) { where.not(revoked_at: nil).or(where(expires_at: ..now)) }
   scope :recent_first, -> { order(created_at: :desc, id: :desc) }
 
   class << self
+    # Ends every active token of that user, or only those for one account.
+    def revoke_all(user_id:, account_id: nil, now: Time.current)
+      tokens = active(now).where(user_id:)
+      tokens = tokens.where(account_id:) if account_id
+      tokens.update_all(revoked_at: now)
+    end
+
     # The token, while it is unrevoked, unexpired and its user is still a
     # member of its account (checked here on every use, one query), else nil.
     def authenticate(token, now: Time.current)
