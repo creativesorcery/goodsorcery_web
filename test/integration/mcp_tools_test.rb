@@ -234,6 +234,11 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     assert_equal apm_traces(:checkout_slow).uuid, checkout["slowest_trace"]
     assert checkout["p95_ms"].positive?
     assert_not_includes result.to_json, "apm-fixture-secret"
+
+    failed_rate = Apm::Overview.new(projects(:storefront), Apm::Selection.new(projects(:storefront), {}, entitlements: accounts(:acme).entitlements)).tiles.last.value
+    assert failed_rate.positive?
+    assert_equal failed_rate.round(4), performance["totals"]["failed"], "a fraction, not rounded away"
+    assert_match "failed #{Mcp::Text.percent(failed_rate.round(4))}", mcp_text(result)
   end
 
   test "get_performance shows jobs, and refuses locked ranges and unknown environments" do

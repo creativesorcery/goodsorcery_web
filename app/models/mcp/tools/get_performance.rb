@@ -6,6 +6,7 @@
 class Mcp::Tools::GetPerformance < Mcp::Tools::Base
   DEFAULT_LIMIT = 10
   KINDS = { "web" => "web", "job" => "jobs" }.freeze
+  ROUNDING = { duration: 1, rate: 2, percent: 4 }.freeze
 
   self.tool_name = "get_performance"
   self.title = "Get performance"
@@ -62,8 +63,14 @@ class Mcp::Tools::GetPerformance < Mcp::Tools::Base
         range_label: selection.range.label, kind:, totals: totals, transactions: rows }
     end
 
+    # Durations in ms, rates per minute and the failure rate as a fraction,
+    # each rounded for its kind (a 0.28% failure rate stays 0.0028).
     def totals
-      overview.tiles.to_h { |tile| [ tile.key, tile.value&.round(2) ] }
+      @totals ||= overview.tiles.to_h { |tile| [ tile.key, tile.value&.round(ROUNDING.fetch(tile.format, 2)) ] }
+    end
+
+    def totals_text
+      totals.map { |key, value| "#{key} #{key == :failed ? Mcp::Text.percent(value) : value || '–'}" }.join(", ")
     end
 
     def rows
@@ -80,7 +87,7 @@ class Mcp::Tools::GetPerformance < Mcp::Tools::Base
       return [ payload[:note] ] if payload[:note]
 
       [ "#{project.slug} · #{payload[:environment]} · #{payload[:range_label]} · #{kind}",
-        "Totals: #{totals.map { |key, value| "#{key} #{value || '–'}" }.join(', ')}",
+        "Totals: #{totals_text}",
         *payload[:transactions].map { |row| Mcp::PerformanceRow.text_line(row) } ]
     end
 end
