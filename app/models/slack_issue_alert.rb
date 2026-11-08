@@ -18,14 +18,13 @@
 class SlackIssueAlert
   attr_reader :issue, :kind, :project
 
-  def initialize(issue, kind, occurrence_id: nil)
-    @issue, @kind, @occurrence_id = issue, kind.to_s, occurrence_id
+  def initialize(issue, kind, occurrence_id: nil, environments: IssueAlert::TriggeringEnvironments.new(issue, occurrence_id))
+    @issue, @kind, @environments = issue, kind.to_s, environments
     @project = issue.project
   end
 
   def due?
-    project.slack_alerts_enabled? && rule_on? && issue.unresolved? &&
-      project.alerts_cover?(IssueAlert.triggering_environments(issue, @occurrence_id)) && !throttled?
+    project.slack_alerts_enabled? && rule_on? && issue.unresolved? && project.alerts_cover?(@environments.to_a) && !throttled?
   end
 
   # When the post job runs: no occurrence then, so any of the issue's environments.

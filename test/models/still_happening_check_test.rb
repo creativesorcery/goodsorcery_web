@@ -117,6 +117,20 @@ class StillHappeningCheckTest < ActiveSupport::TestCase
     assert_no_enqueued_jobs(only: IssueAlertJob) { StillHappeningCheck.new.alert_hot_issues }
   end
 
+  test "emailed issues of apps without Slack on are dropped before any issue is loaded" do
+    slack_connections(:storefront).update!(enabled: false)
+    seen(@issue, current: 80)
+    AlertDelivery.record(user: users(:jo), project: @project, issue: @issue, kind: :still_happening,
+                         dedupe_key: AlertDelivery.issue_key(:still_happening, @issue))
+
+    loaded = 0
+    counter = ->(*, payload) { loaded += payload[:record_count] if payload[:class_name] == "Issue" }
+    ActiveSupport::Notifications.subscribed(counter, "instantiation.active_record") do
+      assert_empty StillHappeningCheck.new.alert_hot_issues
+    end
+    assert_equal 0, loaded
+  end
+
   test "end to end with Slack: one post per window however many sweeps" do
     seen(@issue, current: 80)
 

@@ -40,10 +40,13 @@ class StillHappeningCheck
   private
     # An issue both emailed and posted to Slack within the window is done;
     # one still due on either channel gets a job (IssueAlertJob does both).
+    # Emailed issues are narrowed in SQL to apps with Slack on before any
+    # issue is loaded, so throttled issues of apps without Slack cost nothing.
     def alertable_issues
       hot = hot_issue_ids
-      emailed, posted = recently_alerted(hot), recently_posted(hot)
-      ids = hot - (emailed & posted)
+      emailed = recently_alerted(hot)
+      posted = recently_posted(hot)
+      ids = (hot - emailed) | slack_due(emailed - posted)
       return [] if ids.empty?
 
       Issue.includes(project: :slack_connection).where(id: ids).select { |issue| alertable?(issue, emailed, posted) }
@@ -66,6 +69,13 @@ class StillHappeningCheck
       return [] if ids.empty?
 
       AlertDelivery.still_happening.where(issue_id: ids).since(@now - AlertDelivery::STILL_HAPPENING_WINDOW).distinct.pluck(:issue_id)
+    end
+
+    # Of these, the issues whose app posts to Slack.
+    def slack_due(ids)
+      return [] if ids.empty?
+
+      Issue.where(id: ids).joins(project: :slack_connection).merge(SlackConnection.enabled).pluck(:id)
     end
 
     def recently_posted(ids)
