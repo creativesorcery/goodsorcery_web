@@ -1,16 +1,19 @@
 <%# locals: (entry:, entry_counter: 0, entry_iteration: nil) -%>
 <% issue = entry.issue %>
 <li>
-  <%= link_to project_issue_path(issue.project, issue), class: "flex items-center gap-4 px-5 py-3 text-[13.5px] hover:bg-paper-850 transition" do %>
+  <%# Phones: project and time on the first line, what happened on the second. -%>
+  <%= link_to project_issue_path(issue.project, issue), class: "flex flex-wrap sm:flex-nowrap items-center gap-x-3 gap-y-1 sm:gap-4 px-4 sm:px-5 py-3 text-[13.5px] hover:bg-paper-850 transition" do %>
     <%= recent_entry_dot(entry) %>
-    <span class="w-36 shrink-0 truncate text-ink-400"><%= issue.project.name %></span>
-    <% if entry.resolved? %>
-      <span class="shrink-0 text-mint-300">Resolved</span>
-      <span class="flex-1 min-w-0 truncate text-ink-200"><%= recent_resolution_summary(entry) %></span>
-    <% else %>
-      <span class="shrink-0 max-w-[40%] truncate font-mono text-coral-300"><%= issue.exception_class %></span>
-      <span class="flex-1 min-w-0 truncate text-ink-200"><%= issue.message %></span>
-    <% end %>
+    <span class="flex-1 min-w-0 sm:flex-none sm:w-36 sm:shrink-0 truncate text-ink-400"><%= issue.project.name %></span>
+    <span class="flex min-w-0 items-center gap-3 sm:gap-4 max-sm:order-last max-sm:basis-full sm:flex-1">
+      <% if entry.resolved? %>
+        <span class="shrink-0 text-mint-300">Resolved</span>
+        <span class="flex-1 min-w-0 truncate text-ink-200"><%= recent_resolution_summary(entry) %></span>
+      <% else %>
+        <span class="shrink-0 max-w-[40%] max-sm:max-w-[55%] truncate font-mono text-coral-300"><%= issue.exception_class %></span>
+        <span class="flex-1 min-w-0 truncate text-ink-200"><%= issue.message %></span>
+      <% end %>
+    </span>
     <span class="shrink-0 text-[12px] text-ink-400"><%= time_ago_compact(entry.at).delete_suffix(" ago") %></span>
   <% end %>
 </li>

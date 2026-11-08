@@ -1,6 +1,6 @@
 <%# locals: (report:, animate:) -%>
 <section class="panel overflow-hidden <%= 'rise rise-4' if animate %>" aria-labelledby="uptime_incidents_heading">
-  <div class="px-5 py-4 border-b border-paper-700">
+  <div class="px-4 sm:px-5 py-4 border-b border-paper-700">
     <h2 id="uptime_incidents_heading" class="font-display text-[20px] text-ink-50">Incidents</h2>
     <p class="text-[12.5px] text-ink-400 mt-0.5">Each time the monitor went down, from the last <%= UptimeIncident::KEPT_FOR.inspect %>.</p>
   </div>
@@ -9,7 +9,7 @@
   <% else %>
     <ul class="divide-y divide-paper-700/70">
       <% report.incidents.each do |incident| %>
-        <li id="<%= dom_id(incident) %>" class="px-5 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+        <li id="<%= dom_id(incident) %>" class="px-4 sm:px-5 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
           <div class="min-w-0">
             <div class="text-[13.5px] text-ink-100">
               <%= clock_label(incident.started_at) %> <span class="text-ink-400">→</span>

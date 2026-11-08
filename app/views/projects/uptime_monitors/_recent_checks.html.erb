@@ -1,6 +1,6 @@
 <%# locals: (report:, animate:) -%>
 <section class="panel overflow-hidden <%= 'rise rise-5' if animate %>" aria-labelledby="uptime_checks_heading">
-  <div class="px-5 py-4 border-b border-paper-700">
+  <div class="px-4 sm:px-5 py-4 border-b border-paper-700">
     <h2 id="uptime_checks_heading" class="font-display text-[20px] text-ink-50">Recent checks</h2>
     <p class="text-[12.5px] text-ink-400 mt-0.5">A failed check is retried once at once; this shows the result after the retry.</p>
   </div>
@@ -9,12 +9,12 @@
   <% else %>
     <ul class="divide-y divide-paper-700/70">
       <% report.recent_checks.each do |check| %>
-        <li class="px-5 py-2.5 grid grid-cols-[110px_56px_76px_48px_minmax(0,1fr)] items-center gap-3 text-[13px]">
+        <li class="px-4 sm:px-5 py-2.5 grid grid-cols-[minmax(0,1fr)_56px_64px_32px] sm:grid-cols-[110px_56px_76px_48px_minmax(0,1fr)] items-center gap-x-3 gap-y-0.5 text-[13px]">
           <span class="text-ink-100"><%= clock_label(check.checked_at) %></span>
           <span><%= uptime_check_chip(check) %></span>
           <span class="font-mono text-ink-100 text-right"><%= uptime_ms(check.response_time_ms) %></span>
           <span class="font-mono text-ink-300"><%= check.http_status || "—" %></span>
-          <span class="text-ink-400 truncate"><%= check.error_label %></span>
+          <span class="text-ink-400 truncate max-sm:col-span-4 max-sm:empty:hidden"><%= check.error_label %></span>
         </li>
       <% end %>
     </ul>

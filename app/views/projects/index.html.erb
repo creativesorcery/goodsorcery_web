@@ -4,11 +4,11 @@
 <% breadcrumb "Projects" %>
 <%= live_stream_from Current.account, :projects %>
 
-<div class="px-8 pt-8 pb-8 max-w-[1400px]">
-  <div class="flex flex-wrap items-end justify-between gap-6 mb-7 rise">
+<div class="page-gutter pt-8 pb-8 max-w-[1400px]">
+  <div class="page-header mb-7 rise">
     <div>
       <div class="eyebrow"><%= Current.account.name %></div>
-      <h1 class="page-title">Projects <span class="text-ink-400 text-[30px]">— <%= @overview.projects.size %></span></h1>
+      <h1 class="page-title">Projects <span class="text-ink-400 text-[22px] sm:text-[30px]">— <%= @overview.projects.size %></span></h1>
     </div>
     <%# At the app limit the greyed tile below carries the notice, so the header shows nothing. %>
     <% unless project_limit_reached? %>
@@ -24,7 +24,7 @@
   </div>
 
   <section class="mt-12" aria-labelledby="recent_issues_heading">
-    <h2 id="recent_issues_heading" class="rune-rule text-[11px] uppercase tracking-[.26em]">✦ Across all projects, last hour ✦</h2>
+    <h2 id="recent_issues_heading" class="rune-rule text-[11px] uppercase tracking-[.16em] sm:tracking-[.26em] text-center">✦ Across all projects, last hour ✦</h2>
     <%= render "recent_issues/feed", account: Current.account, feed: @feed %>
   </section>
 </div>

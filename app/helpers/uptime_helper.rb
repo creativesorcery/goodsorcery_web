@@ -2,9 +2,13 @@
 # formatting and the server-rendered SVG status bar. Only names, hosts,
 # numbers and times reach these helpers, never a monitor's URL.
 module UptimeHelper
-  ROW_GRID = "grid grid-cols-[124px_minmax(0,1fr)_80px_204px] xl:grid-cols-[124px_minmax(0,1fr)_118px_80px_76px_204px_170px] " \
-    "items-center gap-4".freeze
+  # Below md a row is a card: name and status, then the uptime figures
+  # (labelled, as the header row is hidden) with the check time in the name cell.
+  ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[124px_minmax(0,1fr)_80px_204px] " \
+    "xl:grid-cols-[124px_minmax(0,1fr)_118px_80px_76px_204px_170px] items-center gap-x-3 gap-y-2 md:gap-4".freeze
   WIDE_CELL = "hidden xl:block".freeze
+  COLUMN_CELL = "max-md:hidden".freeze
+  MOBILE_ONLY = "md:hidden".freeze
   BAR_SLOT = 6
   HOURLY_TITLE = "%b %-d, %H:%M".freeze
   DAILY_TITLE = "%b %-d".freeze

@@ -8,7 +8,7 @@
   </div>
 <% else %>
   <div class="flex flex-wrap items-center gap-2">
-    <code class="font-mono text-[13px] bg-paper-950 border border-paper-700 rounded-lg px-3 py-1.5 text-ink-200"
+    <code class="font-mono text-[13px] bg-paper-950 border border-paper-700 rounded-lg px-3 py-1.5 text-ink-200 break-all"
           aria-label="<%= api_key_label(api_key) %> key, hidden"><%= api_key.token_prefix %><span class="text-ink-400">••••••••••••</span><%= api_key.token_last4 %></code>
     <%= link_to "Reveal", project_api_key_reveal_path(project, api_key), class: "btn btn-sm" %>
   </div>

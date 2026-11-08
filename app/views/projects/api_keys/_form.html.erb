@@ -1,7 +1,7 @@
 <%# locals: (project:, api_key:, open: false) -%>
 <%= tag.details id: dom_id(project, :new_api_key), class: "relative", open: do %>
   <summary class="btn"><%= icon :plus, classes: "w-4 h-4" %>New key</summary>
-  <div class="menu right-0 w-80 p-4">
+  <div class="menu left-0 right-auto sm:left-auto sm:right-0 w-[min(20rem,calc(100vw-5rem))] p-4">
     <%= form_with model: api_key, url: project_api_keys_path(project), class: "space-y-3" do |form| %>
       <div>
         <%= form.label :environment, "Environment", class: "label" %>

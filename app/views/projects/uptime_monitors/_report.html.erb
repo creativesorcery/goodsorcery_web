@@ -2,15 +2,15 @@
 <%# Rendered inside the report frame that live updates reload after each check,
     so the page-load rise runs only on the full page (animate: true). %>
 <section class="border-b border-iris-500/10">
-  <div class="px-8 pt-8 pb-6 max-w-[1400px]">
+  <div class="page-gutter pt-8 pb-6 max-w-[1400px]">
     <%= render "projects/uptime_monitors/hero", project:, monitor:, animate: %>
     <%= render "projects/uptime_monitors/ribbon", monitor:, report:, animate: %>
   </div>
 </section>
 
-<div class="px-8 py-8 max-w-[1400px] space-y-8">
-  <section class="panel p-5 <%= 'rise rise-2' if animate %>" aria-labelledby="uptime_days_heading">
-    <div class="flex items-baseline justify-between gap-4">
+<div class="page-gutter py-8 max-w-[1400px] space-y-8">
+  <section class="panel p-4 sm:p-5 <%= 'rise rise-2' if animate %>" aria-labelledby="uptime_days_heading">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
       <h2 id="uptime_days_heading" class="font-display text-[20px] text-ink-50">Last <%= UptimeReport::DAYS %> days</h2>
       <span class="text-[12.5px] text-ink-400">One bar per day, in your time zone</span>
     </div>
@@ -20,8 +20,8 @@
     </div>
   </section>
 
-  <section class="panel p-5 <%= 'rise rise-3' if animate %>" aria-labelledby="uptime_response_heading">
-    <div class="flex items-baseline justify-between gap-4">
+  <section class="panel p-4 sm:p-5 <%= 'rise rise-3' if animate %>" aria-labelledby="uptime_response_heading">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
       <h2 id="uptime_response_heading" class="font-display text-[20px] text-ink-50">Response time</h2>
       <span class="text-[12.5px] text-ink-400">Last 24 hours, average per 15 minutes</span>
     </div>

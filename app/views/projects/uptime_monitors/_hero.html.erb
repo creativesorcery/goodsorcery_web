@@ -1,18 +1,18 @@
 <%# locals: (project:, monitor:, animate:) -%>
-<div class="flex flex-wrap items-start justify-between gap-8 <%= 'rise' if animate %>">
-  <div class="min-w-0 flex-1">
+<div class="hero-row <%= 'rise' if animate %>">
+  <div class="min-w-0 lg:flex-1">
     <div class="flex flex-wrap items-center gap-2.5">
       <%= uptime_status_chip(monitor) %>
       <%= chip monitor.interval_label, tone: :iris %>
     </div>
-    <h1 class="mt-4 font-display text-[34px] leading-[1.15] text-ink-50 break-words"><%= monitor.name %></h1>
+    <h1 class="mt-4 font-display text-[26px] sm:text-[34px] leading-[1.15] text-ink-50 break-words"><%= monitor.name %></h1>
     <p class="mt-2 text-[13px] text-ink-300 font-mono break-all"><%= monitor.url %></p>
     <% if monitor.paused? %>
       <p class="mt-2 text-[13px] text-ink-400"><%= uptime_paused_note %></p>
     <% end %>
   </div>
 
-  <div class="flex items-center gap-2 shrink-0">
+  <div class="flex flex-wrap items-center gap-2 lg:shrink-0">
     <% unless monitor.paused? %>
       <%= button_to "Check now", project_uptime_monitor_check_path(project, monitor), class: "btn btn-sm", form_class: "contents" %>
     <% end %>

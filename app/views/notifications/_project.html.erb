@@ -2,8 +2,8 @@
 <% receives_alerts = preference.receives?("alerts") %>
 <% receives_uptime = preference.receives?("uptime") %>
 <% receives_digest = preference.receives?("digest") %>
-<li id="<%= dom_id(project, :notifications) %>" class="<%= AlertsHelper::NOTIFICATION_ROW_GRID %> items-center px-5 py-3.5">
-  <div class="flex items-center gap-3 min-w-0">
+<li id="<%= dom_id(project, :notifications) %>" class="<%= AlertsHelper::NOTIFICATION_ROW_GRID %> items-center px-4 sm:px-5 py-3.5">
+  <div class="flex items-center gap-3 min-w-0 <%= AlertsHelper::NOTIFICATION_APP_CELL %>">
     <%= project_tile(project) %>
     <div class="min-w-0">
       <%= link_to project.name, project_alerts_path(project), class: "block truncate text-[14px] text-ink-50 hover:underline" %>
@@ -15,6 +15,7 @@
   <div class="text-center">
     <%= switch_button_to project_notification_preference_path(project), pressed: receives_alerts,
           params: { "notification_preference[alerts_muted]" => receives_alerts }, label: "Email alerts from #{project.name}" %>
+    <span class="<%= AlertsHelper::NOTIFICATION_SWITCH_LABEL %>" aria-hidden="true">Email alerts</span>
   </div>
   <div class="text-center">
     <% if project.uptime_alerts_enabled? %>
@@ -26,6 +27,7 @@
             class: "inline-block text-[11.5px] leading-tight text-ink-400 hover:text-iris-300 hover:underline",
             title: "#{project.name} sends no uptime alerts. Turn them on in Settings › Alerts." %>
     <% end %>
+    <span class="<%= AlertsHelper::NOTIFICATION_SWITCH_LABEL %>" aria-hidden="true">Uptime alerts</span>
   </div>
   <div class="text-center">
     <% if project.alert_rule_enabled?(:daily_digest) %>
@@ -37,5 +39,6 @@
             class: "inline-block text-[11.5px] leading-tight text-ink-400 hover:text-iris-300 hover:underline",
             title: "#{project.name} sends no daily digest. Turn it on in Settings › Alerts." %>
     <% end %>
+    <span class="<%= AlertsHelper::NOTIFICATION_SWITCH_LABEL %>" aria-hidden="true">Daily digest</span>
   </div>
 </li>

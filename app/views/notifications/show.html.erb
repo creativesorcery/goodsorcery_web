@@ -3,7 +3,7 @@
 <% breadcrumb Current.account.name, projects_path %>
 <% breadcrumb "Notifications" %>
 
-<div class="px-8 py-8 max-w-3xl">
+<div class="page-gutter py-8 max-w-3xl">
   <div class="rise">
     <div class="eyebrow">Your account</div>
     <h1 class="page-title">Notifications</h1>
@@ -18,11 +18,11 @@
   </div>
 
   <section class="panel mt-6 rise rise-1" aria-labelledby="notification_apps_heading">
-    <div class="<%= AlertsHelper::NOTIFICATION_ROW_GRID %> items-end px-5 py-3 border-b border-paper-700 text-[11px] uppercase tracking-[.14em] text-ink-400">
-      <h2 id="notification_apps_heading">Apps</h2>
-      <span class="text-center">Email alerts</span>
-      <span class="text-center">Uptime alerts</span>
-      <span class="text-center">Daily digest</span>
+    <div class="<%= AlertsHelper::NOTIFICATION_ROW_GRID %> items-end px-4 sm:px-5 py-3 border-b border-paper-700 text-[11px] uppercase tracking-[.14em] text-ink-400">
+      <h2 id="notification_apps_heading" class="<%= AlertsHelper::NOTIFICATION_APP_CELL %>">Apps</h2>
+      <span class="max-sm:hidden text-center">Email alerts</span>
+      <span class="max-sm:hidden text-center">Uptime alerts</span>
+      <span class="max-sm:hidden text-center">Daily digest</span>
     </div>
     <% if @projects.any? %>
       <ul class="divide-y divide-paper-700/70">

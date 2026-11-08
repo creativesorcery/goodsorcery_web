@@ -1,6 +1,9 @@
 # Settings › Alerts, the Notifications page and the mute link pages.
 module AlertsHelper
-  NOTIFICATION_ROW_GRID = "grid grid-cols-[minmax(0,1fr)_96px_96px_96px] gap-4".freeze
+  # Phones: the app on a line of its own, its three switches (each labelled) under it.
+  NOTIFICATION_ROW_GRID = "grid grid-cols-3 sm:grid-cols-[minmax(0,1fr)_96px_96px_96px] gap-x-4 gap-y-3 sm:gap-4".freeze
+  NOTIFICATION_APP_CELL = "max-sm:col-span-3".freeze
+  NOTIFICATION_SWITCH_LABEL = "sm:hidden block mt-1.5 text-[11px] text-ink-400".freeze
 
   RULE_COPY = {
     "new_issue" => [ "New issue", "The first time a brand-new issue happens." ],
@@ -19,7 +22,7 @@ module AlertsHelper
 
   # An aria-pressed switch that saves at once: a one-button form (PATCH).
   def switch_button_to(path, pressed:, params:, label:)
-    button_to path, method: :patch, params:, class: "toggle inline-flex items-center p-1 -m-1",
+    button_to path, method: :patch, params:, class: "toggle inline-flex items-center p-1 -m-1 max-lg:p-2 max-lg:-m-2",
       form_class: "contents", aria: { pressed:, label: }, title: label do
       tag.span(tag.span(class: "knob"), class: "track")
     end

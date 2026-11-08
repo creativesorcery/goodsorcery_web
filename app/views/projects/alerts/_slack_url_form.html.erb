@@ -4,7 +4,7 @@
 <%= form_with model: connection, url: project_slack_connection_path(project), method: :patch, class: "space-y-2" do |form| %>
   <%= form.label :webhook_url, connection.persisted? ? "Replace the webhook URL" : "Webhook URL", class: "label" %>
   <div class="flex flex-wrap items-start gap-2">
-    <%= form.url_field :webhook_url, value: nil, class: [ "field font-mono flex-1 min-w-[16rem]", ("border-coral-500" if invalid) ],
+    <%= form.url_field :webhook_url, value: nil, class: [ "field font-mono flex-1 min-w-[min(16rem,100%)]", ("border-coral-500" if invalid) ],
           required: true, maxlength: 200, autocomplete: "off", spellcheck: false, placeholder: "https://hooks.slack.com/services/T…/B…/…",
           aria: { invalid: (invalid ? "true" : nil), describedby: [ ("slack_webhook_url_error" if invalid), "slack_webhook_url_hint" ].compact.join(" ") } %>
     <%= form.submit connection.persisted? ? "Replace" : "Connect Slack", class: "btn btn-primary" %>

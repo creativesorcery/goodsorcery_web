@@ -3,7 +3,7 @@
 <div class="code-pane" data-controller="clipboard">
   <div class="code-pane-header">
     <span class="font-mono"><%= label %></span>
-    <button type="button" class="hover:text-iris-300" data-action="clipboard#copy">Copy</button>
+    <button type="button" class="-my-1.5 -mr-2 inline-flex min-h-8 items-center rounded-md px-2 hover:text-iris-300" data-action="clipboard#copy">Copy</button>
   </div>
-  <pre class="code-pane-body" data-clipboard-target="source"><%= yield %></pre>
+  <pre class="code-pane-body scroll-x" data-clipboard-target="source"><%= yield %></pre>
 </div>
