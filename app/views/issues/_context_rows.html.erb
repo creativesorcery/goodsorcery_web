@@ -1,7 +1,8 @@
 <% if rows.any? %>
-  <div class="code grid grid-cols-[160px_minmax(0,1fr)] gap-y-2 text-[12.5px]">
+  <%# Phones stack each label over its value. -%>
+  <div class="code grid grid-cols-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-y-2 text-[12.5px]">
     <% rows.each do |label, value, tone| %>
-      <span class="text-ink-400 font-sans"><%= label %></span><span class="break-all"><%= context_value(value, tone: tone || "text-ink-50") %></span>
+      <span class="text-ink-400 font-sans"><%= label %></span><span class="break-words max-sm:mb-2.5"><%= context_value(value, tone: tone || "text-ink-50") %></span>
     <% end %>
   </div>
 <% else %>

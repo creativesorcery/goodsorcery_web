@@ -40,7 +40,7 @@ module IssueQueryHelper
   def issue_query_chip(project, query, chip, sort:)
     key, value = chip.label.split(":", 2)
     remove = link_to "×", issues_query_path(project, query.without_chip(chip), sort:),
-      class: "text-ink-400 hover:text-ink-50", "aria-label": "Remove #{chip.label}"
+      class: "inline-flex items-center justify-center text-ink-400 hover:text-ink-50 max-lg:-my-2 max-lg:-mr-2 max-lg:h-8 max-lg:w-8", "aria-label": "Remove #{chip.label}"
     text = tag.span(safe_join([ "#{key}:", tag.span(value, class: ("text-ink-50" unless chip.key == "env")) ]))
     tag.span safe_join([ text, remove ]), class: "#{query_chip_tone(chip)} font-mono"
   end

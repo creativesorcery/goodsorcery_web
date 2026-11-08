@@ -1,5 +1,5 @@
 <section class="panel p-5 <%= 'rise rise-2' if animate %>">
-  <div class="flex items-center justify-between gap-4">
+  <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
     <h2 class="font-display text-[20px] text-ink-50">
       Occurrences <span class="font-sans text-[13px] text-ink-400"><%= delimited(chart.total) %> in the last <%= chart.period %></span>
     </h2>
@@ -23,8 +23,10 @@
   </div>
 
   <div class="flex justify-between text-[11px] text-ink-400 font-mono mt-2">
-    <% chart.axis_labels.each do |label| %>
-      <span><%= label %></span>
+    <% labels = chart.axis_labels %>
+    <% labels.each_with_index do |label, index| %>
+      <%# Phones keep every other label so they don't run together. -%>
+      <span class="<%= 'max-sm:hidden' if index.odd? && index < labels.size - 1 %>"><%= label %></span>
     <% end %>
   </div>
 </section>

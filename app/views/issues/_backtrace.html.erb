@@ -1,10 +1,10 @@
 <% show_framework = !backtrace.app_frames? %>
 <section class="relative rise rise-3" data-controller="toggle clipboard">
-  <div class="flex items-center justify-between mb-3">
+  <div class="relative flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
     <h2 class="font-display text-[22px] text-ink-50">Backtrace</h2>
-    <div class="flex items-center gap-4 text-[12.5px] text-ink-300">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-[12.5px] text-ink-300">
       <% if backtrace.framework_frame_count.positive? %>
-        <button type="button" class="toggle flex items-center gap-2" aria-pressed="<%= show_framework %>"
+        <button type="button" class="toggle flex items-center gap-2 whitespace-nowrap max-lg:min-h-10" aria-pressed="<%= show_framework %>"
                 data-toggle-target="switch" data-action="toggle#flip">
           <span class="track"><span class="knob"></span></span>
           Show framework frames
@@ -12,7 +12,7 @@
       <% end %>
       <details>
         <summary class="btn btn-sm">Raw</summary>
-        <pre class="absolute left-0 right-0 top-12 z-10 max-h-[28rem] overflow-auto code-pane code-pane-body whitespace-pre shadow-[0_8px_24px_-12px_rgb(35_37_58/0.25)]"
+        <pre class="absolute left-0 right-0 top-full mt-3 z-10 max-h-[28rem] overflow-auto code-pane code-pane-body whitespace-pre shadow-[0_8px_24px_-12px_rgb(35_37_58/0.25)]"
              data-clipboard-target="source"><%= backtrace.raw %></pre>
       </details>
       <button type="button" class="btn btn-sm" data-action="clipboard#copy">Copy</button>

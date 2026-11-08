@@ -11,7 +11,7 @@
 <%= live_stream_from @issue %>
 
 <section class="relative border-b border-iris-500/10">
-  <div class="relative px-8 pt-8 pb-6 max-w-[1400px]">
+  <div class="relative page-gutter pt-8 pb-6 max-w-[1400px]">
     <%= render "issues/hero", project: @project, issue: @issue %>
 
     <%= turbo_frame_tag dom_id(@issue, :stats) do %>
@@ -21,7 +21,7 @@
 </section>
 
 <%= turbo_frame_tag "occurrence", data: { turbo_action: "advance" } do %>
-  <div class="px-8 py-8 max-w-[1400px] grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8">
+  <div class="page-gutter py-8 max-w-[1400px] grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8">
     <div class="space-y-8 min-w-0">
       <%= turbo_frame_tag dom_id(@issue, :chart) do %>
         <%= render "issues/chart", project: @project, issue: @issue, chart: IssueChart.new(@issue), animate: true %>

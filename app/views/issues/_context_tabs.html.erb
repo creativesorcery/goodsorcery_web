@@ -3,14 +3,14 @@
     outside any request opens on the Job tab. %>
 <% selected = initial_context_tab(occurrence) %>
 <section class="rise rise-5" data-controller="tabs">
-  <div class="flex items-center gap-6 border-b border-paper-700" role="tablist" aria-label="Occurrence context">
+  <div class="tab-strip gap-6 border-b border-paper-700" role="tablist" aria-label="Occurrence context">
     <% IssueContextHelper::TABS.each do |id, label| %>
       <button type="button" class="tab" role="tab" id="context-tab-<%= id %>" aria-selected="<%= id == selected %>"
               aria-controls="context-<%= id %>" data-tabs-target="tab" data-action="tabs#select"><%= label %></button>
     <% end %>
   </div>
 
-  <div class="panel mt-4 p-5">
+  <div class="panel mt-4 p-4 sm:p-5">
     <%= context_panel "request", selected do %>
       <%= render "issues/context_rows", rows: request_rows(occurrence), empty: "No request was captured with this occurrence." %>
     <% end %>

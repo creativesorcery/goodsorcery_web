@@ -2,10 +2,15 @@
 # Issue text is always rendered through ERB escaping.
 module IssuesHelper
   # The Last 24h histogram column shows from xl up, so the issue column keeps
-  # a usable width on narrower screens.
-  ROW_GRID = "grid grid-cols-[28px_1fr_90px_90px_110px_44px] xl:grid-cols-[28px_1fr_150px_90px_90px_110px_44px] " \
-    "items-center gap-4".freeze
+  # a usable width on narrower screens. Below md a row is a card: checkbox and
+  # issue only, with the counts on a line under the title (ROW_META);
+  # md has narrower metric columns than lg.
+  ROW_GRID = "grid grid-cols-[28px_minmax(0,1fr)] md:grid-cols-[28px_minmax(0,1fr)_64px_56px_92px_32px] " \
+    "lg:grid-cols-[28px_1fr_90px_90px_110px_44px] xl:grid-cols-[28px_1fr_150px_90px_90px_110px_44px] " \
+    "items-center gap-x-3 gap-y-4 md:gap-4".freeze
   HISTOGRAM_CELL = "hidden xl:block".freeze
+  # Columns that only show as columns from md (the card line covers them below).
+  METRIC_CELL = "max-md:hidden".freeze
   CLASS_NAME_TONES = { new: "text-coral-300", regressed: "text-lilac-300", steady: "text-ink-100" }.freeze
   EDGE_STRIPES = { new: "edge-stripe edge-coral", regressed: "edge-stripe edge-lilac" }.freeze
   HISTOGRAM_COLORS = { new: ChartHelper::CORAL, regressed: ChartHelper::LILAC, steady: ChartHelper::IRIS_SOFT }.freeze
@@ -21,7 +26,7 @@ module IssuesHelper
   # Rows not seen for over an hour fade back a little.
   def issue_row_classes(issue)
     quiet = issue.last_seen_at < 1.hour.ago ? "opacity-80" : nil
-    [ ROW_GRID, "group relative px-5 py-4 border-b border-paper-700/70 hover:bg-iris-500/[.04] transition", quiet ].compact.join(" ")
+    [ ROW_GRID, "group relative px-4 sm:px-5 py-4 border-b border-paper-700/70 hover:bg-iris-500/[.04] transition", quiet ].compact.join(" ")
   end
 
   # Titles of issues never seen in production are drawn in a softer ink, so
@@ -73,7 +78,7 @@ module IssuesHelper
   def issue_origin(issue)
     spans = [
       (tag.span(issue.transaction_name, class: "truncate shrink-0 max-w-[50%]") if issue.transaction_name.present?),
-      (tag.span(issue.culprit, class: "truncate") if issue.culprit.present?)
+      (tag.span(issue.culprit, class: "truncate min-w-0") if issue.culprit.present?)
     ].compact
     return tag.span("unknown origin", class: "truncate text-ink-400/70") if spans.empty?
 
@@ -88,8 +93,17 @@ module IssuesHelper
     tag.div chart, class: HISTOGRAM_CELL
   end
 
-  def issue_assignee_avatar(issue)
-    issue.assignee ? initials_avatar(issue.assignee.name, size: :md) : empty_avatar(size: :md)
+  def issue_assignee_avatar(issue, size: :md)
+    issue.assignee ? initials_avatar(issue.assignee.name, size:) : empty_avatar(size:)
+  end
+
+  # The card line under a row's title below md: "1,284 events · 212 users · 4d ago".
+  def issue_card_meta(issue)
+    parts = [ pluralize(delimited(issue.events_count), "event"), pluralize(delimited(issue.users_count), "user"),
+              "seen #{time_ago_compact(issue.last_seen_at)}" ]
+    tag.div class: "md:hidden mt-2 flex items-center gap-2 text-[12px] text-ink-300" do
+      safe_join([ tag.span(parts.join(" · "), class: "min-w-0 truncate"), (issue_assignee_avatar(issue, size: :sm) if issue.assignee) ].compact)
+    end
   end
 
   # "▲ 34% vs. prev. day" (coral) / "▼ 8% vs. prev. day" (mint) under the events count.

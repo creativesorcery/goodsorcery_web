@@ -3,10 +3,10 @@
     the page-load fade-and-rise runs only on the full page (animate: true). %>
 <% project = summary.project %>
 <% period = summary.period %>
-<div class="flex items-end justify-between gap-6 <%= 'rise' if animate %>">
+<div class="page-header <%= 'rise' if animate %>">
   <div>
     <div class="eyebrow"><%= issues_eyebrow(project, summary.environment) %></div>
-    <h1 class="page-title">Issues <span class="text-ink-400 text-[30px]">— <%= delimited(summary.unresolved_count) %> unresolved</span></h1>
+    <h1 class="page-title">Issues <span class="text-ink-400 text-[22px] sm:text-[30px] whitespace-nowrap">— <%= delimited(summary.unresolved_count) %> unresolved</span></h1>
   </div>
   <nav class="segmented" aria-label="Summary period">
     <% IssueSummary.periods.each do |option| %>
@@ -16,12 +16,12 @@
   </nav>
 </div>
 
-<section class="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-7 <%= 'rise rise-1' if animate %>" aria-label="Summary">
+<section class="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mt-7 <%= 'rise rise-1' if animate %>" aria-label="Summary">
   <div class="panel p-4">
     <div class="text-[12px] text-ink-400">Events · <%= period.key %></div>
-    <div class="flex items-end justify-between gap-3 mt-1">
+    <div class="flex flex-wrap items-end justify-between gap-x-3 gap-y-2 mt-1">
       <div class="font-display text-[32px] text-ink-50 leading-none"><%= delimited(summary.events) %></div>
-      <%= sparkline_svg summary.sparkline, color: ChartHelper::IRIS, width: 110, height: 30 %>
+      <div class="max-w-full min-w-0 [&>svg]:max-w-full"><%= sparkline_svg summary.sparkline, color: ChartHelper::IRIS, width: 110, height: 30 %></div>
     </div>
     <%= summary_change(summary) %>
   </div>

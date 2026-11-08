@@ -3,9 +3,12 @@
 <% body = capture do %>
   <% if frame.code? %>
     <div class="bg-paper-950/70 py-2 overflow-x-auto">
-      <% frame.code_lines.each do |number, text, error_line| %>
-        <div class="<%= code_line_classes(error_line) %>"><span class="<%= code_number_classes(error_line) %>"><%= number %></span><span><%= text %></span></div>
-      <% end %>
+      <%# min-w-max: the error line's highlight spans the scrolled width. -%>
+      <div class="min-w-max">
+        <% frame.code_lines.each do |number, text, error_line| %>
+          <div class="<%= code_line_classes(error_line) %>"><span class="<%= code_number_classes(error_line) %>"><%= number %></span><span><%= text %></span></div>
+        <% end %>
+      </div>
     </div>
   <% end %>
   <% if frame.locals? %>

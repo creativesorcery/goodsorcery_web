@@ -72,7 +72,7 @@ module IssueDetailHelper
   end
 
   def occurrence_shortcut_class(navigator, shortcut)
-    base = "flex-1 rounded-md py-1 text-center transition"
+    base = "flex-1 rounded-md py-1 max-lg:py-2.5 text-center transition"
     navigator.selected_shortcut == shortcut ? "#{base} bg-paper-700 text-ink-50" : "#{base} text-ink-400 hover:bg-paper-800"
   end
 
@@ -91,7 +91,7 @@ module IssueDetailHelper
   def frame_locals(locals)
     pairs = locals.map do |name, value|
       safe_join([ tag.span(name, class: "font-mono text-ink-200"), " = ",
-                  tag.span(context_text(value), class: "font-mono break-all #{local_value_class(value)}") ])
+                  tag.span(context_text(value), class: "font-mono break-words #{local_value_class(value)}") ])
     end
     safe_join(pairs, ", ")
   end

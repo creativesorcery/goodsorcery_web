@@ -1,7 +1,8 @@
 <% if pairs.any? %>
-  <div class="code grid grid-cols-[200px_minmax(0,1fr)] gap-y-2 text-[12.5px]">
+  <%# Phones stack each key over its value. -%>
+  <div class="code grid grid-cols-1 sm:grid-cols-[200px_minmax(0,1fr)] sm:gap-y-2 text-[12.5px]">
     <% pairs.each do |key, value| %>
-      <span class="text-ink-400 break-all pr-4"><%= key %></span><span class="break-all"><%= context_value(value) %></span>
+      <span class="text-ink-400 break-words sm:pr-4"><%= key %></span><span class="break-words max-sm:mb-2.5"><%= context_value(value) %></span>
     <% end %>
   </div>
 <% else %>

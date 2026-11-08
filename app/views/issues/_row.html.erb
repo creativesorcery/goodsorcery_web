@@ -13,7 +13,7 @@
         <%= issue_badge(issue) %>
         <%= issue_reached_production_chip(issue) %>
         <span class="font-mono text-[11px] text-ink-400 shrink-0"><%= issue.short_id %></span>
-        <div class="absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
+        <div class="max-md:hidden absolute right-0 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
           <% if issue.unresolved? %>
             <%= button_to "✓ Resolve", project_bulk_triage_path(project), params: { issue_ids: [ issue.id ], triage: "resolve" },
                   class: "btn btn-sm btn-mint", "aria-label": "Resolve #{issue.short_id}" %>
@@ -30,15 +30,16 @@
         <%= issue_environment_chips(issue) %>
         <%= issue_origin(issue) %>
       </div>
+      <%= issue_card_meta(issue) %>
     </div>
 
     <%= issue_histogram(issue, histogram) %>
-    <span class="text-right font-mono text-[13.5px] text-ink-50"><%= delimited(issue.events_count) %></span>
-    <span class="text-right font-mono text-[13.5px] text-ink-100"><%= delimited(issue.users_count) %></span>
-    <span class="text-[12.5px] leading-tight">
+    <span class="<%= IssuesHelper::METRIC_CELL %> text-right font-mono text-[13.5px] text-ink-50"><%= delimited(issue.events_count) %></span>
+    <span class="<%= IssuesHelper::METRIC_CELL %> text-right font-mono text-[13.5px] text-ink-100"><%= delimited(issue.users_count) %></span>
+    <span class="<%= IssuesHelper::METRIC_CELL %> text-[12.5px] leading-tight">
       <span class="block text-ink-100"><%= time_ago_compact(issue.last_seen_at) %></span>
       <span class="block text-ink-400"><%= first_seen_label(issue.first_seen_at) %></span>
     </span>
-    <%= issue_assignee_avatar(issue) %>
+    <span class="<%= IssuesHelper::METRIC_CELL %>"><%= issue_assignee_avatar(issue) %></span>
   </div>
 <% end %>
