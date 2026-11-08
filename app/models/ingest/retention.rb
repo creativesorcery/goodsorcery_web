@@ -1,7 +1,7 @@
 # Deletes stored data past its retention (run daily by goodsorcery:prune):
 #
-# - occurrences older than their project's retention_days, never more than
-#   Project::MAX_RETENTION_DAYS;
+# - occurrences older than their project's retention_days (30, 60 or 90),
+#   never more than Project::MAX_RETENTION_DAYS;
 # - affected-user rows not seen within it, and tag values of issues not seen
 #   within it (both hold captured personal data, encrypted or digested);
 # - hourly rollups, one hour slice at a time: issue counts older than
@@ -19,14 +19,16 @@
 #   performance batches after ApmInboundBatch::KEPT_FOR.
 class Ingest::Retention
   # The issue chart's 30d view reaches back 30 local days; one more covers
-  # any time zone offset.
-  ISSUE_ROLLUP_DAYS = Project::MAX_RETENTION_DAYS + 1
+  # any time zone offset. Nothing reads issue counts further back, so they
+  # don't follow an app's longer retention.
+  ISSUE_ROLLUP_DAYS = IssueHourlyCount::PERIODS.fetch("30d").fetch(:buckets) + 1
   # Project counts are totals per app and environment, with no captured data.
   # The issue list's 30d summary compares against the 30 days before (61 daily
   # buckets) and the monthly quota sums from the start of the UTC month.
   PROJECT_ROLLUP_DAYS = 90
-  # Uptime percentages reach back 30 days and the daily bars 30 local days.
-  UPTIME_ROLLUP_DAYS = Project::MAX_RETENTION_DAYS + 1
+  # Uptime percentages reach back 30 days and the daily bars 30 local days;
+  # one more covers any time zone offset. Independent of error retention.
+  UPTIME_ROLLUP_DAYS = UptimeReport::DAYS + 1
   APM_BACKSTOP_DAYS = Entitlements::MAX_APM_RETENTION_DAYS + 1
   UNPROCESSED_TTL = 1.day
   BATCH = 1_000

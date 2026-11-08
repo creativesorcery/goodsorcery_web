@@ -3,8 +3,9 @@
 # max_monitors is a limit per app: each app of the account may have that
 # many monitors.
 #
-# Fitting runs after a commit that changes entitlement_values, after a monitor
-# is destroyed, and from bin/rails goodsorcery:fit_uptime_monitors:
+# Fitting runs after a commit that changes entitlement_values and from
+# bin/rails goodsorcery:fit_entitlements (both through
+# Account#fit_to_entitlements), and after a monitor is destroyed:
 #
 # 1. A monitor whose interval isn't allowed moves to the nearest allowed one.
 # 2. In each app, the oldest monitors (by id) up to max_monitors run; newer
@@ -22,8 +23,6 @@ module Account::UptimeMonitoring
 
   included do
     has_many :uptime_monitors, through: :projects
-
-    after_update_commit :fit_uptime_monitors_to_entitlements, if: :saved_change_to_entitlement_values?
   end
 
   def fit_uptime_monitors_to_entitlements(now: Time.current)

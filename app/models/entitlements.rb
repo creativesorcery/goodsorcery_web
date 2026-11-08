@@ -9,21 +9,27 @@ class Entitlements
   UPTIME_INTERVALS = [ 1, 5, 10, 60 ].freeze
   DEFAULT_UPTIME_INTERVAL = 10
   MAX_APM_RETENTION_DAYS = 30
-  KEYS = %w[ uptime_intervals max_monitors apm_retention_days max_projects monthly_event_quota ].freeze
+  # Every error retention an app can choose, in days (Project#retention_days).
+  RETENTION_CHOICES = [ 30, 60, 90 ].freeze
+  DEFAULT_RETENTION_DAYS = 30
+  KEYS = %w[ uptime_intervals max_monitors apm_retention_days max_projects monthly_event_quota retention_days ].freeze
   # Keys whose value is a cap: nil (no cap) or a whole number of 0 or more.
   CAP_KEYS = %w[ max_monitors max_projects ].freeze
+  # Keys whose value is a non-empty list of distinct choices from a fixed set.
+  CHOICE_KEYS = { "uptime_intervals" => UPTIME_INTERVALS, "retention_days" => RETENTION_CHOICES }.freeze
 
   # The self-hosted values of every key but apm_retention_days, which reads
   # the instance setting instead (#unlimited_value).
   UNLIMITED = { "uptime_intervals" => UPTIME_INTERVALS, "max_monitors" => nil, "max_projects" => nil,
-                "monthly_event_quota" => nil }.freeze
+                "monthly_event_quota" => nil, "retention_days" => RETENTION_CHOICES }.freeze
 
   PROBLEMS = {
     "uptime_intervals" => "Uptime intervals must be a non-empty list of distinct values from #{UPTIME_INTERVALS.to_sentence}.",
     "max_monitors" => "Max monitors must be empty (no limit) or a whole number of 0 or more.",
     "apm_retention_days" => "APM retention days must be a whole number from 1 to #{MAX_APM_RETENTION_DAYS}.",
     "max_projects" => "Max projects must be empty (no limit) or a whole number of 0 or more.",
-    "monthly_event_quota" => "Monthly event quota must be empty (no limit) or a whole number greater than 0."
+    "monthly_event_quota" => "Monthly event quota must be empty (no limit) or a whole number greater than 0.",
+    "retention_days" => "Retention days must be a non-empty list of distinct values from #{RETENTION_CHOICES.to_sentence}."
   }.freeze
 
   # Whole-sentence messages for the known keys that hold invalid values.
@@ -35,7 +41,7 @@ class Entitlements
 
   def self.valid_value?(key, value)
     case key
-    when "uptime_intervals" then valid_uptime_intervals?(value)
+    when *CHOICE_KEYS.keys then valid_choices?(value, CHOICE_KEYS.fetch(key))
     when *CAP_KEYS then value.nil? || (value.is_a?(Integer) && value >= 0)
     when "apm_retention_days" then value.is_a?(Integer) && value.between?(1, MAX_APM_RETENTION_DAYS)
     when "monthly_event_quota" then value.nil? || (value.is_a?(Integer) && value.positive?)
@@ -43,11 +49,11 @@ class Entitlements
     end
   end
 
-  def self.valid_uptime_intervals?(value)
+  def self.valid_choices?(value, choices)
     value.is_a?(Array) && value.any? && value.uniq.size == value.size &&
-      value.all? { |minutes| minutes.is_a?(Integer) && UPTIME_INTERVALS.include?(minutes) }
+      value.all? { |choice| choice.is_a?(Integer) && choices.include?(choice) }
   end
-  private_class_method :valid_uptime_intervals?
+  private_class_method :valid_choices?
 
   def initialize(values, hosted: Rails.configuration.x.hosted,
                  hosted_defaults: Rails.configuration.x.entitlements.hosted_defaults, account_id: nil,
@@ -111,6 +117,24 @@ class Entitlements
     resolved("monthly_event_quota")
   end
 
+  # The error retentions an account's apps may choose: a sorted subset of
+  # RETENTION_CHOICES (all of them self-hosted).
+  def retention_days
+    resolved("retention_days")
+  end
+
+  def allows_retention_days?(days) = retention_days.include?(days)
+
+  def locked_retention_days = RETENTION_CHOICES - retention_days
+
+  def default_retention_days = nearest_retention_days(DEFAULT_RETENTION_DAYS)
+
+  # The allowed retention closest to days; a tie goes to the longer one.
+  # Fitting uses it, as does the data migration (by the same rule).
+  def nearest_retention_days(days)
+    retention_days.min_by { |allowed| [ (allowed - days).abs, -allowed ] }
+  end
+
   # Days of performance data kept (1..30).
   def apm_retention_days
     resolved("apm_retention_days")
@@ -143,6 +167,6 @@ class Entitlements
     end
 
     def normalize(key, value)
-      key == "uptime_intervals" ? value.sort.freeze : value
+      CHOICE_KEYS.key?(key) ? value.sort.freeze : value
     end
 end

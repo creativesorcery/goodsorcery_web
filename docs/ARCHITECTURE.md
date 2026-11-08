@@ -104,7 +104,7 @@ Indexes: unique `[account_id, user_id]`, `[user_id]`.
 | issues_sequence | integer | false | 0 | per-project short-number counter |
 | color | string | false | `"iris"` | enum `iris coral lilac mint`. Rotated by `account.projects.count % 4` on create |
 | scrub_fields | string, array | false | `[]` | extra server-side scrub keys |
-| retention_days | integer | false | 30 | 1..30 (`Project::MAX_RETENTION_DAYS`) |
+| retention_days | integer | false | 30 | 30, 60 or 90 (`Project::RETENTION_CHOICES`, so `Project::MAX_RETENTION_DAYS` is 90), within the account's `retention_days` entitlement (§12.2.3) |
 | first_event_at | datetime | true | | nil means "Listening…" |
 | alert_scope | string | false | `"default"` | which environments alert rules watch (§11): `default` follows `default_environment` (nil there = all), `all`, or `selected` |
 | alert_selected_environments | string, array | false | `[]` | the environments for `selected`; normalised to lowercase, must be non-empty and among `environments` while `selected`; cleared (`before_validation`) when the scope is anything else. Migration `20261011000002` |
@@ -726,7 +726,7 @@ Shared (slice A):
 | `Api::V1::EventsController` | C | create | §2.1 |
 | `Api::V1::Events::BatchesController` | C | create | §2.1.1 |
 | `Api::V1::VerificationsController` | C | show | §2.1.2 |
-| `ProjectsController` | D | index, new, create, edit, update | index = overview; create → `redirect_to project_setup_path`; edit/update = Settings › General (name, platform, issue_prefix, scrub_fields as comma list, retention_days, default_environment: a select of "All environments" (blank) plus `project.environments`) |
+| `ProjectsController` | D | index, new, create, edit, update | index = overview; create → `redirect_to project_setup_path`; edit/update = Settings › General (name, platform, issue_prefix, scrub_fields as comma list, retention_days: a select of 30 / 60 / 90 days (§12.2.3), default_environment: a select of "All environments" (blank) plus `project.environments`) |
 | `Projects::SetupsController` | D | show | Setup & API keys page |
 | `Projects::CardsController` | D | show | live frame `dom_id(project, :card)` |
 | `Projects::ListeningsController` | D | show | live frame `dom_id(project, :listening)` |
@@ -1301,10 +1301,11 @@ This section is the binding blueprint for the uptime build. It comes in four sli
 - goodsorcery_web never knows about plan tiers. The words "free", "premium" or any tier name never appear in code, config, copy or tests. It stores entitlement **values** per account and nothing else.
 - Entitlements are stored per account, but `max_monitors` is a limit **per app**: each app of the account may have that many uptime monitors (changed from per account on 2026-11-07).
 - **Hosted mode** is `GOODSORCERY_HOSTED`, read once at boot into `config.x.hosted`.
-  - **Self-hosted** (the default, switch off): every entitlement is unlimited, meaning all four intervals, no monitor cap, no app cap and no monthly event quota. Stored values are ignored, and the UI never shows a locked option or "Upgrade to unlock".
-  - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]`, `max_monitors: 1` (one monitor per app), `max_projects: 2` (two apps per account) and `monthly_event_quota: 3000` (error events per UTC month).
+  - **Self-hosted** (the default, switch off): every entitlement is unlimited, meaning all four intervals, no monitor cap, no app cap, no monthly event quota and every retention choice (30, 60 and 90 days). Stored values are ignored, and the UI never shows a locked option or "Upgrade to unlock".
+  - **Hosted:** stored values win. Any key the account lacks falls back to the hosted defaults in `config/entitlements.yml`: `uptime_intervals: [10, 60]`, `max_monitors: 1` (one monitor per app), `max_projects: 2` (two apps per account), `monthly_event_quota: 3000` (error events per UTC month) and `retention_days: [30]` (the error retentions its apps may choose).
 - **Apps per account** (`max_projects`, approved 2026-11-07, §12.2.1): hosted accounts may create up to `max_projects` apps. Accounts already over it keep every app they have; they just can't add more.
 - **Monthly event quota** (`monthly_event_quota`, approved 2026-11-07, §12.2.2): the v1 `accounts.monthly_event_quota` column became an entitlement. Hosted accounts get 3,000 error events per UTC month unless a value is stored; ingest answers `429 quota_exceeded` past it. Self-hosted instances never have a quota.
+- **Error retention** (`retention_days`, approved 2026-11-07, §12.2.3): each app keeps occurrences 30, 60 or 90 days; the entitlement lists which of those its account's apps may choose (hosted default `[30]`, self-hosted all three). Apps on a retention their account no longer allows move to the nearest allowed one (§12.3.2).
 - Entitlements are enforced in model validations, so a crafted POST can't get past them, and they are also reflected in the views.
 - Locked options say **"Upgrade to unlock"**, linking to `GOODSORCERY_UPGRADE_URL` (`config.x.upgrade_url`), when that is set. When it isn't, no upgrade text renders anywhere: locked options stay visible, greyed out and unselectable, titled **"Coming soon"** (a native hover tooltip, on a span rather than a disabled button so every browser shows it), and an add button at a limit becomes the greyed-out sentence "Cannot add more yet, but it's coming soon" (for apps: "Cannot add more apps yet, but it's coming soon"). `UpgradeOffer` is the one place that decides between the two (approved 2026-11-07).
 - **Monitors** belong to an app (project), and every lookup is scoped through `Current.account`.
@@ -1413,6 +1414,7 @@ shared:
     apm_retention_days: 1  # §13.7
     max_projects: 2        # apps per account (§12.2.1)
     monthly_event_quota: 3000 # error events per UTC month (§12.2.2)
+    retention_days: [30]   # error retentions an app may choose (§12.2.3)
 ```
 
 `ApplicationHelper#hosted?` returns `Rails.configuration.x.hosted`. Existing tests that set `ENV["GOODSORCERY_HOSTED"]` switch to the `with_hosted_mode` test helper.
@@ -1422,7 +1424,8 @@ shared:
 ```ruby
 Entitlements::UPTIME_INTERVALS        # => [1, 5, 10, 60]  every interval uptime supports
 Entitlements::DEFAULT_UPTIME_INTERVAL # => 10
-Entitlements::KEYS                    # => %w[uptime_intervals max_monitors apm_retention_days max_projects monthly_event_quota]
+Entitlements::RETENTION_CHOICES       # => [30, 60, 90]  every error retention an app can choose (Project::RETENTION_CHOICES)
+Entitlements::KEYS                    # => %w[uptime_intervals max_monitors apm_retention_days max_projects monthly_event_quota retention_days]
 Entitlements::CAP_KEYS                # => %w[max_monitors max_projects]  nil or an integer >= 0
 
 entitlements = account.entitlements   # Entitlements.new(account.entitlement_values)
@@ -1441,12 +1444,17 @@ entitlements.monitors_left(count)            # nil when uncapped, else [max - co
 entitlements.max_projects                    # Integer (apps per account), or nil for no cap
 entitlements.project_limit_reached?(count)   # count is the account's apps; false when max_projects is nil
 entitlements.monthly_event_quota             # Integer (error events per UTC month), or nil for no quota
+entitlements.retention_days                  # sorted subset of RETENTION_CHOICES (all of them self-hosted)
+entitlements.allows_retention_days?(60)      # true/false
+entitlements.locked_retention_days           # RETENTION_CHOICES - retention_days ([] when self-hosted)
+entitlements.nearest_retention_days(45)      # the closest allowed; a tie goes to the longer (used by fitting)
+entitlements.default_retention_days          # nearest_retention_days(30): a new app's retention
 Entitlements.problems(values)                # => [] or whole-sentence messages, for Account validation
 ```
 
 Resolution per key: self-hosted gives the unlimited value. Hosted gives the stored value if the key is present and valid, otherwise the hosted default. A present but invalid stored value (impossible through `Account` validation, but possible if the column is edited by hand) falls back to the default. It is logged as `"Ignoring invalid entitlement #{key} for account #{id}"`, with the key name only. In stored JSON, `"max_monitors": null` (or `"max_projects": null`, `"monthly_event_quota": null`) explicitly means no cap, which is different from a missing key.
 
-Valid values: `uptime_intervals` is a non-empty array of distinct integers from `UPTIME_INTERVALS`. `max_monitors` and `max_projects` are each `null` or an integer ≥ 0 (`PROBLEMS["max_projects"]` = "Max projects must be empty (no limit) or a whole number of 0 or more."). `monthly_event_quota` is `null` or an integer > 0 ("Monthly event quota must be empty (no limit) or a whole number greater than 0.").
+Valid values: `uptime_intervals` is a non-empty array of distinct integers from `UPTIME_INTERVALS`. `max_monitors` and `max_projects` are each `null` or an integer ≥ 0 (`PROBLEMS["max_projects"]` = "Max projects must be empty (no limit) or a whole number of 0 or more."). `monthly_event_quota` is `null` or an integer > 0 ("Monthly event quota must be empty (no limit) or a whole number greater than 0."). `retention_days` is validated like `uptime_intervals`: a non-empty array of distinct integers from `RETENTION_CHOICES` ("Retention days must be a non-empty list of distinct values from 30, 60, and 90.").
 
 **`Account`** (slice 1):
 - `#entitlements` returns an `Entitlements` object.
@@ -1474,6 +1482,14 @@ Valid values: `uptime_intervals` is a non-empty array of distinct integers from 
 - **Enforced at ingest** by `IngestEndpoint#enforce_quota` → `Account.over_quota?(account_id)` (`Account::EventQuota`), after the rate limits and before the body is read: `429 {"error":"quota_exceeded"}`. Self-hosted it returns false without touching the cache or the database. Hosted it is one cache read of a boolean keyed `["account_over_quota", id]`, kept for `OVER_QUOTA_TTL` (1 minute); a miss loads the account and compares `events_this_month` (itself cached 5 minutes) with the resolved `entitlements.monthly_event_quota`, the hosted default included. An `after_update_commit` that changes `entitlement_values` deletes the key, so a pushed quota applies at the next request; a changed hosted default (a restart) applies within the minute. No per-event query is added. `GET /api/v1/verify` and the APM endpoints never check the quota.
 - **UI:** the sidebar's `layouts/_usage_meter` reads `entitlements.monthly_event_quota`: hosted shows "N / 3k" with a meter; nil (always self-hosted) shows nothing.
 
+#### 12.2.3 Error retention (`retention_days`, approved 2026-11-07)
+
+- **Choices:** `Project#retention_days` is one of `Project::RETENTION_CHOICES` (`Entitlements::RETENTION_CHOICES`, 30, 60 or 90 days; "must be 30, 60 or 90 days"), so `Project::MAX_RETENTION_DAYS` is 90. The entitlement lists the choices an account's apps may make: hosted default `[30]`, self-hosted all three whatever is stored.
+- **Enforced** by `Project`'s `validate :retention_entitled` when the value is set (on create or when it changes, like uptime intervals): "isn't available on this account". An app left on a retention its account no longer allows still saves its other settings until fitting moves it. A new app gets the column default, 30, or `entitlements.default_retention_days` when 30 isn't allowed. The "Add a new app" form has no retention field.
+- **UI:** Settings › General's Retention is a select of "30 days", "60 days" and "90 days" (`ProjectsHelper#project_retention_options`). Locked choices (hosted only) are disabled and labelled "90 days · Upgrade to unlock" with an upgrade URL, or "90 days · Coming soon" without one, titled the same; native option tooltips don't show, so a hint under the select (`#project_retention_days_locked_hint`, `project_locked_retention_hint_tag`) says "Longer retention isn't available on this account." plus the upgrade link, or "Longer retention is coming soon." titled "Coming soon".
+- **Pruning** (`Ingest::Retention`): occurrences, affected users and tag counts per retention group as before, capped at `MAX_RETENTION_DAYS` (90). The per-app cap of 3,000 stored occurrences and the per-issue cap of 100 still apply whatever the retention. The issue and uptime rollup windows don't follow it: `ISSUE_ROLLUP_DAYS` (31) comes from the issue chart's 30-day view and `UPTIME_ROLLUP_DAYS` (31) from `UptimeReport::DAYS`, since nothing reads those counts further back.
+- **Migration** `fit_project_retention_to_choices` moves every app on another value to the nearest choice by the same rule (a tie goes up, under 30 becomes 30). Retention was capped at 30, so every app ends on 30, allowed hosted and self-hosted. `down` changes nothing.
+
 **Test helpers** (`test/test_helper.rb`): `with_hosted_mode(hosted = true) { … }` sets and restores `Rails.configuration.x.hosted`; `with_upgrade_url(url = "https://billing.example/upgrade") { … }` does the same for `config.x.upgrade_url` (`with_upgrade_url(nil)` for "coming soon").
 
 ### 12.3 Future billing push contract (documented only; do not build)
@@ -1485,8 +1501,8 @@ A separate private billing app will **push** values to goodsorcery_web. Nothing 
   - Compare with `ActiveSupport::SecurityUtils.secure_compare`.
   - Reject a `t` more than 5 minutes from now.
   - Rate-limit per IP.
-- **Body:** `{"entitlements":{"uptime_intervals":[1,5,10,60],"max_monitors":25,"apm_retention_days":30,"max_projects":10,"monthly_event_quota":100000},"sequence":42}`.
-  - The document is complete: an omitted key falls back to the hosted defaults, and `"max_monitors": null`, `"max_projects": null` or `"monthly_event_quota": null` means no cap. `max_monitors` counts per app; `max_projects` counts the account's apps, and lowering it below the current count keeps every existing app and only blocks new ones. `monthly_event_quota` counts error events per UTC month; a new value applies at the next ingest request (§12.2.2).
+- **Body:** `{"entitlements":{"uptime_intervals":[1,5,10,60],"max_monitors":25,"apm_retention_days":30,"max_projects":10,"monthly_event_quota":100000,"retention_days":[30,60,90]},"sequence":42}`.
+  - The document is complete: an omitted key falls back to the hosted defaults, and `"max_monitors": null`, `"max_projects": null` or `"monthly_event_quota": null` means no cap. `max_monitors` counts per app; `max_projects` counts the account's apps, and lowering it below the current count keeps every existing app and only blocks new ones. `monthly_event_quota` counts error events per UTC month; a new value applies at the next ingest request (§12.2.2). `retention_days` lists the retentions an app may choose; removing one moves the apps on it (§12.3.2), and the next daily prune deletes what they no longer keep.
   - `sequence` increases monotonically per account. A push whose `sequence` is ≤ the stored one is acknowledged and ignored, so out-of-order delivery is harmless. The push slice adds `accounts.entitlements_sequence bigint` for this; it is not added now.
 - **Responses:**
   - `204` when applied or ignored as stale.
@@ -1494,7 +1510,7 @@ A separate private billing app will **push** values to goodsorcery_web. Nothing 
   - `404 {"error":"unknown_account"}`.
   - `422 {"error":"invalid_entitlements","messages":[…]}`, built from `Entitlements.problems`.
 - **Values only.** Tier names, prices and customer data are never sent or stored. The billing app maps its plans to values itself.
-- **Effect:** `account.update_entitlements!(values)`. Its `after_update_commit` callbacks run `fit_uptime_monitors_to_entitlements` (§12.3.1) and expire the cached quota answer (§12.2.2).
+- **Effect:** `account.update_entitlements!(values)`. Its `after_update_commit` callbacks run `Account#fit_to_entitlements` (monitors, §12.3.1, and retention, §12.3.2) and expire the cached quota answer (§12.2.2).
 
 #### 12.3.1 Fitting monitors to entitlements (slice 2, built now)
 
@@ -1506,9 +1522,13 @@ A separate private billing app will **push** values to goodsorcery_web. Nothing 
 When self-hosted, the result is all monitors unpaused and intervals left unchanged.
 
 It runs in three places:
-- after a commit that changes `entitlement_values`;
+- after a commit that changes `entitlement_values` (through `Account#fit_to_entitlements`, which also fits retention, §12.3.2);
 - after a monitor is destroyed (`after_destroy_commit`, which frees a slot);
-- through `bin/rails goodsorcery:fit_uptime_monitors` (all accounts, `find_each`), which operators run after switching hosted mode on **or off** or changing `config/entitlements.yml`. Switching off without it leaves monitors paused under hosted limits unchecked; the Uptime pages then say "Paused while this instance was hosted. Run `bin/rails goodsorcery:fit_uptime_monitors` to resume it." (`UptimeHelper#uptime_paused_note`).
+- through `bin/rails goodsorcery:fit_entitlements` (all accounts, `find_each`, `Account#fit_to_entitlements`; `goodsorcery:fit_uptime_monitors` is kept as an alias), which operators run after switching hosted mode on **or off** or changing `config/entitlements.yml`. Switching off without it leaves monitors paused under hosted limits unchecked; the Uptime pages then say "Paused while this instance was hosted. Run `bin/rails goodsorcery:fit_entitlements` to resume it." (`UptimeHelper#uptime_paused_note`).
+
+#### 12.3.2 Fitting app retention to entitlements (approved 2026-11-07)
+
+`Account::ProjectRetention#fit_project_retention_to_entitlements` moves every app of the account whose `retention_days` isn't in `entitlements.retention_days` to the nearest allowed value, a tie going to the longer retention (`Entitlements#nearest_retention_days`). It is one `UPDATE … SET retention_days = CASE WHEN retention_days * 2 < low + high THEN low … ELSE longest END WHERE account_id = ? AND retention_days NOT IN (allowed)` (`Account::ProjectRetention.nearest_value`, an Arel `CASE`), however many apps there are. Self-hosted every choice is allowed, so only values outside 30/60/90 move. It runs with monitor fitting from `Account#fit_to_entitlements`: after a commit that changes `entitlement_values` and from `bin/rails goodsorcery:fit_entitlements`.
 
 ### 12.4 Scheduling (slice 2)
 
@@ -1649,7 +1669,7 @@ The unique partial index makes a second open incident impossible. A monitor whos
   - `.daily_bars(monitor, days: 30, zone:)` uses the viewer's local days (`DATE((hour AT TIME ZONE 'UTC') AT TIME ZONE zone)`, as `IssueHourlyCount.series` does).
   - `.average_response_ms(monitor_ids, since:)` returns `{ id => Integer|nil }`.
 - **`UptimeCheck.response_series(monitor, since: 24.hours.ago)`** returns 15-minute `date_bin` buckets of the average `response_time_ms` of up checks (≤ 96 points), for the detail sparkline.
-- **`Account::UptimeMonitoring`** (concern; slice 2 adds the `include` line to `account.rb`): `has_many :uptime_monitors, through: :projects` (the per-app limit check is `entitlements.monitor_limit_reached?(project.uptime_monitors.count)`), `#fit_uptime_monitors_to_entitlements` (§12.3.1), and `after_update_commit` on an `entitlement_values` change.
+- **`Account::UptimeMonitoring`** (concern; slice 2 adds the `include` line to `account.rb`): `has_many :uptime_monitors, through: :projects` (the per-app limit check is `entitlements.monitor_limit_reached?(project.uptime_monitors.count)`), `#fit_uptime_monitors_to_entitlements` (§12.3.1), run by `Account#fit_to_entitlements` from the `after_update_commit` on an `entitlement_values` change.
 - **`Project`**: `has_many :uptime_monitors, inverse_of: :project`.
 
 ### 12.8 Web (slice 3)
@@ -1787,7 +1807,7 @@ The `UptimeMonitorScoped` concern includes `ProjectScoped` and sets `@uptime_mon
 
 `Ingest::Retention#prune` gains `prune_uptime` (slice 2):
 - **Checks:** per retention group (`each_retention_cutoff`), delete `UptimeCheck`s older than `[project.retention_days, UptimeCheck::MAX_KEPT_DAYS].min` days. The query is `where(uptime_monitor_id: UptimeMonitor.where(project_id: ids).select(:id), checked_at: ...cutoff).in_batches(of: BATCH).delete_all` on `[uptime_monitor_id, checked_at]`. Raw rows are capped at 7 days: they feed only the 24h sparkline and the recent list, and the percentages and bars use rollups. A 1-minute monitor would otherwise keep 43k raw rows.
-- **Rollups:** `prune_hour_slices(UptimeHourlyCount, rollup_cutoff(UPTIME_ROLLUP_DAYS))`, where `UPTIME_ROLLUP_DAYS = Project::MAX_RETENTION_DAYS + 1`. That covers the 30-day uptime and local-day bars.
+- **Rollups:** `prune_hour_slices(UptimeHourlyCount, rollup_cutoff(UPTIME_ROLLUP_DAYS))`, where `UPTIME_ROLLUP_DAYS = UptimeReport::DAYS + 1` (31). That covers the 30-day uptime and local-day bars.
 - **Incidents:** resolved before `UptimeIncident::KEPT_FOR` (31 days) are deleted. Open incidents are kept.
 - Delivery rows for uptime alerts are pruned with `alert_deliveries` (30 days), **except** the `monitor_down` rows of incidents still open, which pick who gets the recovered email however long the outage lasts. Incident ids are never reused, so keys stay unique.
 
@@ -1814,7 +1834,7 @@ Never edit a file you don't own; report the need instead. Use your own test data
 - `db/migrate/*_create_uptime_monitors.rb` (all four uptime tables, constraints and indexes), `db/schema.rb`, `db/seeds.rb` (demo monitors on `.example` hosts with history rows written directly: no network)
 - `app/models/uptime_monitor.rb`, `uptime_monitor/checking.rb`, `uptime_monitor/broadcasting.rb` (stub → slice 3), `uptime_monitor/alerting.rb` (stub → slice 4), `uptime_check.rb`, `uptime_hourly_count.rb`, `uptime_incident.rb`, `uptime_probe.rb`, `uptime_probe/address_guard.rb`, `uptime_probe/deadline.rb`, `uptime_url.rb`, `uptime_schedule.rb`, `account/uptime_monitoring.rb`; the one-line `include` in `account.rb` and the `has_many :uptime_monitors` in `project.rb`
 - `app/jobs/schedule_uptime_checks_job.rb`, `app/jobs/uptime_check_job.rb`
-- `app/models/ingest/retention.rb` (`prune_uptime`), `lib/tasks/goodsorcery.rake` (`goodsorcery:fit_uptime_monitors`)
+- `app/models/ingest/retention.rb` (`prune_uptime`), `lib/tasks/goodsorcery.rake` (`goodsorcery:fit_uptime_monitors`, now an alias of `goodsorcery:fit_entitlements`)
 - `config/schedule.yml`, `config/sidekiq.yml`, `config/initializers/filter_parameter_logging.rb` (`:url`), `docs/DEPLOYMENT.md` (the uptime queue and scaling note)
 - `test/fixtures/{uptime_monitors,uptime_checks,uptime_hourly_counts,uptime_incidents}.yml`. Fixtures:
   - `storefront_home` (up, 10 min, URL `https://storefront.example/up?token=uptime-fixture-secret`);

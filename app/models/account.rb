@@ -4,13 +4,24 @@ class Account < ApplicationRecord
   has_many :projects, inverse_of: :account # rows cascade in the database
 
   # After has_many :projects, which its has_many :through needs.
-  include Account::UptimeMonitoring, Account::EventQuota
+  include Account::UptimeMonitoring, Account::ProjectRetention, Account::EventQuota
 
   validates :name, presence: true, length: { maximum: 80 }
   validate :entitlement_values_well_formed, if: :entitlement_values_changed?
 
+  after_update_commit :fit_to_entitlements, if: :saved_change_to_entitlement_values?
+
   def entitlements
     Entitlements.new(entitlement_values, account_id: id)
+  end
+
+  # Brings monitors and app retention within the entitlements
+  # (docs/ARCHITECTURE.md §12.3.1-12.3.2): after a commit that changes
+  # entitlement_values, and from bin/rails goodsorcery:fit_entitlements after
+  # hosted mode or config/entitlements.yml changes.
+  def fit_to_entitlements(now: Time.current)
+    fit_uptime_monitors_to_entitlements(now:)
+    fit_project_retention_to_entitlements(now:)
   end
 
   # Replaces the whole stored document; the single write path for pushed

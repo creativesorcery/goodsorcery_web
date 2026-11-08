@@ -290,13 +290,79 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
       assert_select "select[name=?] option[selected]", "project[platform]", "Ruby on Rails"
       assert_select "input[name=?][value=?]", "project[issue_prefix]", "GS"
       assert_select "input[name=?][value=?]", "project[scrub_fields]", "loyalty_number"
-      assert_select "input[name=?][value=?]", "project[retention_days]", "30"
+      assert_select "select[name=?] option[selected][value='30']", "project[retention_days]", "30 days"
     end
+  end
+
+  test "self-hosted, the retention select offers 30, 60 and 90 days with none locked" do
+    get edit_project_path(projects(:storefront))
+
+    assert_select "select#project_retention_days[aria-describedby=project_retention_days_hint]" do
+      assert_select "option", 3
+      assert_select "option[value='30']", "30 days"
+      assert_select "option[value='60']", "60 days"
+      assert_select "option[value='90']", "90 days"
+      assert_select "option[disabled]", 0
+    end
+    assert_select "#project_retention_days_locked_hint", 0
+    assert_select "form", text: /Upgrade to unlock|Coming soon/, count: 0
+  end
+
+  test "hosted with an upgrade URL, locked retention choices say Upgrade to unlock" do
+    with_hosted_mode { with_upgrade_url { get edit_project_path(projects(:storefront)) } }
+
+    assert_select "option[value='30']:not([disabled])", "30 days"
+    assert_select "option[value='60'][disabled][title='Upgrade to unlock']", "60 days · Upgrade to unlock"
+    assert_select "option[value='90'][disabled][title='Upgrade to unlock']", "90 days · Upgrade to unlock"
+    assert_select "select#project_retention_days[aria-describedby='project_retention_days_locked_hint project_retention_days_hint']"
+    assert_select "p#project_retention_days_locked_hint", /Longer retention isn't available on this account\.\s*Upgrade to unlock/
+    assert_select "p#project_retention_days_locked_hint[title]", 0
+    assert_select "p#project_retention_days_locked_hint a[href='https://billing.example/upgrade'][target=_blank]", "Upgrade to unlock"
+  end
+
+  test "hosted without an upgrade URL, locked retention choices are greyed out as coming soon" do
+    with_hosted_mode { with_upgrade_url(nil) { get edit_project_path(projects(:storefront)) } }
+
+    assert_select "option[value='60'][disabled][title='Coming soon']", "60 days · Coming soon"
+    assert_select "option[value='90'][disabled][title='Coming soon']", "90 days · Coming soon"
+    assert_select "p#project_retention_days_locked_hint[title='Coming soon']", "Longer retention is coming soon."
+    assert_select "form", text: /Upgrade/, count: 0
+  end
+
+  test "hosted, the account's stored retention_days unlocks those choices" do
+    accounts(:acme).update_entitlements!("retention_days" => [ 30, 60, 90 ])
+
+    with_hosted_mode { get edit_project_path(projects(:storefront)) }
+
+    assert_select "select#project_retention_days option[disabled]", 0
+    assert_select "#project_retention_days_locked_hint", 0
+  end
+
+  test "hosted, a crafted update to a locked retention is rejected" do
+    with_hosted_mode { patch project_path(projects(:storefront)), params: { project: { retention_days: "90" } } }
+
+    assert_response :unprocessable_entity
+    assert_select "[role=alert]", text: /Retention days isn't available on this account/
+    assert_equal 30, projects(:storefront).reload.retention_days
+  end
+
+  test "hosted, an allowed longer retention saves" do
+    accounts(:acme).update_entitlements!("retention_days" => [ 30, 90 ])
+
+    with_hosted_mode { patch project_path(projects(:storefront)), params: { project: { retention_days: "90" } } }
+
+    assert_redirected_to edit_project_path(projects(:storefront))
+    assert_equal 90, projects(:storefront).reload.retention_days
+  end
+
+  test "the new-app form has no retention field" do
+    get new_project_path
+    assert_select "[name='project[retention_days]']", 0
   end
 
   test "update saves general settings and splits scrub fields" do
     patch project_path(projects(:storefront)), params: { project: {
-      name: "Storefront Web", platform: "ruby", issue_prefix: "sf", scrub_fields: "Passport, loyalty_number, ,iban", retention_days: "14"
+      name: "Storefront Web", platform: "ruby", issue_prefix: "sf", scrub_fields: "Passport, loyalty_number, ,iban", retention_days: "60"
     } }
 
     project = projects(:storefront).reload
@@ -306,7 +372,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_predicate project, :ruby?
     assert_equal "SF", project.issue_prefix
     assert_equal %w[passport loyalty_number iban], project.scrub_fields
-    assert_equal 14, project.retention_days
+    assert_equal 60, project.retention_days
   end
 
   test "the general settings pick a default environment from the app's environments, or all" do

@@ -127,16 +127,54 @@ class ProjectTest < ActiveSupport::TestCase
     assert_equal %i[issue_prefix name platform retention_days], project.errors.attribute_names.sort
   end
 
-  test "retention defaults to 30 days and can't go above it" do
+  test "retention defaults to 30 days and is one of 30, 60 and 90" do
+    assert_equal [ 30, 60, 90 ], Project::RETENTION_CHOICES
+    assert_equal 90, Project::MAX_RETENTION_DAYS
     project = accounts(:acme).projects.new(name: "Back office")
     assert_equal 30, project.retention_days
 
-    project.retention_days = 31
-    assert_not project.valid?
-    assert_includes project.errors[:retention_days], "must be in 1..30"
+    [ 1, 14, 31, 45, 91, nil ].each do |days|
+      project.retention_days = days
+      assert_not project.valid?, days.inspect
+      assert_includes project.errors[:retention_days], "must be 30, 60 or 90 days"
+    end
 
-    project.retention_days = 30
-    assert project.valid?
+    [ 30, 60, 90 ].each do |days|
+      project.retention_days = days
+      assert project.valid?, "self-hosted allows #{days}"
+    end
+  end
+
+  test "hosted, retention must be one the account's retention_days entitlement allows" do
+    project = projects(:storefront)
+    with_hosted_mode do
+      project.retention_days = 60
+      assert_not project.valid?
+      assert_equal [ "isn't available on this account" ], project.errors[:retention_days]
+
+      accounts(:acme).update_entitlements!("retention_days" => [ 30, 60 ])
+      project.account.reload
+      assert project.valid?
+      project.retention_days = 90
+      assert_not project.valid?
+    end
+  end
+
+  test "hosted, an app left on a retention its account no longer allows still saves other changes" do
+    project = projects(:storefront)
+    project.update_column(:retention_days, 90)
+
+    with_hosted_mode { assert project.update(name: "Storefront 2") }
+  end
+
+  test "hosted, a new app takes the nearest allowed retention when 30 days isn't allowed" do
+    account = accounts(:umbrella)
+    account.update_entitlements!("retention_days" => [ 60, 90 ])
+
+    project = with_hosted_mode { account.projects.create!(name: "Umbrella API") }
+    assert_equal 60, project.retention_days
+
+    with_hosted_mode(false) { assert_equal 30, account.projects.create!(name: "Umbrella Web").retention_days }
   end
 
   test "an account has at most MAX_PER_ACCOUNT projects" do

@@ -2,9 +2,10 @@ require "test_helper"
 
 class EntitlementsTest < ActiveSupport::TestCase
   HOSTED_DEFAULTS = { uptime_intervals: [ 10, 60 ], max_monitors: 1, apm_retention_days: 1, max_projects: 2,
-                      monthly_event_quota: 3_000 }.freeze
+                      monthly_event_quota: 3_000, retention_days: [ 30 ] }.freeze
 
-  test "the configured hosted defaults: 10 and 60 minute intervals, one monitor per app, a day of performance data, two apps, 3,000 events a month" do
+  test "the configured hosted defaults: 10 and 60 minute intervals, one monitor per app, a day of performance data, two apps, " \
+       "3,000 events a month and 30 days of error retention" do
     defaults = Rails.configuration.x.entitlements.hosted_defaults
 
     assert_equal HOSTED_DEFAULTS, defaults.to_h.symbolize_keys
@@ -186,6 +187,60 @@ class EntitlementsTest < ActiveSupport::TestCase
       assert_equal [ Entitlements::PROBLEMS["monthly_event_quota"] ], Entitlements.problems("monthly_event_quota" => value), value.inspect
     end
     assert_match(/\A[A-Z].*\.\z/, Entitlements::PROBLEMS["monthly_event_quota"])
+  end
+
+  test "retention_days: hosted default [30], a stored list wins, sorted" do
+    entitlements = hosted({})
+    assert_equal [ 30 ], entitlements.retention_days
+    assert_equal [ 60, 90 ], entitlements.locked_retention_days
+    assert entitlements.allows_retention_days?(30)
+    assert_not entitlements.allows_retention_days?(90)
+    assert_equal 30, entitlements.default_retention_days
+
+    stored = hosted("retention_days" => [ 90, 60 ])
+    assert_equal [ 60, 90 ], stored.retention_days
+    assert_equal [ 30 ], stored.locked_retention_days
+    assert_equal 60, stored.default_retention_days, "the nearest allowed to 30"
+    assert_raises(FrozenError) { stored.retention_days << 30 }
+    with_hosted_mode { assert_equal [ 30 ], Entitlements.new({}).retention_days }
+  end
+
+  test "retention_days self-hosted is every choice, whatever is stored" do
+    entitlements = self_hosted("retention_days" => [ 30 ])
+
+    assert_equal [ 30, 60, 90 ], entitlements.retention_days
+    assert_empty entitlements.locked_retention_days
+    assert_equal 30, entitlements.default_retention_days
+    assert_equal [ 30, 60, 90 ], Entitlements.new({}).retention_days
+  end
+
+  test "nearest_retention_days takes the closest allowed, a tie going to the longer one" do
+    every = self_hosted({})
+    assert_equal({ 1 => 30, 30 => 30, 44 => 30, 45 => 60, 74 => 60, 75 => 90, 400 => 90 },
+                 [ 1, 30, 44, 45, 74, 75, 400 ].index_with { every.nearest_retention_days(it) })
+
+    ends = hosted("retention_days" => [ 30, 90 ])
+    assert_equal 90, ends.nearest_retention_days(60)
+    assert_equal 30, ends.nearest_retention_days(59)
+    assert_equal 60, hosted("retention_days" => [ 60, 90 ]).nearest_retention_days(30)
+    assert_equal 30, hosted({}).nearest_retention_days(90)
+  end
+
+  test "retention_days: invalid stored values fall back to the default and are logged by key name only" do
+    [ [], [ 30, 30 ], [ 45 ], [ "30" ], [ 30.0 ], 30, "30", nil, { "30" => true } ].each do |value|
+      log = capture_log { assert_equal [ 30 ], hosted("retention_days" => value).retention_days, value.inspect }
+      assert_includes log, "Ignoring invalid entitlement retention_days"
+    end
+  end
+
+  test "problems describes an invalid retention_days" do
+    assert_includes Entitlements::KEYS, "retention_days"
+    assert_empty Entitlements.problems("retention_days" => [ 30 ])
+    assert_empty Entitlements.problems(retention_days: [ 90, 30, 60 ])
+    [ [], [ 30, 30 ], [ 14 ], [ "60" ], [ 60.0 ], 30, nil ].each do |value|
+      assert_equal [ Entitlements::PROBLEMS["retention_days"] ], Entitlements.problems("retention_days" => value), value.inspect
+    end
+    assert_equal "Retention days must be a non-empty list of distinct values from 30, 60, and 90.", Entitlements::PROBLEMS["retention_days"]
   end
 
   test "the arguments default to the application configuration" do

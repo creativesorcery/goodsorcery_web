@@ -23,17 +23,34 @@ class Ingest::RetentionTest < ActiveSupport::TestCase
   end
 
   test "a retention stored above the cap is pruned at the cap" do
-    projects(:storefront).update_column(:retention_days, 90)
+    projects(:storefront).update_column(:retention_days, 400)
     old = add_occurrence(issues(:card_error), (Project::MAX_RETENTION_DAYS + 1).days.ago)
     issue = issues(:card_error)
     issue.update_columns(last_seen_at: (Project::MAX_RETENTION_DAYS + 1).days.ago)
     IssueUser.create!(issue:, project: issue.project, user_digest: "a" * 64, events_count: 1,
-                      first_seen_at: 40.days.ago, last_seen_at: 40.days.ago)
+                      first_seen_at: 100.days.ago, last_seen_at: 100.days.ago)
 
     Ingest::Retention.new.tap(&:prune_occurrences).prune_issue_data
 
     assert_not Occurrence.exists?(old)
     assert_not IssueUser.exists?(issue_id: issue.id, user_digest: "a" * 64)
+  end
+
+  test "a 90-day retention keeps occurrences for 90 days" do
+    projects(:storefront).update_column(:retention_days, 90)
+    kept = add_occurrence(issues(:card_error), 89.days.ago)
+    pruned = add_occurrence(issues(:card_error), 91.days.ago)
+
+    Ingest::Retention.new.prune_occurrences
+
+    assert Occurrence.exists?(kept)
+    assert_not Occurrence.exists?(pruned)
+  end
+
+  test "rollup windows follow the 30-day chart and uptime views, not the longest retention" do
+    assert_equal 90, Project::MAX_RETENTION_DAYS
+    assert_equal 31, Ingest::Retention::ISSUE_ROLLUP_DAYS
+    assert_equal 31, Ingest::Retention::UPTIME_ROLLUP_DAYS
   end
 
   test "prunes issue counts after 31 days and project counts after 90" do

@@ -136,7 +136,7 @@ only `main`. Then add:
 | variable | `GOODSORCERY_MAIL_FROM` | optional: the sender, e.g. `Good Sorcery <no-reply@example.com>`; defaults to `no-reply@GOODSORCERY_HOST` |
 | variable | `GOODSORCERY_ENABLE_SIGNUPS` | optional: `1` keeps public sign-up open after the first account; unset or anything else closes it |
 | variable | `KAMAL_SSH_USER` | optional: the server user Kamal logs in as, if not `deploy` |
-| variable | `GOODSORCERY_HOSTED` | optional: `1` turns on hosted mode (entitlements and "Upgrade to unlock"); unset is self-hosted. After switching, run `goodsorcery:fit_uptime_monitors` (see below) |
+| variable | `GOODSORCERY_HOSTED` | optional: `1` turns on hosted mode (entitlements and "Upgrade to unlock"); unset is self-hosted. After switching, run `goodsorcery:fit_entitlements` (see below) |
 | variable | `GOODSORCERY_APM_RETENTION_DAYS` | optional, self-hosted only: days of performance data to keep, 1–30 (default 30) |
 | variable | `GOODSORCERY_UPGRADE_URL` | optional, hosted only: where "Upgrade to unlock" links to. Unset, locked options say "Coming soon" and no upgrade text shows |
 | variable | `GOODSORCERY_ENDPOINT` | optional: where this instance's gem reports its own errors and performance data; defaults to `https://app.goodsorcery.com` |
@@ -194,8 +194,10 @@ and sign up; sign-up closes after the first account.
   Each due monitor is claimed once, so several processes can share the queue.
   After switching `GOODSORCERY_HOSTED` on or off, or editing
   `config/entitlements.yml`, run
-  `bin/kamal app exec "bin/rails goodsorcery:fit_uptime_monitors"`. Switching it
-  off without the task leaves monitors paused under hosted limits unchecked.
+  `bin/kamal app exec "bin/rails goodsorcery:fit_entitlements"` (formerly
+  `goodsorcery:fit_uptime_monitors`, still an alias). It fits uptime monitors
+  and each app's error retention. Switching it off without the task leaves
+  monitors paused under hosted limits unchecked.
 - **Accessories:** `bin/kamal accessory logs tunnel`. Upgrading Postgres to a
   new major version needs a dump and restore.
 

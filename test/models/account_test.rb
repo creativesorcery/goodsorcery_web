@@ -94,6 +94,28 @@ class AccountTest < ActiveSupport::TestCase
     end
   end
 
+  test "update_entitlements! stores retention_days and rejects invalid lists" do
+    account = accounts(:acme)
+    account.update_entitlements!("retention_days" => [ 30, 90 ])
+    assert_equal({ "retention_days" => [ 30, 90 ] }, account.reload.entitlement_values)
+    with_hosted_mode { assert_equal [ 30, 90 ], account.entitlements.retention_days }
+
+    [ [], [ 45 ], [ 30, 30 ], "30", nil ].each do |value|
+      error = assert_raises(ActiveRecord::RecordInvalid, value.inspect) { account.update_entitlements!("retention_days" => value) }
+      assert_equal [ Entitlements::PROBLEMS["retention_days"] ], error.record.errors[:base]
+    end
+  end
+
+  test "update_entitlements! drops unknown keys and reports every invalid one" do
+    account = accounts(:acme)
+    account.update_entitlements!("retention_days" => [ 30 ], "monthly_event_quota" => 9_000, "seats" => 4, "plan" => "x")
+    assert_equal({ "retention_days" => [ 30 ], "monthly_event_quota" => 9_000 }, account.reload.entitlement_values)
+
+    error = assert_raises(ActiveRecord::RecordInvalid) { account.update_entitlements!("retention_days" => [ 7 ], "monthly_event_quota" => 0) }
+    assert_equal [ Entitlements::PROBLEMS["monthly_event_quota"], Entitlements::PROBLEMS["retention_days"] ].sort, error.record.errors[:base].sort
+    assert_equal({ "retention_days" => [ 30 ], "monthly_event_quota" => 9_000 }, account.reload.entitlement_values, "nothing stored")
+  end
+
   test "update_entitlements! stores monthly_event_quota and rejects invalid values" do
     account = accounts(:acme)
     account.update_entitlements!("monthly_event_quota" => 50_000)

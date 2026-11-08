@@ -145,7 +145,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
 
     get project_uptime_monitor_path(@project, @monitor)
 
-    assert_select "p", /Paused while this instance was hosted\. Run\s+bin\/rails goodsorcery:fit_uptime_monitors\s+to resume it\./
+    assert_select "p", /Paused while this instance was hosted\. Run\s+bin\/rails goodsorcery:fit_entitlements\s+to resume it\./
     assert_select "dt", "Paused since"
   end
 

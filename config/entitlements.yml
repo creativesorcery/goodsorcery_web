@@ -2,7 +2,7 @@
 # (accounts.entitlement_values) win; these fill in any key it lacks.
 # Self-hosted instances ignore this file: every entitlement is unlimited, and
 # performance data is kept GOODSORCERY_APM_RETENTION_DAYS (default 30).
-# After changing these, run `bin/rails goodsorcery:fit_uptime_monitors`.
+# After changing these, run `bin/rails goodsorcery:fit_entitlements`.
 shared:
   hosted_defaults:
     uptime_intervals: [10, 60]
@@ -10,3 +10,4 @@ shared:
     apm_retention_days: 1
     max_projects: 2 # apps per account; accounts already over it keep their apps
     monthly_event_quota: 3000 # error events per UTC month; performance data doesn't count
+    retention_days: [30] # error retentions an app may choose, from 30, 60 and 90 days

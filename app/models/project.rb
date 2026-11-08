@@ -5,8 +5,11 @@ class Project < ApplicationRecord
   DEFAULT_ENVIRONMENTS = %w[production staging].freeze
   PRODUCTION = "production".freeze
   MAX_PER_ACCOUNT = 100
-  # Occurrences are deleted after retention_days; no app keeps them longer.
-  MAX_RETENTION_DAYS = 30
+  # Occurrences are deleted after retention_days, one of RETENTION_CHOICES
+  # that the account's retention_days entitlement allows (docs/ARCHITECTURE.md
+  # §12.2.3). No app keeps them longer than MAX_RETENTION_DAYS.
+  RETENTION_CHOICES = Entitlements::RETENTION_CHOICES
+  MAX_RETENTION_DAYS = RETENTION_CHOICES.max
   UNRESOLVED_COUNT_TTL = 10.seconds
   LIMIT_COMING_SOON = "Cannot add more apps yet, but it's coming soon".freeze
   LIMIT_REACHED = "App limit reached.".freeze
@@ -39,7 +42,8 @@ class Project < ApplicationRecord
   validates :name, presence: true, length: { maximum: 60 }
   validates :slug, presence: true, uniqueness: { scope: :account_id }
   validates :issue_prefix, format: { with: /\A[A-Z]{1,6}\z/ }, uniqueness: { scope: :account_id }
-  validates :retention_days, numericality: { only_integer: true, in: 1..MAX_RETENTION_DAYS }
+  validates :retention_days, inclusion: { in: RETENTION_CHOICES, message: "must be #{RETENTION_CHOICES.to_sentence(last_word_connector: ' or ')} days" }
+  validate :retention_entitled, if: -> { new_record? || retention_days_changed? }
   validates :default_environment, inclusion: { in: :environments, message: "must be one of this app's environments" }, allow_nil: true
   validate :account_has_room, on: :create
 
@@ -127,10 +131,27 @@ class Project < ApplicationRecord
       errors.add(:base, self.class.limit_message(allowed.max_projects)) if allowed.project_limit_reached?(count)
     end
 
+    # Like uptime intervals: checked when set, so an app left on a retention
+    # its account no longer allows (until fitting moves it) can still save.
+    def retention_entitled
+      return if account.nil? || !RETENTION_CHOICES.include?(retention_days)
+      return if account.entitlements.allows_retention_days?(retention_days)
+
+      errors.add(:retention_days, "isn't available on this account")
+    end
+
     def assign_defaults
       self.slug ||= Project::Slug.new(account, name).unique if account && name.present?
       self.issue_prefix ||= account ? Project::Slug.unique_prefix_for(account, slug) : Project::Slug.prefix_for(slug)
       self.color = COLORS[account.projects.count % COLORS.size] if account && !color_changed?
+      assign_default_retention if account && !retention_days_changed?
+    end
+
+    # The column default (30 days) when the account allows it, else the
+    # nearest retention it does.
+    def assign_default_retention
+      allowed = account.entitlements
+      self.retention_days = allowed.default_retention_days unless allowed.allows_retention_days?(retention_days)
     end
 
     def create_default_api_keys

@@ -20,10 +20,14 @@
 </div>
 
 <div>
+  <% retention_locked = entitlements.locked_retention_days.any? %>
   <%= form.label :retention_days, "Retention", class: "label" %>
-  <div class="flex items-center gap-2">
-    <%= form.number_field :retention_days, class: "field max-w-[8rem]", required: true, min: 1, max: Project::MAX_RETENTION_DAYS, step: 1 %>
-    <span class="text-[13px] text-ink-400">days</span>
-  </div>
-  <p class="hint">Occurrences older than this are deleted. Up to <%= Project::MAX_RETENTION_DAYS %> days. Each app also keeps at most <%= number_with_delimiter(Occurrence::RETAINED_PER_PROJECT) %> occurrences, dropping the oldest copies of its most repeated issues first. Events are still counted.</p>
+  <%= form.select :retention_days, project_retention_options, { disabled: entitlements.locked_retention_days },
+        class: "field max-w-[22rem]",
+        aria: { invalid: (project.errors[:retention_days].any? ? "true" : nil),
+                describedby: [ ("project_retention_days_locked_hint" if retention_locked), "project_retention_days_hint" ].compact.join(" ") } %>
+  <% if retention_locked %>
+    <%= project_locked_retention_hint_tag %>
+  <% end %>
+  <p id="project_retention_days_hint" class="hint">Occurrences older than this are deleted. Each app also keeps at most <%= number_with_delimiter(Occurrence::RETAINED_PER_PROJECT) %> occurrences, dropping the oldest copies of its most repeated issues first. Events are still counted.</p>
 </div>

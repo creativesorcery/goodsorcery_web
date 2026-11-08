@@ -56,7 +56,7 @@ module UptimeHelper
   def uptime_paused_note
     return safe_join([ "Over this app's monitor limit.", upgrade_to_unlock ].compact, " ") unless entitlements.unlimited?
 
-    safe_join([ "Paused while this instance was hosted. Run", tag.code("bin/rails goodsorcery:fit_uptime_monitors", class: "font-mono"),
+    safe_join([ "Paused while this instance was hosted. Run", tag.code("bin/rails goodsorcery:fit_entitlements", class: "font-mono"),
                 "to resume it." ], " ")
   end
 

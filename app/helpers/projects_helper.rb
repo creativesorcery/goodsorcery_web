@@ -17,6 +17,34 @@ module ProjectsHelper
     resolved: "w-[7px] h-[7px] shrink-0 rounded-full bg-mint-400"
   }.freeze
 
+  # [[label, days], ...] for Settings › General's retention select. Locked
+  # choices (hosted only) read "90 days · Upgrade to unlock", or "90 days ·
+  # Coming soon" without an upgrade URL, titled the same; the form disables
+  # them. As with uptime intervals, native select popups don't show option
+  # titles, so the label carries the note and the hint below the select
+  # carries the hover title (#project_locked_retention_hint_tag).
+  def project_retention_options
+    locked = entitlements.locked_retention_days
+    Project::RETENTION_CHOICES.map do |days|
+      label = "#{days} days"
+      locked.include?(days) ? [ "#{label} · #{locked_note}", days, { title: locked_note } ] : [ label, days ]
+    end
+  end
+
+  # The hint below the retention select when some choices are locked
+  # (hosted only), the select's aria-describedby. Titled "Coming soon"
+  # without an upgrade URL.
+  def project_locked_retention_hint_tag
+    tag.p project_locked_retention_hint, id: "project_retention_days_locked_hint", class: "hint",
+      title: (UpgradeOffer::COMING_SOON unless upgrade_offered?)
+  end
+
+  def project_locked_retention_hint
+    return "Longer retention is coming soon." unless upgrade_offered?
+
+    safe_join([ "Longer retention isn't available on this account.", upgrade_to_unlock ], " ")
+  end
+
   def project_health_chip(health)
     label, tone = HEALTH_CHIPS.fetch(health.status)
     chip label, tone:, dot: health.spiking?

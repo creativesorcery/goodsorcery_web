@@ -14,13 +14,18 @@ namespace :goodsorcery do
     puts "Deleted #{Ingest::OccurrenceCap.enforce_all} occurrence(s) over the per-app cap."
   end
 
-  desc "Pause, resume and re-interval uptime monitors to fit each account's entitlements (run after switching GOODSORCERY_HOSTED on or off, or editing config/entitlements.yml)"
-  task fit_uptime_monitors: :environment do
+  desc "Fit uptime monitors (pause, resume, re-interval) and each app's error retention to each account's entitlements (run after switching GOODSORCERY_HOSTED on or off, or editing config/entitlements.yml)"
+  task fit_entitlements: :environment do
     count = 0
     Account.find_each do |account|
-      account.fit_uptime_monitors_to_entitlements
+      account.fit_to_entitlements
       count += 1
     end
-    puts "Fitted the uptime monitors of #{count} account(s) to their entitlements."
+    puts "Fitted the uptime monitors and app retention of #{count} account(s) to their entitlements."
+  end
+
+  desc "Alias of goodsorcery:fit_entitlements, which also fits each app's error retention"
+  task fit_uptime_monitors: :environment do
+    Rake::Task["goodsorcery:fit_entitlements"].execute
   end
 end
