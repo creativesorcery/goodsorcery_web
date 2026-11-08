@@ -52,5 +52,7 @@
       </div>
       <%= render "projects/alerts/scope_form", project: @project %>
     </section>
+
+    <%= render "projects/alerts/slack", project: @project, connection: @slack_connection || @project.slack_connection %>
   </div>
 </div>

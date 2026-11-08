@@ -58,8 +58,9 @@ class SlackConnection < ApplicationRecord
   def rejection_label = REASON_LABELS.fetch(disabled_reason.to_s, "Slack refused it")
 
   # "https://hooks.slack.com/services/T0A1…/B0B2…/••••••••": enough to recognise it, never the secret.
+  # From the saved URL, so a rejected replacement never shows.
   def masked_webhook_url
-    team, bot = webhook_url.to_s.split("/").values_at(4, 5)
+    team, bot = attribute_in_database(:webhook_url).to_s.split("/").values_at(4, 5)
     "https://hooks.slack.com/services/#{team.to_s.first(4)}…/#{bot.to_s.first(4)}…/••••••••"
   end
 

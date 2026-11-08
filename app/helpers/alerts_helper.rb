@@ -41,6 +41,14 @@ module AlertsHelper
     safe_join [ "Follow the default environment", " (", default ? environment_text(default) : "all environments", ")" ]
   end
 
+  SLACK_STATUS_CHIPS = { "connected" => [ "Connected", :mint ], "off" => [ "Off", :muted ], "rejected" => [ "Turned off by Slack", :coral ] }.freeze
+
+  # The Slack section's status: connected, off, or turned off because Slack rejected the webhook.
+  def slack_status_chip(connection)
+    label, tone = SLACK_STATUS_CHIPS.fetch(connection.status)
+    chip label, tone:, small: true
+  end
+
   def alert_mute_subject(alert_mute)
     MUTE_SUBJECTS.fetch(alert_mute.stream)
   end
