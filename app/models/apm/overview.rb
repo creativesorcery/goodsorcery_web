@@ -107,7 +107,7 @@ class Apm::Overview
     # kinds, so the key leaves out the tab.
     def computed_figures = stats.by_transaction(transactions.map(&:id)).transform_values { Apm::Figures.from(it).to_a }
 
-    def cache_key = [ "apm_overview", project.id, environment, *range.cache_key ]
+    def cache_key = [ "apm_overview", Apm::Figures.members.size, project.id, environment, *range.cache_key ]
 
     def figures_for(transaction) = (transaction && figures[transaction.id]) || Apm::Figures.empty
 

@@ -7,7 +7,7 @@ module PerformanceHelper
   SPAN_TYPES = { "sql" => "SQL", "http" => "HTTP", "view" => "View", "enqueue" => "Job" }.freeze
   RANGE_SHORT = { "15m" => "15m", "1h" => "1h", "1d" => "24h", "7d" => "7d", "30d" => "30d" }.freeze
   SORT_LABELS = { "time" => "Time consumed", "p95" => "Slowest p95", "rate" => "Most requests", "failed" => "Most failed" }.freeze
-  TABLE_GRID = "grid grid-cols-[minmax(280px,1fr)_76px_76px_76px_76px_64px_150px_120px] items-center gap-4".freeze
+  TABLE_GRID = "grid grid-cols-[minmax(280px,1fr)_76px_76px_76px_76px_76px_64px_150px_120px] items-center gap-4".freeze
   TRACE_GRID = "grid grid-cols-[130px_84px_84px_64px_128px_minmax(0,1fr)_64px] items-center gap-4".freeze
   TIMELINE_GRID = "grid grid-cols-[minmax(0,380px)_minmax(0,1fr)_72px] items-center gap-4".freeze
 

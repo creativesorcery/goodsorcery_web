@@ -49,11 +49,11 @@ class Projects::Performance::OverviewsControllerTest < ActionDispatch::Integrati
     assert_select "span", "−24h"
   end
 
-  test "the web table keeps p50, p95 and p99 and sorts by time consumed with Slower and N+1 chips" do
+  test "the web table shows p75, p90, p95 and p99 and sorts by time consumed with Slower and N+1 chips" do
     get project_performance_path(@project)
 
     headers = css_select("section[aria-label=Endpoints] .uppercase > span").map { it.text.strip }
-    assert_equal [ "Endpoint", "Req/min", "p50", "p95", "p99", "Failed", "Time share", "p95 · 24h" ], headers
+    assert_equal [ "Endpoint", "Req/min", "p75", "p90", "p95", "p99", "Failed", "Time share", "p95 · 24h" ], headers
     names = css_select("section[aria-label=Endpoints] a.font-mono").map(&:text)
     assert_equal [ "CheckoutsController#create", "ProductsController#show" ], names
     checkout = transaction_row("CheckoutsController#create")
@@ -176,7 +176,7 @@ class Projects::Performance::OverviewsControllerTest < ActionDispatch::Integrati
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
     get project_performance_path(@project)
 
-    key = [ "apm_overview", @project.id, "production", *Apm::Range.pick("1d", entitlements: accounts(:acme).entitlements).cache_key ]
+    key = [ "apm_overview", Apm::Figures.members.size, @project.id, "production", *Apm::Range.pick("1d", entitlements: accounts(:acme).entitlements).cache_key ]
     cached = Rails.cache.read(key)
     assert_kind_of Hash, cached
     assert_includes cached.keys, apm_transactions(:checkout_create).id

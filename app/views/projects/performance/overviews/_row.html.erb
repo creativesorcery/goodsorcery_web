@@ -13,7 +13,8 @@
     <% end %>
   </div>
   <span class="text-right font-mono text-[13px] text-ink-50"><%= apm_rate(row.rate) %></span>
-  <span class="text-right font-mono text-[13px] text-ink-100"><%= apm_duration(figures.p50) %></span>
+  <span class="text-right font-mono text-[13px] text-ink-100"><%= apm_duration(figures.p75) %></span>
+  <span class="text-right font-mono text-[13px] text-ink-100"><%= apm_duration(figures.p90) %></span>
   <span class="text-right font-mono text-[13px] <%= row.slower? ? "text-coral-300 font-semibold" : "text-ink-50" %>"><%= apm_duration(figures.p95) %></span>
   <span class="text-right font-mono text-[13px] text-ink-100"><%= apm_duration(figures.p99) %></span>
   <span class="text-right font-mono text-[13px] text-ink-100"><%= apm_percent(figures.failed_rate) %></span>
