@@ -82,6 +82,15 @@ class Ingest::Retention
     open_down_keys = UptimeIncident.open.select(Arel.sql("'monitor_down:' || id"))
     AlertDelivery.where(created_at: ...(@now - AlertDelivery::KEPT_FOR)).where.not(dedupe_key: open_down_keys)
       .in_batches(of: BATCH).delete_all
+    prune_slack_deliveries
+  end
+
+  # Slack posts keep the same 30 days, and the down post of an open incident
+  # stays for its recovered post.
+  def prune_slack_deliveries
+    SlackDelivery.where(created_at: ...(@now - AlertDelivery::KEPT_FOR))
+      .where("uptime_incident_id IS NULL OR uptime_incident_id NOT IN (?)", UptimeIncident.open.select(:id))
+      .in_batches(of: BATCH).delete_all
   end
 
   # Raw checks feed only the 24h response series and the recent list; the

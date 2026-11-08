@@ -64,6 +64,18 @@ class AlertsMailer < ApplicationMailer
     mail_in_zone "Recovered: #{@monitor.name} in #{@project.name} after #{view_context.uptime_duration(incident.duration)}"
   end
 
+  # To each owner, once, when Slack rejects the app's webhook and its Slack
+  # alerts are turned off (SlackConnection#turn_off_after_rejection). Never
+  # names the webhook URL. Sent only while the connection is still off for
+  # that reason and the recipient is still a verified owner.
+  def slack_disabled(user, project)
+    @user, @project, @connection = user, project, project.slack_connection
+    return unless @connection&.rejected? && user.email_verified? && membership_for(project)&.owner?
+
+    @alerts_url = project_alerts_url(project)
+    mail_in_zone "Slack alerts for #{project.name} were turned off because Slack rejected the webhook"
+  end
+
   private
     def assign_uptime(user, incident)
       @user, @incident, @monitor = user, incident, incident.uptime_monitor

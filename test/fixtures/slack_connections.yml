@@ -1,0 +1,19 @@
+# Webhook URLs are encrypted (encrypt_fixtures). storefront's carries the
+# secret SlackFixtureSecret so tests can check it never leaks into job
+# arguments, logs, pages other than Settings › Alerts, emails or messages.
+# billing's was turned off after Slack rejected it.
+storefront:
+  project: storefront
+  webhook_url: https://hooks.slack.com/services/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6789
+  enabled: true
+  created_at: <%= 5.days.ago.to_fs(:db) %>
+  updated_at: <%= 5.days.ago.to_fs(:db) %>
+
+billing:
+  project: billing
+  webhook_url: https://hooks.slack.com/services/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3456
+  enabled: false
+  disabled_at: <%= 2.days.ago.to_fs(:db) %>
+  disabled_reason: channel_not_found
+  created_at: <%= 9.days.ago.to_fs(:db) %>
+  updated_at: <%= 2.days.ago.to_fs(:db) %>

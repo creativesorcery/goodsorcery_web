@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_07_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_08_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -336,6 +336,38 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000002) do
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
+  create_table "slack_connections", force: :cascade do |t|
+    t.bigint "project_id", null: false
+    t.text "webhook_url", null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "disabled_at"
+    t.string "disabled_reason"
+    t.datetime "test_sent_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["project_id"], name: "index_slack_connections_on_project_id", unique: true
+  end
+
+  create_table "slack_deliveries", force: :cascade do |t|
+    t.bigint "project_id", null: false
+    t.bigint "issue_id"
+    t.bigint "uptime_incident_id"
+    t.string "kind", null: false
+    t.string "dedupe_key", null: false
+    t.string "status", default: "sent", null: false
+    t.jsonb "summary_counts"
+    t.datetime "posted_at"
+    t.datetime "summarized_at"
+    t.datetime "created_at", null: false
+    t.index ["created_at"], name: "index_slack_deliveries_on_created_at"
+    t.index ["issue_id", "kind", "created_at"], name: "index_slack_deliveries_on_issue_id_and_kind_and_created_at"
+    t.index ["project_id", "created_at"], name: "index_slack_deliveries_awaiting_summary", where: "(((status)::text = 'folded'::text) AND (summarized_at IS NULL))"
+    t.index ["project_id", "dedupe_key"], name: "index_slack_deliveries_on_project_id_and_dedupe_key", unique: true
+    t.index ["project_id", "status", "created_at"], name: "index_slack_deliveries_on_project_id_and_status_and_created_at"
+    t.index ["uptime_incident_id"], name: "index_slack_deliveries_on_uptime_incident_id"
+    t.check_constraint "status::text = ANY (ARRAY['sent'::character varying, 'folded'::character varying]::text[])", name: "slack_deliveries_status_check"
+  end
+
   create_table "uptime_checks", force: :cascade do |t|
     t.bigint "uptime_monitor_id", null: false
     t.datetime "checked_at", null: false
@@ -432,6 +464,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_000002) do
   add_foreign_key "projects", "accounts", on_delete: :cascade
   add_foreign_key "sessions", "accounts", on_delete: :cascade
   add_foreign_key "sessions", "users", on_delete: :cascade
+  add_foreign_key "slack_connections", "projects", on_delete: :cascade
+  add_foreign_key "slack_deliveries", "issues", on_delete: :cascade
+  add_foreign_key "slack_deliveries", "projects", on_delete: :cascade
+  add_foreign_key "slack_deliveries", "uptime_incidents", on_delete: :cascade
   add_foreign_key "uptime_checks", "uptime_monitors", on_delete: :cascade
   add_foreign_key "uptime_hourly_counts", "uptime_monitors", on_delete: :cascade
   add_foreign_key "uptime_incidents", "uptime_monitors", on_delete: :cascade

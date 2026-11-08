@@ -6,7 +6,11 @@
 #
 # An app with nobody to mail (every member muted it, or no verified address)
 # records no delivery, so the 6-hour throttle never starts: such apps are
-# skipped here instead of getting a no-op job every sweep.
+# skipped here instead of getting a no-op job every sweep. Slack is the
+# other channel (§11.5): an issue is due while either channel is, that is,
+# not emailed in 6 hours with someone to mail, or not posted in 6 hours with
+# the app's Slack connection on. A Slack post records its own SlackDelivery,
+# so its throttle starts even when nobody gets the email.
 #
 #   StillHappeningCheck.new.alert_hot_issues   # => the issues enqueued
 class StillHappeningCheck
@@ -34,16 +38,22 @@ class StillHappeningCheck
   end
 
   private
+    # An issue both emailed and posted to Slack within the window is done;
+    # one still due on either channel gets a job (IssueAlertJob does both).
     def alertable_issues
       hot = hot_issue_ids
-      ids = hot - recently_alerted(hot)
+      emailed, posted = recently_alerted(hot), recently_posted(hot)
+      ids = hot - (emailed & posted)
       return [] if ids.empty?
 
-      Issue.includes(:project).where(id: ids).select { |issue| alertable?(issue) }
+      Issue.includes(project: :slack_connection).where(id: ids).select { |issue| alertable?(issue, emailed, posted) }
     end
 
-    def alertable?(issue)
-      issue.project.alerts_cover?(issue.environments) && recipients?(issue.project)
+    def alertable?(issue, emailed, posted)
+      project = issue.project
+      return false unless project.alerts_cover?(issue.environments)
+
+      (emailed.exclude?(issue.id) && recipients?(project)) || (posted.exclude?(issue.id) && project.slack_alerts_enabled?)
     end
 
     # One EXISTS per app per sweep.
@@ -56,5 +66,11 @@ class StillHappeningCheck
       return [] if ids.empty?
 
       AlertDelivery.still_happening.where(issue_id: ids).since(@now - AlertDelivery::STILL_HAPPENING_WINDOW).distinct.pluck(:issue_id)
+    end
+
+    def recently_posted(ids)
+      return [] if ids.empty?
+
+      SlackDelivery.still_happening.where(issue_id: ids).since(@now - AlertDelivery::STILL_HAPPENING_WINDOW).distinct.pluck(:issue_id)
     end
 end

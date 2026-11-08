@@ -53,6 +53,7 @@ class StillHappeningCheckTest < ActiveSupport::TestCase
   end
 
   test "skips issues alerted in the last 6 hours, then alerts again" do
+    slack_connections(:storefront).update!(enabled: false)
     seen(@issue, current: 80)
     AlertDelivery.record(user: users(:jo), project: @project, issue: @issue, kind: :still_happening,
                          dedupe_key: AlertDelivery.issue_key(:still_happening, @issue))
@@ -72,6 +73,7 @@ class StillHappeningCheckTest < ActiveSupport::TestCase
   end
 
   test "skips apps with nobody to mail, so muted apps don't get a job every sweep" do
+    slack_connections(:storefront).update!(enabled: false)
     seen(@issue, current: 80)
     memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
     memberships(:jo_acme).update_notification_preference(@project, alerts_muted: true)
@@ -91,6 +93,37 @@ class StillHappeningCheckTest < ActiveSupport::TestCase
 
     perform_enqueued_jobs(only: IssueAlertJob) { StillHappeningCheck.new.alert_hot_issues }
     assert_equal 2, AlertDelivery.where(issue: @issue, kind: "still_happening").count
+  end
+
+  test "an app with Slack on but nobody to mail still gets a job, until the Slack post starts the throttle" do
+    seen(@issue, current: 80)
+    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+    memberships(:jo_acme).update_notification_preference(@project, alerts_muted: true)
+
+    assert_enqueued_jobs(1, only: IssueAlertJob) { StillHappeningCheck.new.alert_hot_issues }
+
+    SlackDelivery.record(project: @project, kind: :still_happening, issue: @issue)
+    assert_no_enqueued_jobs(only: IssueAlertJob) { assert_empty StillHappeningCheck.new.alert_hot_issues }
+  end
+
+  test "an issue emailed in the window but not yet posted to Slack gets a job for the Slack post" do
+    seen(@issue, current: 80)
+    AlertDelivery.record(user: users(:jo), project: @project, issue: @issue, kind: :still_happening,
+                         dedupe_key: AlertDelivery.issue_key(:still_happening, @issue))
+
+    assert_enqueued_jobs(1, only: IssueAlertJob) { StillHappeningCheck.new.alert_hot_issues }
+
+    SlackDelivery.record(project: @project, kind: :still_happening, issue: @issue)
+    assert_no_enqueued_jobs(only: IssueAlertJob) { StillHappeningCheck.new.alert_hot_issues }
+  end
+
+  test "end to end with Slack: one post per window however many sweeps" do
+    seen(@issue, current: 80)
+
+    3.times { perform_enqueued_jobs(only: IssueAlertJob) { StillHappeningCheck.new.alert_hot_issues } }
+
+    assert_equal 1, SlackDelivery.where(issue: @issue, kind: "still_happening").count
+    assert_enqueued_jobs 1, only: SlackPostJob
   end
 
   private

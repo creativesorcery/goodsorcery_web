@@ -11,6 +11,8 @@ class EncryptionTest < ActiveSupport::TestCase
     assert_ciphertext IssueActivity, issue_activities(:note).id, :body, "CartTotal"
     assert_ciphertext UptimeMonitor, uptime_monitors(:storefront_home).id, :url, "uptime-fixture-secret"
     assert_ciphertext UptimeMonitor, uptime_monitors(:storefront_home).id, :url, "storefront.example"
+    assert_ciphertext SlackConnection, slack_connections(:storefront).id, :webhook_url, "SlackFixtureSecret"
+    assert_ciphertext SlackConnection, slack_connections(:storefront).id, :webhook_url, "hooks.slack.com"
     assert_ciphertext ApmTrace, apm_traces(:checkout_slow).id, :payload, "apm-fixture-secret"
     assert_ciphertext ApmTrace, apm_traces(:checkout_slow).id, :payload, "api.taxjar.com"
     assert_ciphertext ApmInboundBatch, apm_inbound_batches(:storefront_pending_metrics).id, :body, "CheckoutsController"

@@ -42,6 +42,15 @@ class AlertsMailerPreview < ActionMailer::Preview
     AlertsMailer.monitor_recovered(recipient(incident.uptime_monitor.project), incident)
   end
 
+  # An unsaved, rejected connection when no app has one, so previews never write.
+  def slack_disabled
+    project = SlackConnection.where.not(disabled_at: nil).first&.project || Project.order(:id).first
+    project.association(:slack_connection).target ||= SlackConnection.new(project_id: project.id, enabled: false,
+      disabled_at: 1.hour.ago, disabled_reason: "channel_not_found")
+    owner = project.account.memberships.owner.with_verified_email.first&.user || recipient(project)
+    AlertsMailer.slack_disabled(owner, project)
+  end
+
   private
     def sample_incident(resolved_at:)
       UptimeIncident.new(uptime_monitor: UptimeMonitor.order(:id).first, started_at: 14.minutes.ago, resolved_at:,

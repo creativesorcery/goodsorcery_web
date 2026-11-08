@@ -98,8 +98,11 @@ class Ingest::AlertFlagsTest < ActiveSupport::TestCase
     # issue user, counter UPDATE, inbound DELETE, project hour, RELEASE, and
     # the account read by the live-update broadcast.
     assert_equal 12, statements.size, statements.join("\n")
-    assert_no_match(/alert|notification_preferences|memberships/, statements.join("\n"))
+    # storefront posts to Slack (fixture): that adds nothing here either.
+    assert_predicate projects(:storefront), :slack_alerts_enabled?
+    assert_no_match(/alert|notification_preferences|memberships|slack/, statements.join("\n"))
     assert_empty alert_job_args
+    assert_no_enqueued_jobs only: SlackPostJob
   end
 
   private
