@@ -1,4 +1,5 @@
 require "test_helper"
+require_relative "../test_helpers/performance_pages_test_helper"
 
 # Every MCP tool through POST /mcp: happy paths, not-found paths (unknown and
 # other-account ids look the same), the untrusted-data notice, request_data
@@ -7,6 +8,7 @@ require "test_helper"
 class McpToolsTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
   include ApmFixtureClock
+  include PerformancePagesTestHelper
 
   SECRETS = [ "uptime-fixture-secret", *FIXTURE_TOKENS.values, *PAT_FIXTURE_TOKENS.values ].freeze
   PERSONAL = [ "mara@example.com", "Mara Lindqvist", "81.2.69.160", "Mozilla/5.0", "card_token" ].freeze
@@ -366,15 +368,29 @@ class McpToolsTest < ActionDispatch::IntegrationTest
   test "each read tool runs a fixed number of queries however much data there is" do
     calls = {
       "list_apps" => {}, "search_issues" => { query: "" }, "get_issue" => { issue: "GS-1042" },
-      "list_occurrences" => { issue: "GS-1042" }, "get_uptime" => {}
+      "list_occurrences" => { issue: "GS-1042" }, "get_uptime" => {},
+      "get_occurrence" => { occurrence: occurrences(:nomethod_latest).uuid },
+      "get_performance" => { app: "storefront" }, "get_performance " => { app: "storefront", kind: "job" },
+      "get_trace" => { trace: apm_traces(:checkout_slow).uuid }
     }
     mcp_tool(:philip_read, "list_apps") # the first call of a while records the token's use
-    baseline = calls.to_h { |name, arguments| [ name, count_queries { mcp_tool(:philip_read, name, **arguments) } ] }
+    baseline = calls.to_h { |name, arguments| [ name, count_queries { mcp_tool(:philip_read, name.strip, **arguments) } ] }
 
     add_more_data
     calls.each do |name, arguments|
-      assert_equal baseline[name], count_queries { mcp_tool(:philip_read, name, **arguments) }, name
+      assert_equal baseline[name], count_queries { mcp_tool(:philip_read, name.strip, **arguments) }, name
     end
+  end
+
+  test "triage tools run a fixed number of queries however many issues they change" do
+    mcp_tool(:philip_triage, "list_apps") # the first call of a while records the token's use
+    one = count_queries { mcp_tool(:philip_triage, "resolve_issue", issues: [ "GS-1042" ]) }
+    many = count_queries { mcp_tool(:philip_triage, "ignore_issue", issues: %w[GS-1042 GS-1001 GS-1020]) }
+    assert_equal one, many
+
+    note = count_queries { mcp_tool(:philip_triage, "add_note", issue: "GS-1042", body: "first") }
+    add_more_data
+    assert_equal note, count_queries { mcp_tool(:philip_triage, "add_note", issue: "GS-1042", body: "second") }
   end
 
   test "responses stay small" do
@@ -443,5 +459,12 @@ class McpToolsTest < ActionDispatch::IntegrationTest
       issues(:nomethod).occurrences.create!(occurrences(:nomethod_latest).attributes.except("id", "uuid", "created_at").merge(uuid: SecureRandom.uuid))
       project.uptime_monitors.create!(name: "Extra", url: "https://extra.example/up", interval_minutes: 10)
       accounts(:acme).projects.create!(name: "extra app")
+      add_more_performance_data(project)
+    end
+
+    def add_more_performance_data(project)
+      %w[ExtraAController#index ExtraBController#show].each { |name| create_apm_trace(create_apm_transaction(project, name), minutes_ago: 3) }
+      create_apm_trace(create_apm_transaction(project, "ExtraJob", kind: "job"), minutes_ago: 3)
+      create_apm_trace(apm_transactions(:checkout_create), minutes_ago: 4)
     end
 end
