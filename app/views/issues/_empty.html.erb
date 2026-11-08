@@ -3,7 +3,7 @@
   <div class="mx-auto w-10 h-10"><%= render "shared/sigil" %></div>
   <% if project.listening? %>
     <h2 class="font-display text-[22px] text-ink-50 mt-4">Listening for the first error…</h2>
-    <p class="text-[14px] text-ink-400 mt-2">Install the gem and cast a test error to see it here.</p>
+    <p class="text-[14px] text-ink-400 mt-2">Install the <%= project.client_package %> and cast a test error to see it here.</p>
     <div class="mt-5"><%= link_to "Setup & API keys", project_setup_path(project), class: "btn" %></div>
   <% elsif list.query.default_view? %>
     <h2 class="font-display text-[22px] text-ink-50 mt-4">✦ All clear</h2>

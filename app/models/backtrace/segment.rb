@@ -1,7 +1,7 @@
 # A slice of a Backtrace: either a single app frame, or a run of consecutive
-# framework/gem frames that the issue page folds into one row.
+# framework/library frames that the issue page folds into one row.
 class Backtrace::Segment
-  GEM_NAMES_SHOWN = 3
+  PACKAGE_NAMES_SHOWN = 3
 
   attr_reader :frames
 
@@ -24,12 +24,12 @@ class Backtrace::Segment
 
   def expanded? = @expanded
 
-  def gem_names = frames.filter_map(&:gem_name).uniq
+  def package_names = frames.filter_map(&:package).uniq
 
   # "activesupport, activerecord" or "actionpack, rack, puma…"
-  def gem_summary
-    names = gem_names
-    summary = names.first(GEM_NAMES_SHOWN).join(", ")
-    names.size > GEM_NAMES_SHOWN ? "#{summary}…" : summary
+  def package_summary
+    names = package_names
+    summary = names.first(PACKAGE_NAMES_SHOWN).join(", ")
+    names.size > PACKAGE_NAMES_SHOWN ? "#{summary}…" : summary
   end
 end

@@ -6,6 +6,7 @@
 #   project.alerts_cover?(issue.environments)
 #   project.alert_recipients              # => users to email right now
 #   project.uptime_alert_recipients       # => users to email about monitors
+#   project.slack_alerts_enabled?         # => posts to its Slack channel (§11.5)
 module Project::Alerting
   extend ActiveSupport::Concern
 
@@ -13,6 +14,8 @@ module Project::Alerting
     has_many :alert_rules, inverse_of: :project # rows cascade in the database
     has_many :alert_deliveries, inverse_of: :project
     has_many :notification_preferences, inverse_of: :project
+    has_one :slack_connection, inverse_of: :project # rows cascade in the database
+    has_many :slack_deliveries
 
     # "default" follows default_environment (nil there means all).
     enum :alert_scope, { follow_default: "default", all: "all", selected: "selected" }, prefix: true, validate: true
@@ -43,6 +46,9 @@ module Project::Alerting
   def uptime_alerts_enabled? = AlertRule::UPTIME_KINDS.any? { |kind| alert_rule_enabled?(kind) }
 
   def still_happening_threshold = alert_rule(:still_happening).threshold
+
+  # Does the app post alerts to a Slack channel right now?
+  def slack_alerts_enabled? = slack_connection&.enabled? || false
 
   # The environments alerts watch, or nil for all of them.
   def alert_environments

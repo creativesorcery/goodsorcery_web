@@ -7,7 +7,7 @@
     </div>
     <h1 class="page-title break-all"><%= page.title %></h1>
     <div class="mt-2 font-mono text-[13px] text-ink-200 break-all">
-      <%= [ transaction.name, trace.started_at.in_time_zone.strftime("%b %-d, %H:%M:%S"), details.host.presence,
+      <%= [ (transaction.name unless transaction.name == page.title), trace.started_at.in_time_zone.strftime("%b %-d, %H:%M:%S"), details.host.presence,
             (page.web? ? (page.request_id && "request #{page.request_id}") : apm_route_line(transaction)) ].compact.join(" · ") %>
     </div>
   </div>

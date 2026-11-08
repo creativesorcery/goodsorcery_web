@@ -34,7 +34,7 @@ module Apm::Limits
   CONTEXT_LINES = 5
   CONTEXT_LINE = 200
 
-  # Requests, not data points: a gem process sends at most two a minute.
+  # Requests, not data points: a client process sends at most two a minute.
   RATE_PER_IP = 6_000
   RATE_PER_KEY = 600
   RATE_PER_ACCOUNT = 3_000

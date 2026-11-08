@@ -4,7 +4,7 @@ module ApplicationHelper
   GOOGLE_FONTS_URL = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..700" \
     "&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap".freeze
 
-  PLATFORM_LABELS = { "rails" => "Ruby on Rails", "ruby" => "Ruby" }.freeze
+  PLATFORM_LABELS = { "rails" => "Ruby on Rails", "ruby" => "Ruby", "rust" => "Rust" }.freeze
 
   def docs_url
     ENV.fetch("GOODSORCERY_DOCS_URL", DEFAULT_DOCS_URL)
@@ -24,7 +24,7 @@ module ApplicationHelper
     PLATFORM_LABELS.fetch(platform.to_s) { platform.to_s.humanize }
   end
 
-  # "Rails 8.0 · Ruby 3.4" once events arrive, otherwise the platform name.
+  # The runtime label the client reported ("Rust 1.82 · axum 0.8") once events arrive, otherwise the platform name.
   def project_runtime_label(project)
     project.runtime_label.presence || platform_label(project.platform)
   end

@@ -1,4 +1,4 @@
-# The fixed log-scale duration histogram shared with the gem (scheme gs-v1,
+# The fixed log-scale duration histogram shared with every client (scheme gs-v1,
 # docs/ARCHITECTURE.md §13.1). Never change these bounds without a new scheme:
 # both repos assert the literal list element by element.
 module Apm::Histogram

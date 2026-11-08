@@ -1,12 +1,11 @@
 # Reads a normalised SQL statement from a trace for display
-# (docs/ARCHITECTURE.md §13.9): a short label for the timeline, the first
-# table it reads, and the statement split into one clause per line with
+# (docs/ARCHITECTURE.md §13.9): a short label for the timeline and the
+# statement split into one clause per line with
 # its keywords and placeholders marked. The SQL is captured data: callers
 # render the pieces through ERB escaping only (PerformanceHelper).
 #
 #   summary = Apm::SqlSummary.new('SELECT "users".* FROM "users" WHERE "users"."id" = $1 LIMIT $2')
 #   summary.label  # => 'SELECT "users" WHERE "id" = $1'
-#   summary.table  # => "users"
 #   summary.lines  # => [[[:keyword, "SELECT"], [:text, " "], …], [[:keyword, "WHERE"], …]]
 class Apm::SqlSummary
   LABEL_LIMIT = 90
@@ -35,9 +34,6 @@ class Apm::SqlSummary
 
     [ Kernel.format(format, quoted_table), (where && "WHERE #{where}") ].compact.join(" ").truncate(LABEL_LIMIT)
   end
-
-  # The first table read (FROM), unquoted and without its schema, or nil.
-  def table = sql[/\bFROM\s+(?:"?\w+"?\.)?"?(\w+)"?/i, 1]
 
   # [[[type, text], …], …] per line; type is :keyword, :placeholder or :text.
   def lines

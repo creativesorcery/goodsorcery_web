@@ -2,7 +2,8 @@
 class Apm::TracesEnvelope::TraceCheck
   include Apm::JsonShape
 
-  LAYERS = %w[db_ms http_ms view_ms ruby_ms].freeze
+  # app_ms was called ruby_ms before protocol revision 1.1; both are accepted.
+  LAYERS = %w[db_ms http_ms view_ms app_ms ruby_ms].freeze
   LABELS = %w[method route adapter queue host process].freeze
 
   def initialize(trace, path)

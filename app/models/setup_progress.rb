@@ -7,7 +7,7 @@ class SetupProgress
     def current? = state == :current
   end
 
-  LABELS = [ "Create project", "Install the gem", "Receive first event" ].freeze
+  STEP_COUNT = 3
   INSTALL_STEP = 2
 
   attr_reader :project
@@ -19,7 +19,7 @@ class SetupProgress
   def connected? = !project.listening?
 
   def steps
-    LABELS.each_with_index.map { |label, index| Step.new(number: index + 1, label:, state: state_of(index + 1)) }
+    labels.each_with_index.map { |label, index| Step.new(number: index + 1, label:, state: state_of(index + 1)) }
   end
 
   def current_step
@@ -28,10 +28,13 @@ class SetupProgress
 
   # "Step 2 of 3", or "Connected" once the first event arrived.
   def eyebrow
-    connected? ? "Connected" : "Step #{current_step.number} of #{LABELS.size}"
+    connected? ? "Connected" : "Step #{current_step.number} of #{STEP_COUNT}"
   end
 
   private
+    # "Install the gem", or "Install the crate" for Rust.
+    def labels = [ "Create project", "Install the #{project.client_package}", "Receive first event" ]
+
     def state_of(number)
       return :done if number == 1 || connected?
 

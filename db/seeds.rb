@@ -259,11 +259,11 @@ class DemoPayload
     end
 
     def frames
-      [ { file: @spec[:file], line: @spec[:line], method: @spec[:method_name], in_app: true, gem: nil,
+      [ { file: @spec[:file], line: @spec[:line], method: @spec[:method_name], in_app: true, package: nil,
           context: { start_line: @spec[:line] - 2, lines: [ "def #{@spec[:method_name]}", "  # ...", "  raise_the_error", "end" ] },
           locals: { record_id: (4410 + @index).to_s, api_token: "[FILTERED]" } },
-        { file: "gems/activerecord-8.0.1/lib/active_record/relation.rb", line: 338, method: "records", in_app: false, gem: "activerecord" },
-        { file: "gems/actionpack-8.0.1/lib/abstract_controller/base.rb", line: 226, method: "process_action", in_app: false, gem: "actionpack" } ]
+        { file: "gems/activerecord-8.0.1/lib/active_record/relation.rb", line: 338, method: "records", in_app: false, package: "activerecord" },
+        { file: "gems/actionpack-8.0.1/lib/abstract_controller/base.rb", line: 226, method: "process_action", in_app: false, package: "actionpack" } ]
     end
 
     def request

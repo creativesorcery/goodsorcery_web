@@ -17,6 +17,12 @@ class SetupProgressTest < ActiveSupport::TestCase
     assert_equal [ "Create project", "Install the gem", "Receive first event" ], steps.map(&:label)
   end
 
+  test "a rust app installs the crate" do
+    projects(:marketing).platform = "rust"
+
+    assert_equal "Install the crate", SetupProgress.new(projects(:marketing)).steps.second.label
+  end
+
   test "a project with a first event is connected and every step is done" do
     progress = SetupProgress.new(projects(:storefront))
 

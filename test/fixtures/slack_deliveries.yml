@@ -1,0 +1,9 @@
+# Ids, kinds and keys only: never the webhook URL or captured data.
+storefront_nomethod_new_issue:
+  project: storefront
+  issue: nomethod
+  kind: new_issue
+  dedupe_key: slack:new_issue:<%= ActiveRecord::FixtureSet.identify(:nomethod) %>
+  status: sent
+  posted_at: <%= 2.hours.ago.to_fs(:db) %>
+  created_at: <%= 2.hours.ago.to_fs(:db) %>

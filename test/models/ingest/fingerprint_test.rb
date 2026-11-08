@@ -3,7 +3,7 @@ require "test_helper"
 class Ingest::FingerprintTest < ActiveSupport::TestCase
   setup do
     @frame = Ingest::Frame.new(file: "app/models/order.rb", line: 12, method_name: "total", in_app: true,
-                               gem_name: nil, context: {}, locals: {})
+                               column: nil, module_name: nil, package: nil, context: {}, locals: {})
   end
 
   def digest(**options)

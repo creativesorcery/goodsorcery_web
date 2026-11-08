@@ -1,5 +1,5 @@
 # An occurrence's backtrace for a tool result: app frames first (in call
-# order), then framework and gem frames, at most MAX_FRAMES and within one
+# order), then framework and library frames, at most MAX_FRAMES and within one
 # byte budget (frames stop when it runs out). The first CODE_FRAMES app
 # frames carry their code context (±3 lines, as on the issue page); locals
 # only when the token has the request_data scope.
@@ -35,8 +35,9 @@ class Mcp::BacktraceSummary
 
     def present(frame, index)
       {
-        file: @budget.string(frame.file, Mcp::Captured::MAX_STRING), line: frame.line, method: @budget.string(frame.method_name, 120),
-        in_app: frame.app?, gem: frame.gem_name, code: (code(frame) if frame.app? && index < CODE_FRAMES),
+        file: @budget.string(frame.file, Mcp::Captured::MAX_STRING), line: frame.line, column: frame.column,
+        module: (@budget.string(frame.module_label, 120) if frame.module_label), method: @budget.string(frame.method_name, 120),
+        in_app: frame.app?, package: frame.package, code: (code(frame) if frame.app? && index < CODE_FRAMES),
         locals: (Mcp::Captured.trim(frame.locals, budget: @budget.section(LOCALS_BYTES)) if @locals && frame.app? && frame.locals?)
       }.compact
     end
@@ -46,8 +47,9 @@ class Mcp::BacktraceSummary
     end
 
     def frame_line(frame)
-      location = [ frame[:file], frame[:line] ].compact.join(":")
-      "#{frame[:in_app] ? '→' : ' '} #{location} in #{frame[:method]}#{" (#{frame[:gem]})" if frame[:gem]}"
+      location = [ frame[:file], frame[:line], (frame[:column] if frame[:line]) ].compact.join(":")
+      method = [ frame[:module], frame[:method] ].compact.join(" ")
+      "#{frame[:in_app] ? '→' : ' '} #{location} in #{method}#{" (#{frame[:package]})" if frame[:package]}"
     end
 
     def code_text(frame)

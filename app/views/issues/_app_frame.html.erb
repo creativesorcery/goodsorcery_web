@@ -20,8 +20,8 @@
   <div class="border-b border-paper-700">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 bg-iris-500/[.06]">
       <span class="text-[10px] uppercase tracking-[.18em] font-sans font-semibold text-ink-50 bg-iris-400 rounded px-1.5 py-0.5">app</span>
-      <span class="text-ink-50 break-all"><%= frame.file %><% if frame.line %><span class="text-ink-400">:</span><span class="text-iris-300"><%= frame.line %></span><% end %></span>
-      <span class="text-ink-400">in</span><span class="text-lilac-300 break-all"><%= frame.method_name %></span>
+      <span class="text-ink-50 break-all"><%= frame.file %><% if frame.line %><span class="text-ink-400">:</span><span class="text-iris-300"><%= frame.line %></span><% if frame.column %><span class="text-ink-400">:<%= frame.column %></span><% end %><% end %></span>
+      <%= render "issues/frame_method", frame: %>
     </div>
     <%= body %>
   </div>
@@ -29,8 +29,8 @@
   <details class="group border-b border-paper-700/70">
     <summary class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 hover:bg-paper-800/50 cursor-pointer">
       <span class="text-[10px] uppercase tracking-[.18em] font-sans font-semibold text-iris-300 border border-iris-500/40 rounded px-1.5 py-0.5">app</span>
-      <span class="text-ink-100 break-all"><%= frame.file %><% if frame.line %>:<span class="text-iris-300"><%= frame.line %></span><% end %></span>
-      <span class="text-ink-400">in</span><span class="text-lilac-300 break-all"><%= frame.method_name %></span>
+      <span class="text-ink-100 break-all"><%= frame.file %><% if frame.line %>:<span class="text-iris-300"><%= frame.line %></span><% if frame.column %><span class="text-ink-400">:<%= frame.column %></span><% end %><% end %></span>
+      <%= render "issues/frame_method", frame: %>
       <span class="flex-1"></span>
       <span class="text-ink-400 transition group-open:rotate-90" aria-hidden="true">▸</span>
     </summary>

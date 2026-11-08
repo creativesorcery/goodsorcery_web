@@ -6,7 +6,7 @@
 #
 #   report = Apm::EndpointReport.new(transaction, selection)
 #   report.ribbon  # => [Stat(:requests, …), Stat(:average, …), …, Stat(:failed, …)]
-#   report.bars    # => [Bar(:average, "Average", 340.0, { db:, http:, view:, ruby: }), Bar(75, "p75", …), …]
+#   report.bars    # => [Bar(:average, "Average", 340.0, { db:, http:, view:, app: }), Bar(75, "p75", …), …]
 class Apm::EndpointReport
   PERCENTILES = [ 75, 90, 95, 99 ].freeze
   LINES = [ :average, *PERCENTILES ].freeze

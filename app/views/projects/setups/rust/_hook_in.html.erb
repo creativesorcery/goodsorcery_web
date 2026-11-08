@@ -1,0 +1,32 @@
+<%# Where the crate hooks into a Rust app; each tab is one integration. -%>
+<section class="panel overflow-hidden rise rise-2" data-controller="tabs">
+  <div class="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
+    <%= setup_step_heading "ii.", "Hook it in" %>
+    <div class="flex flex-wrap items-center gap-5" role="tablist" aria-label="Integration">
+      <%= setup_tab "axum", "hook_axum", selected: true %>
+      <%= setup_tab "Anywhere", "hook_capture" %>
+    </div>
+  </div>
+
+  <div id="hook_axum" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3">
+<%= render layout: "projects/setups/snippet", locals: { label: "src/main.rs" } do %><span class="tok-k">let</span> app = axum::<span class="tok-sym">Router</span>::new()
+    .route(<span class="tok-s">"/checkout"</span>, axum::routing::post(checkout))
+    .layer(goodsorcery::axum::layer());<% end %>
+    <p class="text-[13px] text-ink-400">
+      Names each request after its route (<span class="font-mono text-ink-200">POST /checkout</span>) and reports panics and 5xx
+      responses with the method and path. With performance monitoring on, it also times every request.
+      It never reads request bodies, headers or cookies.
+    </p>
+  </div>
+
+  <div id="hook_capture" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3" hidden>
+<%= render layout: "projects/setups/snippet", locals: { label: "anywhere" } do %><span class="tok-k">if let</span> <span class="tok-sym">Err</span>(err) = charge_card(&amp;order).<span class="tok-k">await</span> {
+    goodsorcery::capture_error(&amp;err);
+    <span class="tok-k">return</span> <span class="tok-sym">Err</span>(err);
+}<% end %>
+    <p class="text-[13px] text-ink-400">
+      <span class="font-mono text-ink-200">capture_error</span> takes any <span class="font-mono text-ink-200">std::error::Error</span>,
+      never panics or blocks, and sends in the background.
+    </p>
+  </div>
+</section>

@@ -21,17 +21,17 @@ class PerformanceChartHelperTest < ActionView::TestCase
     assert_equal [ 600, 400, 200, 0 ], apm_y_ticks(600)
   end
 
-  test "layer bars stack bottom-up Ruby, Database, HTTP, Views with a title per bin and the p95 line" do
+  test "layer bars stack bottom-up app code, database, HTTP, rendering with a title per bin and the p95 line" do
     time = Time.utc(2026, 11, 4, 14)
-    bins = [ Bin.new(time:, split: { db: 40.0, http: 20.0, view: 10.0, ruby: 30.0 }, average_ms: 100.0, p95: 300.0),
+    bins = [ Bin.new(time:, split: { db: 40.0, http: 20.0, view: 10.0, app: 30.0 }, average_ms: 100.0, p95: 300.0),
              Bin.new(time: time + 15.minutes, split: nil, average_ms: nil, p95: nil),
-             Bin.new(time: time + 30.minutes, split: { db: 10.0, http: 0.0, view: 0.0, ruby: 10.0 }, average_ms: 20.0, p95: 150.0) ]
+             Bin.new(time: time + 30.minutes, split: { db: 10.0, http: 0.0, view: 0.0, app: 10.0 }, average_ms: 20.0, p95: 150.0) ]
     svg = Nokogiri::HTML5.fragment(apm_layer_bars_svg(bins, max: 600, label: "Average time")).at_css("svg")
 
     assert_equal "Average time", svg["aria-label"]
     assert_equal 2, svg.css("g").size
     fills = svg.css("g").first.css("rect").map { it["fill"] }
-    assert_equal [ PerformanceChartHelper::RUBY, PerformanceChartHelper::LILAC, PerformanceChartHelper::IRIS, PerformanceChartHelper::MINT_400 ], fills
+    assert_equal [ PerformanceChartHelper::APP_CODE, PerformanceChartHelper::LILAC, PerformanceChartHelper::IRIS, PerformanceChartHelper::MINT_400 ], fills
     assert_match(/average 100 ms · p95 300 ms/, svg.at_css("g title").text)
     line = svg.css("path").find { it["stroke"] == PerformanceChartHelper::CORAL }
     assert_equal 2, line["d"].scan("M").size, "a gap breaks the p95 line"
@@ -48,11 +48,11 @@ class PerformanceChartHelperTest < ActionView::TestCase
   end
 
   test "a split bar draws its layers in legend order inside a clipped length" do
-    svg = Nokogiri::HTML5.fragment(apm_split_bar_svg({ db: 50.0, http: 25.0, view: 0.0, ruby: 25.0 }, scale_ms: 200.0, title: "t")).at_css("svg")
+    svg = Nokogiri::HTML5.fragment(apm_split_bar_svg({ db: 50.0, http: 25.0, view: 0.0, app: 25.0 }, scale_ms: 200.0, title: "t")).at_css("svg")
 
     assert_equal "50%", svg.at_css("clipPath rect")["width"]
     segments = svg.css("g rect")
-    assert_equal [ PerformanceChartHelper::LILAC, PerformanceChartHelper::IRIS, PerformanceChartHelper::RUBY ], segments.map { it["fill"] }
+    assert_equal [ PerformanceChartHelper::LILAC, PerformanceChartHelper::IRIS, PerformanceChartHelper::APP_CODE ], segments.map { it["fill"] }
     assert_equal [ "0%", "25%", "37.5%" ], segments.map { it["x"] }
   end
 

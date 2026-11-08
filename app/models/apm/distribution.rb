@@ -1,16 +1,17 @@
 # One merged duration histogram (docs/ARCHITECTURE.md §13.6): request and
 # failure counts, the summed duration, the gs-v1 bucket counts, the summed
-# time per layer of the requests in each bucket, and the queue-wait
+# time per layer of the requests in each bucket (database, outgoing HTTP,
+# rendering and app code, the rest), and the queue-wait
 # histogram of jobs. Immutable; #+ adds element-wise, so any set of minute or
 # hour rows sums to one Distribution.
 #
 #   dist.average_ms           # => 164.2 (sum / count), nil when empty
 #   dist.percentile(95)       # => 412.7, interpolated inside its bucket
-#   dist.layer_split(95)      # => { db: 201.3, http: 0.0, view: 88.1, ruby: 123.3 }
+#   dist.layer_split(95)      # => { db: 201.3, http: 0.0, view: 88.1, app: 123.3 }
 #   dist.layer_split(:average)
 class Apm::Distribution
-  LAYERS = %i[db http view ruby].freeze
-  ARRAYS = %i[counts db_ms http_ms view_ms ruby_ms queue_wait_counts].freeze
+  LAYERS = %i[db http view app].freeze
+  ARRAYS = %i[counts db_ms http_ms view_ms app_ms queue_wait_counts].freeze
   SCALARS = %i[count failed duration_ms queue_wait_ms].freeze
   PERCENTILES = [ 50, 75, 90, 95, 99 ].freeze
 
@@ -19,10 +20,10 @@ class Apm::Distribution
   def self.empty = new
 
   # From a payload's sparse buckets: [[index, count, db_ms, http_ms, view_ms,
-  # ruby_ms], …] and queue wait [[index, count], …] (already validated).
+  # app_ms], …] and queue wait [[index, count], …] (already validated).
   def self.from_buckets(count:, failed:, duration_ms:, buckets:, queue_wait: [], queue_wait_ms: 0.0)
     arrays = { counts: Apm::Histogram.zeros, queue_wait_counts: Apm::Histogram.zeros }
-    %i[db_ms http_ms view_ms ruby_ms].each { arrays[it] = Apm::Histogram.float_zeros }
+    %i[db_ms http_ms view_ms app_ms].each { arrays[it] = Apm::Histogram.float_zeros }
     buckets.each { |index, n, *layers| fill_bucket(arrays, index, n, layers) }
     queue_wait.each { |index, n| arrays[:queue_wait_counts][index] += n }
     new(count:, failed:, duration_ms: duration_ms.to_f, queue_wait_ms: queue_wait_ms.to_f, **arrays)
@@ -30,7 +31,7 @@ class Apm::Distribution
 
   def self.fill_bucket(arrays, index, count, layers)
     arrays[:counts][index] += count
-    %i[db_ms http_ms view_ms ruby_ms].zip(layers) { |key, ms| arrays[key][index] += ms.to_f }
+    %i[db_ms http_ms view_ms app_ms].zip(layers) { |key, ms| arrays[key][index] += ms.to_f }
   end
   private_class_method :fill_bucket
 
@@ -39,10 +40,10 @@ class Apm::Distribution
 
   def initialize(count: 0, failed: 0, duration_ms: 0.0, queue_wait_ms: 0.0, counts: Apm::Histogram.zeros,
                  db_ms: Apm::Histogram.float_zeros, http_ms: Apm::Histogram.float_zeros, view_ms: Apm::Histogram.float_zeros,
-                 ruby_ms: Apm::Histogram.float_zeros, queue_wait_counts: Apm::Histogram.zeros)
+                 app_ms: Apm::Histogram.float_zeros, queue_wait_counts: Apm::Histogram.zeros)
     @count, @failed, @duration_ms, @queue_wait_ms = count.to_i, failed.to_i, duration_ms.to_f, queue_wait_ms.to_f
     @counts, @queue_wait_counts = counts.map(&:to_i).freeze, queue_wait_counts.map(&:to_i).freeze
-    @db_ms, @http_ms, @view_ms, @ruby_ms = [ db_ms, http_ms, view_ms, ruby_ms ].map { |list| list.map(&:to_f).freeze }
+    @db_ms, @http_ms, @view_ms, @app_ms = [ db_ms, http_ms, view_ms, app_ms ].map { |list| list.map(&:to_f).freeze }
     freeze
   end
 
@@ -71,7 +72,7 @@ class Apm::Distribution
   # The bucket a percentile falls in, or nil when empty.
   def percentile_bucket(p) = bucket_for(p, counts)
 
-  # { db:, http:, view:, ruby: } in ms, summing to the bar's value: the
+  # { db:, http:, view:, app: } in ms, summing to the bar's value: the
   # average in the proportions of all layer time, or a percentile in the
   # proportions of the layer sums of the bucket it falls in.
   def layer_split(which)
@@ -81,9 +82,9 @@ class Apm::Distribution
     split(value, which == :average ? layer_totals : layer_sums_at(percentile_bucket(which)))
   end
 
-  def layer_totals = { db: db_ms.sum, http: http_ms.sum, view: view_ms.sum, ruby: ruby_ms.sum }
+  def layer_totals = { db: db_ms.sum, http: http_ms.sum, view: view_ms.sum, app: app_ms.sum }
 
-  def layer_sums_at(bucket) = { db: db_ms[bucket], http: http_ms[bucket], view: view_ms[bucket], ruby: ruby_ms[bucket] }
+  def layer_sums_at(bucket) = { db: db_ms[bucket], http: http_ms[bucket], view: view_ms[bucket], app: app_ms[bucket] }
 
   def queue_wait_count = queue_wait_counts.sum
 
@@ -131,9 +132,9 @@ class Apm::Distribution
 
     def split(value, sums)
       total = sums.values.sum
-      return { db: 0.0, http: 0.0, view: 0.0, ruby: value.to_f } unless total.positive?
+      return { db: 0.0, http: 0.0, view: 0.0, app: value.to_f } unless total.positive?
 
       db, http, view = %i[db http view].map { value * sums[it] / total }
-      { db:, http:, view:, ruby: [ value - db - http - view, 0.0 ].max }
+      { db:, http:, view:, app: [ value - db - http - view, 0.0 ].max }
     end
 end

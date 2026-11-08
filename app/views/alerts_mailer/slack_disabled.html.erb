@@ -1,0 +1,18 @@
+<%# The app, the date and Slack's reason in words only. Never the webhook URL. -%>
+<% content_for :preheader, "Slack rejected the webhook for #{@project.name}, so Good Sorcery stopped posting there." %>
+<% content_for :footer do %>
+  You're receiving this because you're an owner of <%= @project.account.name %>, and <%= @project.name %> posted alerts to Slack.
+  <%= email_footer_link "Notification settings", notifications_url %>
+<% end %>
+
+<%= email_heading "Slack alerts for #{@project.name} were turned off" %>
+
+<%= email_text "Slack rejected the webhook on #{alert_time(@connection.disabled_at)}: #{@connection.rejection_label}. Good Sorcery stopped posting this app's alerts to Slack. Email alerts carry on as before." %>
+
+<%= email_text "To turn Slack alerts back on, paste a new incoming webhook URL under Settings › Alerts." %>
+
+<%= email_button "Open alert settings", @alerts_url %>
+
+<%= email_divider %>
+
+<%= email_link_fallback @alerts_url %>

@@ -73,7 +73,7 @@ event = {
     { timestamp: at.(0.021), category: "log", level: "warning", message: "Cart 88123 contains discontinued variant 4410" }
   ],
   context: {
-    runtime: { ruby: RUBY_VERSION, rails: "8.1.4" },
+    runtime: [ { name: "Rails", version: "8.1.4" }, { name: "Ruby", version: RUBY_VERSION } ],
     host: "web-7f9c-2",
     process: "puma · pid #{Process.pid}",
     env: { RAILS_ENV: "production" }

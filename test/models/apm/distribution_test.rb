@@ -68,10 +68,10 @@ class Apm::DistributionTest < ActiveSupport::TestCase
     assert_in_delta 15_000.0 / 30_000 * 300, average[:db], 0.0001
   end
 
-  test "a bucket without layer time puts everything in ruby" do
+  test "a bucket without layer time puts everything in app code" do
     split = dist([ [ 15, 1, 0, 0, 0, 0 ] ]).layer_split(50)
     assert_equal 0.0, split[:db]
-    assert_operator split[:ruby], :>, 0
+    assert_operator split[:app], :>, 0
   end
 
   test "+ adds element-wise and round-trips through to_h" do

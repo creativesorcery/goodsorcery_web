@@ -28,13 +28,15 @@ class IssueAlert
       ("reached_production" if issue.just_reached_production) ].compact
   end
 
-  def initialize(issue, kind, occurrence_id: nil)
-    @issue, @kind, @occurrence_id = issue, kind.to_s, occurrence_id
+  # Pass `environments:` (a TriggeringEnvironments) to share its one lookup
+  # with SlackIssueAlert, as IssueAlertJob does.
+  def initialize(issue, kind, occurrence_id: nil, environments: TriggeringEnvironments.new(issue, occurrence_id))
+    @issue, @kind, @environments = issue, kind.to_s, environments
     @project = issue.project
   end
 
   def due?
-    issue.unresolved? && project.alert_rule_enabled?(kind) && project.alerts_cover?(environments) && !throttled?
+    issue.unresolved? && project.alert_rule_enabled?(kind) && project.alerts_cover?(@environments.to_a) && !throttled?
   end
 
   # Returns the users it was mailed to (folded and duplicate claims aren't).
@@ -49,12 +51,6 @@ class IssueAlert
       status = AlertDelivery.claim(user:, project:, issue:, kind:, dedupe_key: AlertDelivery.issue_key(kind, issue))
       AlertsMailer.issue_alert(user, issue, kind).deliver_later if status == "sent"
       status == "sent"
-    end
-
-    # The environment of the event that caused the transition, else the issue's.
-    def environments
-      environment = @occurrence_id && issue.occurrences.where(id: @occurrence_id).pick(:environment)
-      environment ? [ environment ] : issue.environments
     end
 
     def throttled?

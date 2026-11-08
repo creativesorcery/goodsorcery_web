@@ -59,6 +59,27 @@ class IssueDetailTest < ActionDispatch::IntegrationTest
     assert_select "pre[data-clipboard-target=source]", text: /\ANoMethodError: undefined method `price_cents' for nil \(cart 88123, mara@example.com\)/
   end
 
+  test "a non-Ruby occurrence shows columns, modules, packages and its runtime list" do
+    occurrence = occurrences(:nomethod_latest)
+    data = JSON.parse(occurrence.payload)
+    data["exception"]["backtrace"] = [
+      { "file" => "src/cart.rs", "line" => 42, "column" => 17, "method" => "line_total", "module" => "shop::cart", "in_app" => true,
+        "package" => "shop" },
+      { "file" => "crates/tokio-1.41.0/src/runtime/park.rs", "line" => 281, "method" => "block_on", "in_app" => false, "package" => "tokio" }
+    ]
+    data["context"] = { "runtime" => [ { "name" => "Rust", "version" => "1.82.0" }, { "name" => "axum", "version" => "0.8.1" } ] }
+    occurrence.update!(payload: data.to_json)
+
+    get project_issue_path(@project, @issue)
+
+    assert_select "span.text-ink-400", text: ":17"
+    assert_select "span.text-ink-300", text: "shop::cart"
+    assert_select "button[data-toggle-target=collapsed]", text: /1 framework frame hidden\s+\(tokio\)/
+    assert_select "pre[data-clipboard-target=source]", text: /src\/cart\.rs:42:17 in shop::cart line_total/
+    assert_select "#context-environment span", text: "runtime.Rust"
+    assert_select "#context-environment span", text: "1.82.0"
+  end
+
   test "locals and context show [FILTERED] values muted" do
     get project_issue_path(@project, @issue)
 

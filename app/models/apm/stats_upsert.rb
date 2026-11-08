@@ -5,11 +5,13 @@
 # multi-row upserts that add every column element-wise, rows sorted by
 # [transaction id, time] and always minutes before hours: a fixed lock
 # order, so concurrent batches never deadlock. The minute → hour rollup
-# happens here, at write time; a late minute lands in both tables.
+# happens here, at write time; a late minute lands in both tables. The
+# bucket_ruby_ms columns hold the app-code layer (named before the protocol
+# went language-neutral).
 class Apm::StatsUpsert
   SCALARS = { requests_count: :count, failed_count: :failed, duration_ms_sum: :duration_ms, queue_wait_ms_sum: :queue_wait_ms }.freeze
   ARRAYS = { bucket_counts: :counts, bucket_db_ms: :db_ms, bucket_http_ms: :http_ms, bucket_view_ms: :view_ms,
-             bucket_ruby_ms: :ruby_ms, queue_wait_counts: :queue_wait_counts }.freeze
+             bucket_ruby_ms: :app_ms, queue_wait_counts: :queue_wait_counts }.freeze
 
   # The ON CONFLICT … DO UPDATE assignments: every column added.
   def self.add_sql(table)

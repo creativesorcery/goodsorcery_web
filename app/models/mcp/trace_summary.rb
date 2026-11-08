@@ -1,6 +1,6 @@
 # A trace for get_trace (from Apm::TracePage): the layer split, the slowest
 # MAX_SPANS spans (in timeline order), up to MAX_N_PLUS_ONE N+1 groups with
-# call site, code and the generic preload hint, and the reported error.
+# call site, code and the language-neutral advice, and the reported error.
 # Spans are captured data (SQL is normalised, paths have no query strings).
 # Span labels and the N+1 groups each spend a byte budget (Mcp::OutputBudget):
 # the slowest spans are taken while it lasts.
@@ -9,6 +9,7 @@ class Mcp::TraceSummary
   MAX_N_PLUS_ONE = 5
   SPAN_BYTES = 8_000
   N_PLUS_ONE_BYTES = 6_000
+  ADVICE = "Load the rows in one query (a join, an IN list or a batch load) instead of one per item."
 
   def initialize(page, context)
     @page = page
@@ -62,9 +63,8 @@ class Mcp::TraceSummary
 
     def n_plus_one
       @n_plus_one ||= @page.details.n_plus_one_spans.first(MAX_N_PLUS_ONE).lazy.take_while { @n_plus_one_budget.available? }.map do |span|
-        hint = Apm::NPlusOneHint.new(span.sql)
         { sql: @n_plus_one_budget.string(span.sql, 500), calls: span.calls, total_ms: span.duration_ms.to_f.round(1),
-          average_ms: span.average_ms.round(2), call_site: call_site(span.call_site), hint: [ hint.lead, hint.code ].compact.join(" ") }
+          average_ms: span.average_ms.round(2), call_site: call_site(span.call_site), hint: ADVICE }
       end.to_a
     end
 

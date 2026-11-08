@@ -42,7 +42,7 @@
             <tr>
               <td style="padding: 20px 4px 0; font-size: 12px; line-height: 1.6; color: <%= colors[:muted] %>;">
                 <%= content_for?(:footer) ? yield(:footer) : "You're receiving this email because of activity on your Good Sorcery account." %><br>
-                <%= link_to "Good Sorcery", root_url, style: "color: #{colors[:muted]}; text-decoration: underline;" %> · Error tracking for Rails apps
+                <%= link_to "Good Sorcery", root_url, style: "color: #{colors[:muted]}; text-decoration: underline;" %> · Error tracking for your apps
               </td>
             </tr>
           <% end %>

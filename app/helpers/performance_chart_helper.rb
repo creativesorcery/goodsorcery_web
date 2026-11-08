@@ -7,7 +7,7 @@ module PerformanceChartHelper
   LILAC = "#b39cf2".freeze
   IRIS = "#8f94ee".freeze
   MINT_400 = "#6fcca6".freeze
-  RUBY = "#d2cec4".freeze
+  APP_CODE = "#d2cec4".freeze
   INK = "#34374d".freeze
   IRIS_300 = "#5a5fd6".freeze
   CORAL = "#ef6f7c".freeze
@@ -15,9 +15,9 @@ module PerformanceChartHelper
   GRID = "#efeee9".freeze
   AXIS = "#d7d4cc".freeze
 
-  LAYER_COLORS = { db: LILAC, http: IRIS, view: MINT_400, ruby: RUBY }.freeze
-  # Bottom-up stack order of the overview chart (the legend reads db, http, view, ruby).
-  STACK_ORDER = %i[ruby db http view].freeze
+  LAYER_COLORS = { db: LILAC, http: IRIS, view: MINT_400, app: APP_CODE }.freeze
+  # Bottom-up stack order of the overview chart (the legend reads db, http, view, app).
+  STACK_ORDER = %i[app db http view].freeze
   LINE_STYLES = {
     average: { stroke: INK, width: 1.6, dash: "5 4" },
     75 => { stroke: IRIS, width: 2 },
@@ -70,7 +70,7 @@ module PerformanceChartHelper
     apm_chart_svg(apm_grid_lines + paths + [ apm_baseline ], label)
   end
 
-  # One horizontal bar split by layer ({ db:, http:, view:, ruby: } in ms),
+  # One horizontal bar split by layer ({ db:, http:, view:, app: } in ms),
   # its length value / scale_ms of the box.
   def apm_split_bar_svg(split, scale_ms:, height: 14, title: nil)
     total = split.values.sum
@@ -186,7 +186,7 @@ module PerformanceChartHelper
         "stroke-dasharray": style[:dash], "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke"
     end
 
-    # Left to right: Database, External HTTP, Views, Ruby.
+    # Left to right: Database, External HTTP, Rendering, App code.
     def apm_split_segments(split, total, length, height)
       offset = 0.0
       PerformanceHelper::LAYER_NAMES.keys.filter_map do |layer|

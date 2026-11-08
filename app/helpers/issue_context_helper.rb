@@ -22,13 +22,13 @@ module IssueContextHelper
   end
 
   # [label, value, extra class] rows for the Request tab; blanks are skipped.
-  # No request section means no rows (a job's transaction is not a controller).
+  # No request section means no rows (a job has no request to show).
   def request_rows(occurrence)
     request = occurrence.request
     return [] if request.empty?
 
     [ [ "URL", request["url"] ], [ "Method", request["method"] ],
-      [ "Controller", occurrence.transaction_name, "text-lilac-300" ], [ "Format", request["format"] ],
+      [ "Transaction", occurrence.transaction_name, "text-lilac-300" ], [ "Format", request["format"] ],
       [ "Request ID", request["request_id"] ], [ "Remote IP", request["remote_ip"] ] ].select { |row| row[1].present? }
   end
 
@@ -45,10 +45,12 @@ module IssueContextHelper
     arguments.is_a?(Array) || arguments.is_a?(Hash) ? arguments : []
   end
 
-  # Nested context flattened to dotted keys: { "runtime.ruby" => "3.4.1", … }
+  # Nested context flattened to dotted keys: { "runtime.Rust" => "1.82.0", "host" => "web-2", … }.
+  # A runtime list ([{ "name", "version" }]) reads as one key per runtime.
   def flatten_context(hash, prefix = nil)
     hash.each_with_object({}) do |(key, value), flat|
       path = [ prefix, key ].compact.join(".")
+      value = runtime_pairs(value) if path == "runtime" && value.is_a?(Array) && RuntimeList.new(value).entries.any?
       nested = value.is_a?(Hash) && value.any?
       nested ? flat.merge!(flatten_context(value, path)) : flat.store(path, value)
     end
@@ -65,6 +67,8 @@ module IssueContextHelper
   end
 
   private
+    def runtime_pairs(list) = RuntimeList.new(list).entries.to_h { [ it.name, it.version ] }
+
     def job_value(key, value)
       key == "framework" ? JOB_FRAMEWORKS.fetch(value, value) : value
     end

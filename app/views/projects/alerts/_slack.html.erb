@@ -1,0 +1,68 @@
+<%# locals: (project:, connection:) -%>
+<%# The webhook URL is a credential: only its masked form is shown, and the field never echoes a value. -%>
+<% saved = connection&.persisted? %>
+<section id="slack" class="panel mt-6 rise rise-4" aria-labelledby="slack_heading">
+  <div class="px-5 py-4 border-b border-paper-700">
+    <div class="flex items-center gap-2">
+      <h2 id="slack_heading" class="font-display text-[20px] text-ink-50">Slack</h2>
+      <% if saved %><%= slack_status_chip(connection) %><% end %>
+    </div>
+    <p class="text-[12.5px] text-ink-400 mt-0.5">
+      Post this app's alerts to one Slack channel, one message per alert. The rules and environments on this page decide what's posted, as for email.
+      The daily digest stays email-only.
+    </p>
+  </div>
+
+  <% if saved %>
+    <div id="slack_connection" class="px-5 py-4 space-y-3">
+      <% if connection.rejected? %>
+        <div class="rounded-xl border border-coral-500/40 bg-coral-500/10 px-4 py-3 text-[13px] text-coral-300" role="status">
+          Turned off because Slack rejected the webhook on <%= connection.disabled_at.in_time_zone.strftime("%b %-d, %Y at %H:%M") %>: <%= connection.rejection_label %>.
+          Paste a new webhook URL below, or switch it back on if you fixed it in Slack.
+        </div>
+      <% end %>
+
+      <div class="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+        <div class="min-w-0">
+          <div class="text-[14px] text-ink-50">Post alerts to Slack</div>
+          <p class="text-[12.5px] text-ink-400 mt-0.5 font-mono truncate" title="Webhook URL, secret part hidden"><%= connection.masked_webhook_url %></p>
+          <% if (connected = slack_connected_by(connection)) %>
+            <p id="slack_connected_by" class="text-[12.5px] text-ink-400 mt-0.5"><%= connected %></p>
+          <% end %>
+        </div>
+        <%= switch_button_to project_slack_connection_path(project), pressed: connection.enabled?,
+              params: { "slack_connection[enabled]" => !connection.enabled? }, label: "Slack alerts" %>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <%= button_to "Send test message", project_slack_connection_test_message_path(project), class: "btn btn-sm", form_class: "contents" %>
+        <%= button_to "Disconnect", project_slack_connection_path(project), method: :delete, class: "btn btn-sm btn-ghost text-coral-300",
+              form_class: "contents", data: { turbo_confirm: "Disconnect Slack? Nothing more will be posted to the channel." } %>
+        <% if connection.test_sent_at %>
+          <span class="text-[12.5px] text-ink-400">Last test message <%= time_ago_compact(connection.test_sent_at) %></span>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="px-5 py-4 <%= 'border-t border-paper-700/70' if saved %>">
+    <%= render "projects/alerts/slack_url_form", project:, connection: connection || SlackConnection.new(project_id: project.id) %>
+  </div>
+
+  <details class="group px-5 py-4 border-t border-paper-700/70 text-[13px] text-ink-300" <%= "open" unless saved %>>
+    <summary class="flex items-center gap-1.5 cursor-pointer list-none text-ink-100 font-semibold">
+      <span class="inline-block text-ink-400 transition-transform group-open:rotate-90" aria-hidden="true">›</span>How to get a webhook URL
+    </summary>
+    <ol class="mt-2 ml-5 list-decimal space-y-1">
+      <li>Create a Slack app for your workspace at api.slack.com/apps (choose "From scratch").</li>
+      <li>Under Features, open <strong>Incoming Webhooks</strong> and switch them on.</li>
+      <li>Click <strong>Add New Webhook to Workspace</strong>, pick the channel, and allow it.</li>
+      <li>Copy the webhook URL (it starts with https://hooks.slack.com/services/) and paste it above.</li>
+    </ol>
+    <p class="hint">
+      More in <%= link_to "Slack's guide to incoming webhooks", SlackConnection::DOCS_URL, class: "text-iris-300 hover:underline",
+                    target: "_blank", rel: "noopener noreferrer" %>.
+      Anyone with the URL can post to the channel, so Good Sorcery keeps it encrypted and shows only its start.
+    </p>
+  </details>
+</section>

@@ -110,6 +110,8 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     frames = issue.dig("latest_occurrence", "backtrace")
     assert_equal [ true, true, true, false ], frames.first(4).map { it["in_app"] }, "app frames first"
     assert_equal "app/services/cart_total.rb", frames.first["file"]
+    assert frames[3]["package"].present?, "framework frames name their package"
+    assert_nil frames.first["gem"]
     assert(frames.first["code"].any? { it["error"] && it["text"].include?("price_cents") })
     assert_equal 4, issue.dig("latest_occurrence", "breadcrumbs").size
     assert_match "→ app/services/cart_total.rb:42 in line_total", mcp_text(result)
@@ -287,12 +289,13 @@ class McpToolsTest < ActionDispatch::IntegrationTest
 
     assert_untrusted_notice result
     assert_equal "POST /checkout", trace["title"]
-    assert_equal %w[db http view ruby], trace["layers"].map { it["layer"] }
+    assert_equal %w[db http view app], trace["layers"].map { it["layer"] }
     group = trace["n_plus_one"].first
     assert_equal 38, group["calls"]
     assert_equal "app/services/cart_total.rb", group.dig("call_site", "file")
     assert group.dig("call_site", "code").any?
-    assert_match "includes(:product)", group["hint"]
+    assert_equal Mcp::TraceSummary::ADVICE, group["hint"]
+    assert_no_match "includes", group["hint"]
   end
 
   test "get_trace: past the retention it says the trace is no longer kept" do

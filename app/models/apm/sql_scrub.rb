@@ -1,5 +1,5 @@
 # Server-side SQL normalisation for trace spans (docs/ARCHITECTURE.md §13.5),
-# repeating the gem's rules as a second layer: comments removed; string,
+# repeating the clients' rules as a second layer: comments removed; string,
 # dollar-quoted and numeric (also 0x hex) literals become "?"; IN lists of
 # placeholders collapse to "IN (…)"; repeated VALUES rows collapse;
 # whitespace collapses. Bind placeholders ($1), quoted identifiers,

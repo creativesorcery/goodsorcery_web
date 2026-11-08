@@ -45,7 +45,7 @@ class Apm::EnvelopesTest < ActiveSupport::TestCase
     assert_equal [ "#{prefix}buckets must add up to count" ], tx_errors(count: 4)
     assert_equal [ "#{prefix}buckets must not repeat an index" ], tx_errors(buckets: [ [ 15, 2, 0, 0, 0, 0 ], [ 15, 1, 0, 0, 0, 0 ] ])
     [ [ [ 31, 3, 0, 0, 0, 0 ] ], [ [ 15, 3, -1, 0, 0, 0 ] ], [ [ 15, 3, 0, 0, 0 ] ], [ [ 15, 0, 0, 0, 0, 0 ] ], [ "x" ] ].each do |buckets|
-      assert_equal [ "#{prefix}buckets entries must be [index, count, db_ms, http_ms, view_ms, ruby_ms]" ], tx_errors(buckets:), buckets.inspect
+      assert_equal [ "#{prefix}buckets entries must be [index, count, db_ms, http_ms, view_ms, app_ms]" ], tx_errors(buckets:), buckets.inspect
     end
     assert_equal [ "#{prefix}buckets must be an array of 1 to 31 entries" ], tx_errors(buckets: [])
   end
@@ -79,5 +79,11 @@ class Apm::EnvelopesTest < ActiveSupport::TestCase
                    "traces[0].started_at must be an ISO 8601 timestamp", "traces[0].duration_ms must be a number >= 0",
                    "traces[0].db_ms must be a number >= 0", "traces[0].host must be a string", "traces[0].status must be an integer",
                    "traces[0].spans must be an array" ], Apm::TracesEnvelope.new(traces_body([ bad ])).errors
+  end
+
+  test "traces may send app_ms (protocol 1.1) or the older ruby_ms" do
+    assert Apm::TracesEnvelope.new(traces_body([ trace_hash(ruby_ms: nil, app_ms: 12.5) ])).valid?
+    assert Apm::TracesEnvelope.new(traces_body([ trace_hash(app_ms: 12.5) ])).valid?
+    assert_equal [ "traces[0].app_ms must be a number >= 0" ], Apm::TracesEnvelope.new(traces_body([ trace_hash(app_ms: "1") ])).errors
   end
 end

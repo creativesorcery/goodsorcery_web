@@ -48,6 +48,13 @@ Rails.application.routes.draw do
       resource :bulk_triage, only: :create
       resource :alerts, only: %i[show update]
       resources :alert_rules, only: :update, param: :kind
+      # Slack alerts (docs/ARCHITECTURE.md §11.5): PATCH connects or replaces
+      # the webhook URL and switches it on or off; DELETE disconnects.
+      resource :slack_connection, only: %i[update destroy] do
+        scope module: :slack_connections do
+          resource :test_message, only: :create
+        end
+      end
       resource :notification_preference, only: :update
       resources :api_keys, only: %i[show create] do
         scope module: :api_keys do

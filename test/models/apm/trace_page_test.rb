@@ -9,7 +9,7 @@ class Apm::TracePageTest < ActiveSupport::TestCase
     assert_equal "POST /checkout", page.title
     assert_equal "7f3a9c1e", page.request_id
     assert page.open_hour?
-    assert_equal %i[db http view ruby], page.layers.map(&:first)
+    assert_equal %i[db http view app], page.layers.map(&:first)
     assert_in_delta 1.0, page.layers.sum(&:last), 0.001
     assert_equal 38, page.n_plus_one.calls
   end

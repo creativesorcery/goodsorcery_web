@@ -35,7 +35,7 @@ class Apm::TraceDetails
 
     def average_ms = duration_ms.to_f / calls
 
-    def layer = SPAN_LAYERS.fetch(type, :ruby)
+    def layer = SPAN_LAYERS.fetch(type, :app)
   end
 
   def initialize(payload)
@@ -52,8 +52,9 @@ class Apm::TraceDetails
 
   def process = @data["process"]
 
-  # { "ruby", "rails" }
-  def runtime = @data["runtime"] || {}
+  # A RuntimeList: the stored list, or the { "ruby", "rails" } object of
+  # traces stored before protocol revision 1.1.
+  def runtime = RuntimeList.new(@data["runtime"])
 
   # { "time_ms", "count" }
   def gc = @data["gc"] || {}

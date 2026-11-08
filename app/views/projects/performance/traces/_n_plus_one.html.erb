@@ -1,13 +1,12 @@
-<%# locals: (span:) -%>
+<%# locals: (span:, web:) -%>
 <% call_site = span.call_site %>
-<% hint = Apm::NPlusOneHint.new(span.sql) %>
 <section id="span-detail" class="panel p-5 rise rise-3" aria-labelledby="apm_span_heading">
   <div class="flex flex-wrap items-center gap-2.5">
     <h2 id="apm_span_heading" class="text-[15px] font-semibold text-ink-50">One query, run <%= pluralize(delimited(span.calls), "time") %></h2>
     <%= chip "N+1", tone: :lilac, small: true %>
   </div>
   <pre class="mt-3.5 overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-paper-700 bg-paper-950 px-4 py-3.5 font-mono text-[12.5px] leading-[1.7] text-ink-100"><%= formatted_sql(span.sql) %></pre>
-  <p class="mt-2 text-[12px] text-ink-300">Values become $1, $2 inside your app, before anything is sent.</p>
+  <p class="mt-2 text-[12px] text-ink-300">Values become placeholders inside your app, before anything is sent.</p>
 
   <dl class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
     <% [ [ "Calls", delimited(span.calls) ], [ "Total", apm_duration(span.duration_ms) ], [ "Average", apm_duration(span.average_ms) ],
@@ -33,7 +32,5 @@
     <% end %>
   <% end %>
 
-  <p class="mt-4 rounded-xl bg-paper-850 px-3 py-2.5 text-[12.5px] text-ink-200">
-    <%= hint.lead %><% if hint.code %> <span class="font-mono text-ink-50"><%= hint.code %></span><% end %>
-  </p>
+  <p class="mt-4 rounded-xl bg-paper-850 px-3 py-2.5 text-[12.5px] text-ink-200"><%= apm_n_plus_one_advice(span, web:) %></p>
 </section>

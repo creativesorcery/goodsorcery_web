@@ -81,7 +81,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
   test "overview has the add a new app tile, the recent feed and the live stream" do
     get projects_path
 
-    assert_select "a[href=?]", new_project_path, text: /One gem, one key, two minutes/
+    assert_select "a[href=?]", new_project_path, text: /One library, one key, two minutes/
     assert_select "turbo-frame##{dom_id(accounts(:acme), :recent_issues)}" do
       assert_select "li", minimum: 1
       assert_select "a[href=?]", project_issue_path(projects(:storefront), issues(:nomethod))
@@ -244,9 +244,10 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?][method=post]", projects_path do
       assert_select "input[name=?]", "project[name]"
       assert_select "select[name=?]", "project[platform]" do
-        assert_select "option", count: 2
+        assert_select "option", count: 3
         assert_select "option[value=rails][selected]", "Ruby on Rails"
         assert_select "option[value=ruby]", "Ruby"
+        assert_select "option[value=rust]", "Rust"
       end
       assert_select "input[type=submit][value=?]", "Add a new app"
     end
@@ -262,6 +263,15 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_predicate project, :ruby?
     assert_predicate project, :listening?
     assert_equal [ users(:philip) ], project.api_keys.map(&:created_by).uniq
+  end
+
+  test "create adds a rust app" do
+    post projects_path, params: { project: { name: "Ledger API", platform: "rust" } }
+
+    project = accounts(:acme).projects.find_by!(slug: "ledger-api")
+    assert_predicate project, :rust?
+    assert_equal "crate", project.client_package
+    assert_redirected_to project_setup_path(project)
   end
 
   test "create ignores attributes that are not allowed" do

@@ -7,7 +7,9 @@ class Apm::TraceNormalizer
   include Apm::JsonShape
 
   Result = Data.define(:kind, :name, :labels, :minute, :columns, :payload)
-  LAYERS = %w[db_ms http_ms view_ms ruby_ms].freeze
+  # Column => payload keys, the first number wins. The app-code column keeps
+  # its original name, ruby_ms, and older clients send that key too.
+  LAYERS = { db_ms: %w[db_ms], http_ms: %w[http_ms], view_ms: %w[view_ms], ruby_ms: %w[app_ms ruby_ms] }.freeze
 
   def initialize(cleaner: Apm::TraceCleaner.new)
     @cleaner = cleaner
@@ -30,7 +32,7 @@ class Apm::TraceNormalizer
         **layers(trace), **counts(trace, spans), **outcome(trace) }
     end
 
-    def layers(trace) = LAYERS.to_h { [ it.to_sym, number?(trace[it]) ? trace[it].to_f : 0.0 ] }
+    def layers(trace) = LAYERS.transform_values { |keys| trace.values_at(*keys).find { number?(it) }.to_f }
 
     def counts(trace, spans)
       sql, http = spans.select { it["type"] == "sql" }, spans.select { it["type"] == "http" }
@@ -73,8 +75,9 @@ class Apm::TraceNormalizer
     end
 
     def environment(trace)
-      runtime, gc = trace["runtime"].then { it.is_a?(Hash) ? it : {} }, trace["gc"].then { it.is_a?(Hash) ? it : {} }
-      { "runtime" => { "ruby" => text(runtime["ruby"], Apm::Limits::VERSION), "rails" => text(runtime["rails"], Apm::Limits::VERSION) },
+      runtime = RuntimeList.new(trace["runtime"]).to_a.map { it.merge("version" => @cleaner.text(it["version"], Apm::Limits::VERSION)) }
+      gc = trace["gc"].is_a?(Hash) ? trace["gc"] : {}
+      { "runtime" => runtime,
         "gc" => { "time_ms" => (gc["time_ms"] if number?(gc["time_ms"])), "count" => (gc["count"] if integer?(gc["count"], min: 0)) },
         "allocations" => (trace["allocations"] if integer?(trace["allocations"], min: 0)) }
     end
