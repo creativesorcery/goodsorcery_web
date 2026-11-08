@@ -167,6 +167,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
     assert_select "label[for=uptime_monitor_interval_minutes]", "Check interval"
     assert_select "select#uptime_monitor_interval_minutes[aria-describedby=uptime_monitor_interval_hint]"
     assert_select "p#uptime_monitor_interval_hint", /Upgrade to unlock/
+    assert_select "p#uptime_monitor_interval_hint[title]", count: 0, message: "the upgrade link is the hint's call to action"
   end
 
   # --- show ---
@@ -254,7 +255,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
     assert_select "option[value='1'][disabled][title='Coming soon']", "Every minute · Coming soon"
     assert_select "option[value='5'][disabled][title='Coming soon']", "Every 5 minutes · Coming soon"
     assert_select "option[value='10']:not([disabled])", "Every 10 minutes"
-    assert_select "p#uptime_monitor_interval_hint", "Some intervals are coming soon."
+    assert_select "p#uptime_monitor_interval_hint[title='Coming soon']", "Some intervals are coming soon."
     assert_no_match "Upgrade", response.body
   end
 

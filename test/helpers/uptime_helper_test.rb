@@ -90,6 +90,8 @@ class UptimeHelperTest < ActionView::TestCase
                        [ "Every 5 minutes · Coming soon", 5, { title: "Coming soon" } ],
                        [ "Every 10 minutes", 10 ], [ "Every hour", 60 ] ], uptime_interval_options
         assert_equal "Some intervals are coming soon.", uptime_locked_intervals_hint
+        assert_dom_equal %(<p id="uptime_monitor_interval_hint" class="hint" title="Coming soon">Some intervals are coming soon.</p>),
+          uptime_locked_intervals_hint_tag
       end
     end
   end

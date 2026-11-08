@@ -16,7 +16,9 @@ module UptimeHelper
   # [[label, minutes], ...] for the interval select. Locked intervals (hosted
   # only) read "Every minute · Upgrade to unlock", or "Every minute · Coming
   # soon" without an upgrade URL, with that note as their title too; the
-  # form disables them.
+  # form disables them. Native select popups don't show option titles in
+  # most browsers, so the visible label suffix carries the note and the hint
+  # below the select carries the hover title (#uptime_locked_intervals_hint_tag).
   def uptime_interval_options
     locked = entitlements.locked_uptime_intervals
     UptimeMonitor::INTERVAL_LABELS.map do |minutes, label|
@@ -24,7 +26,15 @@ module UptimeHelper
     end
   end
 
-  # Below the interval select when some intervals are locked (hosted only).
+  # The hint below the interval select when some intervals are locked
+  # (hosted only), the select's aria-describedby. Without an upgrade URL it
+  # is titled "Coming soon", the hover tooltip the locked options themselves
+  # can't show inside a native select popup.
+  def uptime_locked_intervals_hint_tag
+    tag.p uptime_locked_intervals_hint, id: "uptime_monitor_interval_hint", class: "hint",
+      title: (UpgradeOffer::COMING_SOON unless upgrade_offered?)
+  end
+
   def uptime_locked_intervals_hint
     return "Some intervals are coming soon." unless upgrade_offered?
 

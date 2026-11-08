@@ -10,9 +10,8 @@
       <div class="eyebrow"><%= Current.account.name %></div>
       <h1 class="page-title">Projects <span class="text-ink-400 text-[30px]">— <%= @overview.projects.size %></span></h1>
     </div>
-    <% if project_limit_reached? %>
-      <p id="project_limit_notice"><%= new_app_limit_notice %></p>
-    <% else %>
+    <%# At the app limit the greyed tile below carries the notice, so the header shows nothing. %>
+    <% unless project_limit_reached? %>
       <%= link_to new_project_path, class: "btn btn-primary" do %>
         <%= icon :plus, classes: "w-4 h-4" %>Add a new app
       <% end %>

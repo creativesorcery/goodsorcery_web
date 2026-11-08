@@ -112,8 +112,10 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "a[href=?]", new_project_path, count: 0
-    assert_select "#project_limit_notice span[aria-disabled=true][title='Coming soon']", "Cannot add more apps yet, but it's coming soon"
-    assert_select "#new_app_limit span[aria-disabled=true]", "Cannot add more apps yet, but it's coming soon"
+    assert_select "#new_app_limit span[aria-disabled=true][title='Coming soon']", "Cannot add more apps yet, but it's coming soon"
+    assert_select "main span[aria-disabled=true]", { count: 1, text: "Cannot add more apps yet, but it's coming soon" },
+      "the overview shows the notice once (the tile), not again in the header"
+    assert_select "#project_limit_notice", count: 0
     assert_select "aside span[aria-disabled=true]", "Cannot add more apps yet, but it's coming soon"
     assert_no_match "Upgrade", response.body
     assert_select "h1", text: /Projects\s+— 3/, message: "apps over the limit are kept"
@@ -123,9 +125,9 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     with_hosted_mode { with_upgrade_url { get projects_path } }
 
     assert_select "a[href=?]", new_project_path, count: 0
-    assert_select "#project_limit_notice", /App limit reached\.\s*Upgrade to unlock/
-    assert_select "#project_limit_notice a[href=?][target=_blank]", "https://billing.example/upgrade", text: "Upgrade to unlock"
-    assert_select "#new_app_limit a[href=?]", "https://billing.example/upgrade"
+    assert_select "#new_app_limit", /App limit reached\.\s*Upgrade to unlock/
+    assert_select "#new_app_limit a[href=?][target=_blank]", "https://billing.example/upgrade", text: "Upgrade to unlock"
+    assert_select "main a[href=?]", "https://billing.example/upgrade", { count: 1 }, "the overview shows the upgrade offer once"
     assert_select "aside a[href=?]", "https://billing.example/upgrade", text: "Upgrade to unlock"
   end
 
