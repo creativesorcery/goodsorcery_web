@@ -2,14 +2,20 @@
 # MAX_SPANS spans (in timeline order), up to MAX_N_PLUS_ONE N+1 groups with
 # call site, code and the generic preload hint, and the reported error.
 # Spans are captured data (SQL is normalised, paths have no query strings).
+# Span labels and the N+1 groups each spend a byte budget (Mcp::OutputBudget):
+# the slowest spans are taken while it lasts.
 class Mcp::TraceSummary
   MAX_SPANS = 40
   MAX_N_PLUS_ONE = 5
+  SPAN_BYTES = 8_000
+  N_PLUS_ONE_BYTES = 6_000
 
   def initialize(page, context)
     @page = page
     @context = context
     @trace = page.trace
+    @span_budget = Mcp::OutputBudget.new(SPAN_BYTES)
+    @n_plus_one_budget = Mcp::OutputBudget.new(N_PLUS_ONE_BYTES)
   end
 
   def to_h
@@ -36,13 +42,15 @@ class Mcp::TraceSummary
       { name: record.name, route: record.route_label, kind: record.kind, environment: record.environment }
     end
 
+    # The slowest spans while the budget lasts, in timeline order.
     def spans
-      @spans ||= @page.spans.max_by(MAX_SPANS) { |span| span.duration_ms.to_f }.sort_by { |span| span.offset_ms.to_f }.map { |span| span_hash(span) }
+      @spans ||= @page.spans.max_by(MAX_SPANS) { |span| span.duration_ms.to_f }.lazy.take_while { @span_budget.available? }
+        .map { |span| span_hash(span) }.to_a.sort_by { |span| span[:offset_ms].to_f }
     end
 
     def span_hash(span)
       { type: span.type, layer: span.layer, offset_ms: span.offset_ms&.round(1), duration_ms: span.duration_ms&.round(1),
-        count: span.count, label: Mcp::Captured.string(span_label(span), 500) }.compact
+        count: span.count, label: @span_budget.string(span_label(span), 500) }.compact
     end
 
     def span_label(span)
@@ -53,18 +61,19 @@ class Mcp::TraceSummary
     end
 
     def n_plus_one
-      @n_plus_one ||= @page.details.n_plus_one_spans.first(MAX_N_PLUS_ONE).map do |span|
+      @n_plus_one ||= @page.details.n_plus_one_spans.first(MAX_N_PLUS_ONE).lazy.take_while { @n_plus_one_budget.available? }.map do |span|
         hint = Apm::NPlusOneHint.new(span.sql)
-        { sql: Mcp::Captured.string(span.sql, 500), calls: span.calls, total_ms: span.duration_ms.to_f.round(1),
+        { sql: @n_plus_one_budget.string(span.sql, 500), calls: span.calls, total_ms: span.duration_ms.to_f.round(1),
           average_ms: span.average_ms.round(2), call_site: call_site(span.call_site), hint: [ hint.lead, hint.code ].compact.join(" ") }
-      end
+      end.to_a
     end
 
     def call_site(site)
       return unless site
 
-      lines = site.lines.each_with_index.map { |text, index| { line: site.start_line.to_i + index, text: Mcp::Captured.string(text, 200) } }
-      { file: site.file, line: site.line, method: site.method_name, code: lines.first(11) }
+      lines = site.lines.first(11).each_with_index.map { |text, index| { line: site.start_line.to_i + index, text: @n_plus_one_budget.string(text, 200) } }
+      { file: @n_plus_one_budget.string(site.file, 300), line: site.line, method: @n_plus_one_budget.string(site.method_name, 120),
+        code: lines }
     end
 
     def span_line(span) = "  +#{span[:offset_ms]}ms #{span[:duration_ms]}ms [#{span[:type]}#{" ×#{span[:count]}" if span[:count].to_i > 1}] #{span[:label]}"

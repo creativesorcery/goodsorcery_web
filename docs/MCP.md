@@ -117,7 +117,7 @@ Every result has a short text part and the same facts as `structuredContent`. Un
 
 - 120 calls a minute per token, and 600 a minute per IP address. Over the limit you get HTTP 429 with `Retry-After: 60`.
 - Request bodies up to 1 MiB.
-- Pages of at most 50 issues or occurrences. Backtraces show up to 30 frames (code for the first 5 app frames), breadcrumbs the last 25, and long values are cut, so responses stay well under 50 KB.
+- Pages of at most 50 issues or occurrences. Backtraces show up to 30 frames (code for the first 5 app frames), breadcrumbs the last 25, and long values are cut. Each part of a result (backtrace, breadcrumbs, params, headers and so on) also has a size budget, so a result stays under 50 KB even for the largest event ingest accepts; when a budget runs out, the rest is left out and the result says how much ("… 12 more frames", "8 more keys").
 - Browser requests are accepted only from your instance's own origin.
 
 ## Errors

@@ -8,6 +8,8 @@ class Mcp::Tools::GetOccurrence < Mcp::Tools::Base
   OMITTED_NOTE = "Omitted: request, params, headers, session, user context, job arguments, frame locals and the " \
                  "unredacted message. A token with the request_data scope adds them.".freeze
 
+  SECTION_BYTES = { job: 1_000, environment: 1_000, request: 1_000, params: 2_500, headers: 1_500, session: 1_000, user: 500 }.freeze
+
   self.tool_name = "get_occurrence"
   self.title = "Get occurrence"
   self.scope = "read"
@@ -38,27 +40,32 @@ class Mcp::Tools::GetOccurrence < Mcp::Tools::Base
 
     def build_payload
       { issue: issue.short_id, issue_url: context.issue_url(issue), transaction: occurrence.transaction_name,
-        **details.to_h, job:, environment_context: Mcp::Captured.trim(occurrence.context), **personal_data }
+        **details.to_h, job:, environment_context:, **personal_data }
     end
 
     def text_lines
       [ "#{issue.short_id} · #{issue.exception_class} · #{occurrence.transaction_name || issue.transaction_name}",
         *details.text_lines, "", "Job: #{job ? job.to_json : 'none'}",
-        "Environment: #{Mcp::Captured.trim(occurrence.context).to_json}", "", *personal_data_lines ]
+        "Environment: #{environment_context.to_json}", "", *personal_data_lines ]
     end
+
+    # Each section draws on its own cap and on the occurrence's shared budget.
+    def bounded(value, section) = Mcp::Captured.trim(value, budget: details.budget.section(SECTION_BYTES.fetch(section)))
+
+    def environment_context = @environment_context ||= bounded(occurrence.context, :environment)
 
     # Job metadata always; its arguments (captured values) only with request_data.
     def job
       return if occurrence.job.empty?
 
-      Mcp::Captured.trim(request_data ? occurrence.job : occurrence.job.except("arguments"))
+      @job ||= bounded(request_data ? occurrence.job : occurrence.job.except("arguments"), :job)
     end
 
     def personal_data
       return { omitted: REQUEST_DATA, omitted_note: OMITTED_NOTE } unless request_data
 
-      { request: occurrence.request, params: occurrence.params, headers: occurrence.headers,
-        session: occurrence.session_data, user: occurrence.user }.transform_values { |value| Mcp::Captured.trim(value) }
+      @personal_data ||= { request: occurrence.request, params: occurrence.params, headers: occurrence.headers,
+                           session: occurrence.session_data, user: occurrence.user }.to_h { |name, value| [ name, bounded(value, name) ] }
     end
 
     def personal_data_lines

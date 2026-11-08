@@ -358,6 +358,21 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     assert_operator response_size("tools/call", name: "get_issue", arguments: { issue: "GS-1042" }, token: :philip_full), :<, 50_000
   end
 
+  test "responses stay under 50 KB even for an occurrence and a trace at the ingest size limits" do
+    occurrence = occurrences(:nomethod_latest)
+    occurrence.update!(payload: huge_event_payload(occurrence))
+    assert_operator occurrence.payload.bytesize, :>, 400_000
+    apm_traces(:checkout_slow).update!(payload: huge_trace_payload(apm_traces(:checkout_slow)))
+
+    %i[philip_read philip_full].each do |token|
+      { "get_issue" => { issue: "GS-1042" }, "get_occurrence" => { occurrence: occurrence.uuid },
+        "get_trace" => { trace: apm_traces(:checkout_slow).uuid } }.each do |name, arguments|
+        assert_operator response_size("tools/call", name:, arguments:, token:), :<, 50_000, "#{name} (#{token})"
+        assert_not response.parsed_body.dig("result", "isError"), name
+      end
+    end
+  end
+
   private
     def count_queries(&)
       queries = []
@@ -369,6 +384,29 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     def response_size(method, token: :philip_read, **params)
       mcp_request(method, params, token:)
       response.body.bytesize
+    end
+
+    # Within Ingest::Limits (strings ≤ 4,096, objects ≤ 100 keys, 250 frames,
+    # breadcrumbs, locals), with quotes and accents that grow when escaped.
+    def huge_event_payload(occurrence)
+      text = ->(length) { ("é\"<" * length).first(length) }
+      wide = ->(keys, length) { Array.new(keys) { |index| [ "key_#{index}_#{text.(40)}", text.(length) ] }.to_h }
+      nested = wide.(28, 10).transform_values { wide.(28, 280) }
+      frame = ->(index) { { file: "app/models/#{text.(250)}_#{index}.rb", line: index + 1, method: text.(200), in_app: index.even?,
+                            context: { start_line: index + 1, lines: Array.new(11) { text.(500) } }, locals: wide.(25, 500) } }
+      occurrence.data.merge("exception" => occurrence.data["exception"].merge("message" => text.(4_096), "backtrace" => Array.new(60) { frame.(it) }),
+                            "params" => nested, "headers" => wide.(100, 400), "session" => nested, "user" => wide.(50, 400),
+                            "request" => wide.(50, 400), "context" => nested.merge("cause" => Array.new(3) { { class: "E", message: text.(1_000) } }),
+                            "job" => { "class" => "BigJob", "arguments" => [ nested ] },
+                            "breadcrumbs" => Array.new(100) { { offset_ms: -it, category: text.(60), message: text.(1_000), data: wide.(20, 280) } }).to_json
+    end
+
+    def huge_trace_payload(trace)
+      sql = "SELECT \"products\".* FROM \"products\" WHERE \"products\".\"#{'x' * 1_900}\" = $1"
+      group = { type: "sql", offset_ms: 1.0, duration_ms: 900.0, count: 38, name: "Product Load", sql:,
+                call_site: { file: "app/#{'y' * 300}.rb", line: 3, method: "z" * 200, context: { start_line: 1, lines: Array.new(5) { "w" * 200 } } } }
+      spans = Array.new(295) { { type: "sql", offset_ms: it.to_f, duration_ms: 5.0, name: "Load", sql: } } + Array.new(5) { group.merge(sql: "#{sql} #{it}") }
+      JSON.parse(trace.payload).merge("spans" => spans).to_json
     end
 
     def add_more_data
