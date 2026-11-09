@@ -1,0 +1,30 @@
+<%# locals: (token_value:) -%>
+<%# Client tabs with a snippet per client. token_value is AccessTokensHelper::TOKEN_PLACEHOLDER before a token
+    exists, or the new token's plaintext in the create response only. One set of tabs per page: the ids are fixed. -%>
+<div class="mt-5" data-controller="tabs">
+  <div class="tab-strip gap-6 border-b border-paper-700" role="tablist" aria-label="AI client">
+    <% AccessTokensHelper::CLIENTS.each_with_index do |(id, label), index| %>
+      <button type="button" class="tab" role="tab" id="client-tab-<%= id %>" aria-selected="<%= index.zero? %>"
+              aria-controls="client-<%= id %>" data-tabs-target="tab" data-action="tabs#select"><%= label %></button>
+    <% end %>
+  </div>
+  <% AccessTokensHelper::CLIENTS.each_with_index do |(id, _label), index| %>
+    <%= tag.div id: "client-#{id}", role: "tabpanel", aria: { labelledby: "client-tab-#{id}" },
+          data: { tabs_target: "panel" }, class: "mt-4 space-y-3", hidden: !index.zero? do %>
+      <% mcp_client_snippets(id, token_value).each do |file, text| %>
+        <%= render layout: "projects/setups/snippet", locals: { label: file } do %><%= text %><% end %>
+      <% end %>
+      <% if id == "vscode" %>
+        <p class="hint">VS Code asks for the token when it first connects and keeps it out of the file, so the file is safe to commit.</p>
+      <% elsif id == "codex" %>
+        <p class="hint">Codex reads the token from the <span class="font-mono"><%= AccessTokensHelper::TOKEN_VARIABLE %></span> environment variable.</p>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>
+
+<p class="hint mt-4">
+  Connectors in claude.ai and Claude Desktop aren't supported yet: they need an OAuth sign-in.
+  <%= link_to "Read the full MCP guide →", AccessTokensHelper::MCP_GUIDE_URL, class: "text-iris-300 hover:underline",
+        target: "_blank", rel: "noopener noreferrer" %>
+</p>

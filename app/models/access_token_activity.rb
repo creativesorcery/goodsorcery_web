@@ -1,5 +1,5 @@
 # One change made through the MCP endpoint (docs/ARCHITECTURE.md §14.5): the
-# token, its member, the action and the issue ids. Shown on the Access tokens
+# token, its member, the action and the issue ids. Shown on the MCP server
 # page (the last RECENT_PER_TOKEN per token). Never holds note text or
 # captured data.
 class AccessTokenActivity < ApplicationRecord

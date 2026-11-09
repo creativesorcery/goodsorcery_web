@@ -1,15 +1,18 @@
 <%# locals: (access_token:, created_token: nil) -%>
 <div class="rise">
   <div class="eyebrow">Your account</div>
-  <h1 class="page-title">Access tokens</h1>
+  <h1 class="page-title">MCP server</h1>
   <p class="mt-2 text-[13.5px] text-ink-300">
-    Connect AI clients such as Claude Code, Codex, Cursor and VS Code to Good Sorcery's MCP server, so they can
-    look into errors, uptime and performance with you. A token acts as you, in one account.
+    AI clients such as Claude Code, Codex, Cursor and VS Code can connect to Good Sorcery's MCP server to look into
+    errors, uptime and performance with you. Each client needs an access token, which acts as you in one account.
   </p>
 </div>
 
+<%# One set of client tabs: the new token's snippets (create response only) replace the placeholder ones. %>
 <% if created_token %>
   <%= render "access_tokens/created", token: created_token %>
+<% else %>
+  <%= render "access_tokens/connect" %>
 <% end %>
 
 <%= render "access_tokens/form", access_token: %>

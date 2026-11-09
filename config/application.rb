@@ -56,7 +56,7 @@ module GoodsorceryWeb
     config.x.privacy_url = HttpUrl.parse(ENV["GOODSORCERY_PRIVACY_URL"])
 
     # The instance's public URL (GOODSORCERY_PUBLIC_URL, required in
-    # production), or nil. The Access tokens page builds MCP client snippets
+    # production), or nil. The MCP server page builds MCP client snippets
     # from it, and the MCP endpoint accepts browser Origins of it only.
     public_url = ENV[PublicUrl::VARIABLE].to_s.strip
     config.x.public_url = (PublicUrl.new(public_url) unless public_url.empty?)

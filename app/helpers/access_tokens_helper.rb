@@ -1,6 +1,7 @@
-# The Access tokens page (docs/MCP.md): scope wording, status chips and the
-# client configuration snippets shown once with a new token. Snippets are
-# built as plain strings and rendered through ERB escaping.
+# The MCP server page (user menu › MCP server, docs/MCP.md): scope wording,
+# status chips and the client configuration snippets, shown up front with a
+# placeholder and once with a new token's plaintext. Snippets are built as
+# plain strings and rendered through ERB escaping.
 module AccessTokensHelper
   SCOPE_LABELS = { "read" => "Read", "triage" => "Triage", "request_data" => "Request data" }.freeze
   SCOPE_DESCRIPTIONS = {
@@ -15,6 +16,11 @@ module AccessTokensHelper
   CLIENTS = { "claude_code" => "Claude Code", "codex" => "Codex", "cursor" => "Cursor", "vscode" => "VS Code" }.freeze
   SERVER_NAME = "goodsorcery".freeze
   TOKEN_VARIABLE = "GOODSORCERY_TOKEN".freeze
+  # Stands in for the token in the snippets shown before one is created.
+  TOKEN_PLACEHOLDER = "<your-token>".freeze
+  # The public guide in the app's public repository (the same one as ApplicationHelper::DEFAULT_DOCS_URL).
+  # Fixed rather than built from GOODSORCERY_DOCS_URL, which may point at a site without this page.
+  MCP_GUIDE_URL = "https://github.com/creativesorcery/goodsorcery_web/blob/main/docs/MCP.md".freeze
 
   def access_token_expiry_options = EXPIRY_LABELS.map { |value, label| [ label, value ] }
 

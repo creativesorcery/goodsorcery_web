@@ -1,5 +1,6 @@
-# The signed-in person's personal access tokens for AI clients (user menu ›
-# Access tokens, docs/MCP.md): list with recent MCP activity, create, revoke.
+# The MCP server page (user menu › MCP server, docs/MCP.md): how to connect
+# an AI client, and the signed-in person's personal access tokens for it:
+# list with recent MCP activity, create, revoke.
 # Tokens belong to the person, each covering one of their accounts. The
 # plaintext token appears only in the create response; it never goes into
 # the flash, the session, the cache or a log (the request log shows only

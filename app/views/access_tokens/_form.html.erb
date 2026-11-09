@@ -1,7 +1,7 @@
 <%# locals: (access_token:) -%>
 <% accounts = Current.user.accounts.order(:name).to_a %>
 <section class="panel mt-6 p-5 rise rise-1" aria-labelledby="new_access_token_heading">
-  <h2 id="new_access_token_heading" class="font-display text-[19px] text-ink-50">Create a token</h2>
+  <h2 id="new_access_token_heading" class="font-display text-[19px] text-ink-50">Create an access token</h2>
   <%= form_with model: access_token, url: access_tokens_path, scope: :personal_access_token, id: "new_access_token",
         class: "mt-4 space-y-5" do |form| %>
     <% if access_token.errors.any? %>

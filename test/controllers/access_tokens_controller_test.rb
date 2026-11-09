@@ -8,7 +8,7 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
       headers: format == :turbo_stream ? { "Accept" => "text/vnd.turbo-stream.html" } : {}
   end
 
-  def created_token_text = css_select("#created_access_token code").first.text
+  def created_token_text = css_select("#created_access_token_value").first.text
 
   test "requires sign in" do
     sign_out
@@ -23,7 +23,8 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
     get access_tokens_path
 
     assert_response :success
-    assert_select "h1", "Access tokens"
+    assert_select "h1", "MCP server"
+    assert_select "title", /MCP server/
     assert_select "meta[name='turbo-cache-control'][content='no-cache']"
     assert_select "##{dom_id(personal_access_tokens(:philip_triage))}" do
       assert_select "span", text: "Claude Code"
@@ -43,9 +44,44 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/style="/, response.body)
   end
 
-  test "the user menu links here" do
+  test "the user menu links here as MCP server" do
     get projects_path
-    assert_select "a.menu-item[href=?]", access_tokens_path, text: /Access tokens/
+    assert_select "a.menu-item[href=?]", access_tokens_path, text: /MCP server/
+  end
+
+  test "shows how to connect a client before any token exists, with a placeholder instead of a token" do
+    sign_in_as users(:jo)
+    users(:jo).personal_access_tokens.destroy_all
+    get access_tokens_path
+
+    assert_select "#connect_client" do
+      assert_select "h2", "Connect a client"
+      assert_select "ol li", 2
+      assert_select "a[href='#new_access_token']", text: "Create an access token"
+      assert_select "#mcp_server_url[data-clipboard-target=source]", "http://www.example.com/mcp"
+      assert_select "#mcp_server_url ~ button[aria-label]", 0
+      assert_select "#mcp_server_url ~ button [data-clipboard-target=label]", "Copy"
+      assert_select "#mcp_server_url ~ button .sr-only", "server URL"
+      assert_select "[role=tab]", AccessTokensHelper::CLIENTS.size
+      assert_select ".tab-strip[role=tablist]", 1, "the client tabs scroll sideways on phones instead of wrapping"
+      assert_select "a[href=?][target=_blank][rel='noopener noreferrer']", AccessTokensHelper::MCP_GUIDE_URL
+    end
+    assert_select "#created_access_token", 0
+    assert_includes response.body, "claude mcp add --transport http goodsorcery http://www.example.com/mcp --header &quot;Authorization: Bearer &lt;your-token&gt;&quot;"
+    assert_includes response.body, "export GOODSORCERY_TOKEN=&quot;&lt;your-token&gt;&quot;"
+    assert_includes response.body, "&quot;Authorization&quot;: &quot;Bearer &lt;your-token&gt;&quot;"
+    assert_includes response.body, "Bearer ${input:goodsorcery-token}"
+    assert_match "claude.ai and Claude Desktop aren", response.body
+    assert_select "p.hint", text: /GOODSORCERY_TOKEN environment variable/
+    assert_select "p.hint", text: /VS Code asks for the token/
+    assert_select "#new_access_token"
+    assert_no_match(/gs_pat_[A-Za-z0-9]/, response.body)
+  end
+
+  test "the connect panel stays on a failed create" do
+    create_token(name: "", format: :html)
+    assert_select "#connect_client"
+    assert_select "#created_access_token", 0
   end
 
   test "the form explains the scopes and warns about request data" do
@@ -80,6 +116,10 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "~/.cursor/mcp.json"
     assert_includes response.body, "promptString"
     assert_match "claude.ai and Claude Desktop aren", response.body
+    assert_select "#created_access_token #mcp_server_url", "http://www.example.com/mcp"
+    assert_select "[role=tablist][aria-label='AI client']", 1, "the new token's snippets replace the placeholder ones"
+    assert_select "#connect_client", 0
+    assert_not_includes response.body, AccessTokensHelper::TOKEN_PLACEHOLDER.gsub("<", "&lt;").gsub(">", "&gt;")
 
     get access_tokens_path
     assert_not_includes response.body, plaintext, "shown only in the create response"

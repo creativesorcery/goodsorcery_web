@@ -1,0 +1,9 @@
+<%# The URL AI clients connect to, with a Copy button. -%>
+<div class="mt-4">
+  <div class="label">Server URL</div>
+  <div class="flex flex-wrap items-center gap-2" data-controller="clipboard">
+    <code id="mcp_server_url" class="font-mono text-[13px] bg-paper-950 border border-paper-700 rounded-lg px-3 py-1.5 text-ink-100 break-all"
+          data-clipboard-target="source"><%= mcp_endpoint_url %></code>
+    <button type="button" class="btn btn-sm" data-action="clipboard#copy"><span data-clipboard-target="label">Copy</span><span class="sr-only"> server URL</span></button>
+  </div>
+</div>
