@@ -111,6 +111,19 @@ bin/bundler-audit && bin/importmap audit
 - **System tests** click through the DOM via JavaScript (`press`, `type_into`) because headless Chrome on this machine intermittently drops WebDriver input. Keep that pattern.
 - **Commits:** commit in logical steps on `main`. Each commit message ends with the Co-Authored-By trailer.
 
+## Migrations (self-hosted upgrades)
+
+Self-hosted installs run pending migrations at boot (`db:prepare`), often jumping many releases at once, and nobody can fix their database by hand. Read `docs/MIGRATIONS.md` before writing or reviewing any migration; its rules are binding. Agents in particular:
+
+- **Never edit, rename, renumber or delete a migration already on `main`**, even to "fix" one. Write a new migration instead.
+- **No app code inside a migration:** no models, concerns, POROs, app constants, `config/*.yml`, `Rails.configuration.x.*` or `ENV`. Use `execute` with `connection.quote`, or a bare `ActiveRecord::Base` subclass defined inside the migration. Copy any needed values into the migration.
+- **No hosted-only logic:** every migration also runs on self-hosted databases, with any data an earlier release allowed.
+- **Expand, then contract:** the previous release must keep working on the new schema. Drop columns one release after adding them to `ignored_columns`; rename or retype through a new column; add columns nullable or with a default.
+- **Keep migrations fast:** indexes `algorithm: :concurrently` with `disable_ddl_transaction!`; foreign keys and check constraints `validate: false`, then validate separately. Never bulk-update or bulk-delete a table that grows with traffic (events, occurrences, issues, rollups, traces, checks, deliveries, activity logs) in a migration: use a batched `goodsorcery:` rake task or job and mention it in the PR.
+- **`strong_migrations` checks run on `bin/rails db:migrate`.** When a check stops a migration, follow its suggested safe alternative. Don't reach for `safety_assured` to make the error go away; use it only when the operation is provably safe on any install, with a comment saying why. `execute` always stops (the gem can't read SQL): check the statement against the rules above, then wrap it in a commented `safety_assured`. Never change `StrongMigrations.start_after` or the other settings in `config/initializers/strong_migrations.rb` without the user's go-ahead.
+- **Migration tests** build the migration with `migration_for(TheMigration)` (`test/test_helpers/migration_test_helper.rb`), never `TheMigration.new`: without its version, `start_after` can't skip old migrations and the tests fail.
+- Run `bin/rails db:migrate`, `db:rollback` and `db:migrate` again against the seeded dev database, and commit `db/schema.rb` with the migration.
+
 ## Gotchas
 
 - **Query cache in jobs:** `UPDATE … RETURNING` run through `select_value`/`find_by_sql` gets served from the query cache inside jobs. Wrap such queries in `uncached { }` (see `allocate_issue_number`, `IssueTally`).

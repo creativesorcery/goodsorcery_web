@@ -189,7 +189,7 @@ without Cloudflare in front still refuses oversized uploads.
 
 - **Deploy:** merge to `main`. Deploys queue rather than overlap.
 - **Roll back:** `bin/kamal rollback VERSION` (a git SHA from `bin/kamal app images`), or revert the commit on `main`.
-  Neither runs migrations backwards, so the previous release runs against the new schema. Migrations keep that working: a column the code stops using stays (ignored with `ignored_columns`) and is dropped one release later.
+  Neither runs migrations backwards, so the previous release runs against the new schema. Migrations keep that working: a column the code stops using stays (ignored with `ignored_columns`) and is dropped one release later. The full rules are in [MIGRATIONS.md](MIGRATIONS.md).
 - **Console, logs:** `bin/kamal console`, `bin/kamal logs`, `bin/kamal logs -r job`, `bin/kamal dbc`.
 - **Scheduled jobs:** sidekiq-cron runs `config/schedule.yml` inside the job
   container: the retention sweep daily, the stale-event requeue every 10
