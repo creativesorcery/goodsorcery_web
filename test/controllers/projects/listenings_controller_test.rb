@@ -27,6 +27,18 @@ class Projects::ListeningsControllerTest < ActionDispatch::IntegrationTest
     assert_match "is connected", response.body
   end
 
+  test "once connected it also fills the rail's MCP slot" do
+    projects(:marketing).record_first_event(runtime_label: "Rails 8.1 · Ruby 4.0", at: Time.current)
+
+    get project_listening_path(projects(:marketing))
+
+    assert_select "turbo-frame##{dom_id(projects(:marketing), :listening)} turbo-stream[action=replace][target=?]",
+      dom_id(projects(:marketing), :setup_mcp)
+    stream = css_select("turbo-stream[target=#{dom_id(projects(:marketing), :setup_mcp)}] template").first
+    assert_includes stream.inner_html, "Use it from your AI assistant"
+    assert_includes stream.inner_html, %(href="#{access_tokens_path}")
+  end
+
   test "outsiders get 404" do
     sign_in_as users(:outsider)
 

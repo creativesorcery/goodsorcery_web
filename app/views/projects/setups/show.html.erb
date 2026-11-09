@@ -19,7 +19,7 @@
         <%= render "projects/setups/#{@project.platform}/steps", project: @project, progress: @progress, api_key: @api_keys.first %>
         <%= render "projects/setups/api_keys", project: @project, api_keys: @api_keys %>
       </div>
-      <%= render "projects/setups/#{@project.platform}/rail" %>
+      <%= render "projects/setups/#{@project.platform}/rail", project: @project, progress: @progress %>
     </div>
   </div>
 </div>

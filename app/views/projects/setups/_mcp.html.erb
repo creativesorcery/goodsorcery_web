@@ -1,0 +1,14 @@
+<%# locals: (project:, progress:) -%>
+<%# The MCP card at the top of each platform's rail, once the first event has landed. Until then it is an empty
+    hidden slot that the listening frame's turbo-stream replaces (projects/listenings/show), as it does the hero. -%>
+<% if progress.connected? %>
+  <div id="<%= dom_id(project, :setup_mcp) %>" class="panel p-5 rise rise-1">
+    <div class="font-display text-[18px] text-ink-50">Use it from your AI assistant</div>
+    <p class="text-[13px] text-ink-300 mt-2">
+      Claude Code, Codex, Cursor or VS Code can read this app's issues, uptime and performance through Good Sorcery's MCP server.
+    </p>
+    <%= link_to "Set up MCP →", access_tokens_path, class: "inline-block mt-3 text-[13px] text-iris-300 hover:underline" %>
+  </div>
+<% else %>
+  <div id="<%= dom_id(project, :setup_mcp) %>" hidden></div>
+<% end %>

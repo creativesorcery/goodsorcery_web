@@ -1,7 +1,8 @@
 <%= turbo_frame_tag dom_id(@project, :listening), target: "_top" do %>
   <%= render "projects/listenings/listening", project: @project, progress: @progress %>
-  <%# Once connected, also swap the hero so its stepper shows every step done. -%>
+  <%# Once connected, also swap the hero so its stepper shows every step done, and fill the rail's MCP slot. -%>
   <% if @progress.connected? %>
     <%= turbo_stream.replace dom_id(@project, :setup_hero), partial: "projects/setups/hero", locals: { project: @project, progress: @progress } %>
+    <%= turbo_stream.replace dom_id(@project, :setup_mcp), partial: "projects/setups/mcp", locals: { project: @project, progress: @progress } %>
   <% end %>
 <% end %>

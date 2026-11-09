@@ -29,6 +29,33 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "turbo-frame##{dom_id(projects(:storefront), :listening)}", text: /First event received/
   end
 
+  test "a listening project keeps the MCP card out of the rail until the first event" do
+    get project_setup_path(projects(:marketing))
+
+    assert_select "aside > ##{dom_id(projects(:marketing), :setup_mcp)}[hidden]:empty"
+    assert_no_match(/Use it from your AI assistant/, response.body)
+  end
+
+  test "a connected project shows the MCP card first in the rail, linking to the MCP page" do
+    get project_setup_path(projects(:storefront))
+
+    assert_select "aside > ##{dom_id(projects(:storefront), :setup_mcp)}:first-child:not([hidden])" do
+      assert_select "div", text: "Use it from your AI assistant"
+      assert_select "p", text: /Claude Code, Codex, Cursor or VS Code can read this app's issues, uptime and performance/
+      assert_select "a[href=?]", access_tokens_path, text: "Set up MCP →"
+    end
+  end
+
+  %w[ruby rust].each do |platform|
+    test "connected #{platform} apps show the same MCP card" do
+      projects(:storefront).update!(platform:)
+
+      get project_setup_path(projects(:storefront))
+
+      assert_select "aside > ##{dom_id(projects(:storefront), :setup_mcp)} a[href=?]", access_tokens_path, text: "Set up MCP →"
+    end
+  end
+
   test "install tabs show only the masked default key" do
     get project_setup_path(projects(:storefront))
 
