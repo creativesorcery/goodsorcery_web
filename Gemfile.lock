@@ -122,7 +122,7 @@ GEM
       raabro (~> 1.4)
     globalid (1.4.0)
       activesupport (>= 6.1)
-    goodsorcery (0.3.0)
+    goodsorcery (0.3.1)
     hana (1.3.7)
     i18n (1.15.2)
       concurrent-ruby (~> 1.0)
@@ -469,7 +469,7 @@ CHECKSUMS
   et-orbi (1.4.2) sha256=bb555dae668419cb24caa2a293a170e58be6d4df1e017c51f5030bdc133cd20c
   fugit (1.14.0) sha256=e311a9cc85a54bb67649df45060e721282a1e2c8ebad40e41874a3a7d576f37e
   globalid (1.4.0) sha256=037f12fbf1d9d7a014d501c2d5c77356fd4ddd96d7a7991d6700bba96706f427
-  goodsorcery (0.3.0) sha256=6d5b41891d39716ef8ad41b4cae854abbafec5ca3d7713d5e45e23f5f6ca04e9
+  goodsorcery (0.3.1) sha256=952089901b43dab70a7e5d766d4c4f6f9f113a539d560a7c33af4d4d35f43297
   hana (1.3.7) sha256=5425db42d651fea08859811c29d20446f16af196308162894db208cac5ce9b0d
   i18n (1.15.2) sha256=00f9eb62412fe593b2a65a97daa75300d37abb8f7202ec748e94b6d46a9dd1b5
   importmap-rails (2.2.3) sha256=7101be2a4dc97cf1558fb8f573a718404c5f6bcfe94f304bf1f39e444feeb16a
