@@ -196,7 +196,7 @@ Every variable below is read by the app's code or config.
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
 | `SECRET_KEY_BASE` | **yes** | none (**production refuses to boot without it**) | Signs and encrypts cookies and derives the `PrivateDigest` HMAC key. See "Secrets". |
-| `GOODSORCERY_PUBLIC_URL` | **yes** | none (**production refuses to boot without it**) | This instance's public URL, e.g. `https://errors.example.com`. Sets the host and protocol of links in emails (password resets, alerts) and Slack alert posts, and the allowed hosts (`config.hosts`). The setup page's install snippet also shows it as the endpoint, the Access tokens page builds the MCP client snippets from it (`<URL>/mcp`), and the MCP endpoint accepts browser `Origin`s of it only. |
+| `GOODSORCERY_PUBLIC_URL` | **yes** | none (**production refuses to boot without it**) | This instance's public URL, e.g. `https://errors.example.com`. Sets the host and protocol of links in emails (password resets, alerts) and Slack alert posts, and the allowed hosts (`config.hosts`). The setup page's install snippet also shows it as the endpoint, the MCP server page (user menu) builds the MCP client snippets from it (`<URL>/mcp`), and the MCP endpoint accepts browser `Origin`s of it only. |
 | `GOODSORCERY_EXTRA_HOSTS` | no | none | Comma-separated extra hostnames to accept besides the public URL's host. `/up` answers on any host. |
 | `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY` | **yes** | none | Encrypts captured error data, raw inbound events, API key tokens, tag values and notes. |
 | `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | **yes** | none | Deterministic encryption key. |
@@ -296,9 +296,10 @@ Run a second container from the same image with `bundle exec sidekiq -C config/s
 `POST /mcp` is a [Model Context Protocol](https://modelcontextprotocol.io)
 server, so AI clients (Claude Code, Codex, Cursor, VS Code) can search and read
 issues, occurrences, uptime and performance data and, with the triage scope,
-resolve, ignore or reopen issues and add notes. Each member creates personal
-access tokens under user menu › **Access tokens**; a token covers one account
-and is shown once, with ready-to-paste client configuration. There is no OAuth
+resolve, ignore or reopen issues and add notes. User menu › **MCP server** shows
+the server URL and ready-to-paste client configuration, and is where each
+member creates personal access tokens; a token covers one account and is shown
+once. There is no OAuth
 yet, so claude.ai and Claude Desktop connectors can't connect. Nothing needs
 configuring on the server beyond `GOODSORCERY_PUBLIC_URL`. See `docs/MCP.md`
 (public: tokens, client snippets, tools, privacy and limits) and

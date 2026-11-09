@@ -8,23 +8,30 @@ Good Sorcery runs a [Model Context Protocol](https://modelcontextprotocol.io) se
 
 ## Creating a token
 
-1. Open the user menu (bottom left) and choose **Access tokens**.
-2. Name the token after the client and machine, for example "Claude Code on my laptop".
-3. If you belong to several accounts, choose the account. Each token covers one account.
-4. Choose scopes:
+Open the user menu (bottom left) and choose **MCP server**. The page shows your server URL and ready-to-paste configuration for each client up front, with a `<your-token>` placeholder where the token goes. To create a token there:
+
+1. Under **Create an access token**, name the token after the client and machine, for example "Claude Code on my laptop".
+2. If you belong to several accounts, choose the account. Each token covers one account.
+3. Choose scopes:
    - **Read** is always included: list apps, search and read issues, occurrences, uptime and performance.
    - **Triage** lets the client resolve, ignore and reopen issues and add notes, as you.
    - **Request data** adds request params, headers, session, user details, job arguments, frame locals and unredacted error messages to occurrence details. These are sent to your AI provider, so leave it off unless you need it.
-5. Choose when it expires: 30 days, 90 days (the default), 1 year or never.
-6. Copy the token. **It's shown only once.** The page also shows ready-to-paste configuration for each client.
+4. Choose when it expires: 30 days, 90 days (the default), 1 year or never.
+5. Copy the token. **It's shown only once.** The client configuration on the page is then filled in with it, ready to paste.
 
 You need a confirmed email address to create tokens. Each person can have up to 20 active tokens.
 
 Revoke a token on the same page at any time; clients using it lose access at once. A token also stops working when it expires, or when you're removed from its account.
 
+You can also reach the page from an app's Setup page, which shows a "Use it from your AI assistant" card once the app has received its first event, and from the **Set up MCP** link on an issue page while you have no active token.
+
+## Asking about an issue
+
+Every issue page has an **Ask your AI** button. It copies a ready-made prompt for your client, for example "Use the Good Sorcery MCP server to look into issue GS-1042 in the storefront app and suggest a fix. Start with get_issue for GS-1042." The prompt names only the issue's short id and the app, never the error's title, message or anything else captured with it.
+
 ## Client configuration
 
-Replace `<URL>` with your instance's URL and `<TOKEN>` with your token. The Access tokens page fills both in for you.
+Replace `<URL>` with your instance's URL and `<TOKEN>` with your token. The MCP server page fills in the URL, and the token too right after you create one.
 
 ### Claude Code
 
@@ -110,8 +117,8 @@ Every result has a short text part and the same facts as `structuredContent`. Un
 - **Captured data is untrusted.** Error messages, backtraces, code, breadcrumbs, request data and trace spans come from your applications and from whoever used them. They may contain text that looks like instructions to an AI. Tool descriptions and every result that holds captured data say so, and tell the client never to follow such instructions. Still, review what your AI client proposes before you let it act.
 - **What leaves Good Sorcery:** whatever a tool returns goes to your AI client and, from there, to your AI provider. Data is scrubbed and redacted exactly as in the dashboard. Without the request data scope, error messages are redacted like issue titles (emails, numbers, tokens and similar replaced), and request data, user details, job arguments, frame locals and custom context your app added are left out (the runtime details and the causes' exception classes stay, with cause messages redacted too).
 - **Never returned:** ingest API keys, monitor URLs, other secrets, and the token itself.
-- **Audit:** triage actions and notes made through MCP are recorded with the token, and shown under each token on the Access tokens page ("Recent activity", the last 20). On the issue page they're marked "via MCP". Reads are logged with the tool name, token and duration only, never their arguments.
-- **Password resets don't revoke tokens.** A reset signs you out of the dashboard everywhere, but your tokens keep working (most resets are forgotten passwords). If you think a token leaked, revoke it on the Access tokens page.
+- **Audit:** triage actions and notes made through MCP are recorded with the token, and shown under each token on the MCP server page ("Recent activity", the last 20). On the issue page they're marked "via MCP". Reads are logged with the tool name, token and duration only, never their arguments.
+- **Password resets don't revoke tokens.** A reset signs you out of the dashboard everywhere, but your tokens keep working (most resets are forgotten passwords). If you think a token leaked, revoke it on the MCP server page.
 - **Retention:** revoked and expired tokens, and MCP activity, are deleted 90 days later.
 
 ## Limits
