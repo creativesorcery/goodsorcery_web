@@ -4,6 +4,7 @@ require "rails/test_help"
 require_relative "test_helpers/session_test_helper"
 require_relative "test_helpers/apm_fixture_stats"
 require_relative "test_helpers/mcp_test_helper"
+require_relative "test_helpers/migration_test_helper"
 
 # Freezes the clock at the instant the APM fixtures were built from
 # (ApmFixtureStats::ANCHOR) for the whole test. Include it in every test that

@@ -3,6 +3,8 @@ require Rails.root.join("db/migrate/20261103000003_add_uptime_alerts")
 
 # Postgres DDL is transactional, so the test's rollback restores the schema.
 class AddUptimeAlertsTest < ActiveSupport::TestCase
+  include MigrationTestHelper
+
   teardown do
     AlertRule.reset_column_information
     NotificationPreference.reset_column_information
@@ -37,6 +39,6 @@ class AddUptimeAlertsTest < ActiveSupport::TestCase
 
   private
     def migration
-      @migration ||= AddUptimeAlerts.new.tap { |m| m.verbose = false }
+      @migration ||= migration_for(AddUptimeAlerts).tap { |m| m.verbose = false }
     end
 end

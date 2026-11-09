@@ -4,6 +4,8 @@ require Rails.root.join("db/migrate/20261107000001_move_monthly_event_quota_to_e
 # Runs the migration both ways inside the test transaction. Reads and writes
 # go through raw SQL, never the Account model, which ignores the column.
 class MoveMonthlyEventQuotaToEntitlementsTest < ActiveSupport::TestCase
+  include MigrationTestHelper
+
   setup do
     @acme, @umbrella = accounts(:acme).id, accounts(:umbrella).id
     @fresh = Account.create!(name: "Fresh").id
@@ -55,7 +57,7 @@ class MoveMonthlyEventQuotaToEntitlementsTest < ActiveSupport::TestCase
     def connection = ActiveRecord::Base.connection
 
     def migrate(direction)
-      ActiveRecord::Migration.suppress_messages { MoveMonthlyEventQuotaToEntitlements.new.migrate(direction) }
+      ActiveRecord::Migration.suppress_messages { migration_for(MoveMonthlyEventQuotaToEntitlements).migrate(direction) }
     end
 
     def write(id, quota:, values:)

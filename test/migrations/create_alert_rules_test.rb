@@ -3,10 +3,12 @@ require Rails.root.join("db/migrate/20261011000001_create_alert_rules")
 
 # Postgres DDL is transactional, so the test's rollback restores the table.
 class CreateAlertRulesTest < ActiveSupport::TestCase
+  include MigrationTestHelper
+
   teardown { AlertRule.reset_column_information }
 
   test "every existing app gets the default rule set" do
-    migration = CreateAlertRules.new.tap { |m| m.verbose = false }
+    migration = migration_for(CreateAlertRules).tap { |m| m.verbose = false }
     migration.migrate(:down)
     migration.migrate(:up)
     AlertRule.reset_column_information

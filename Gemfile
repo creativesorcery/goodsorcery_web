@@ -26,6 +26,8 @@ gem "sidekiq"
 gem "sidekiq-cron", "~> 2.4"
 # Sends production mail (password resets) through Postmark's API
 gem "postmark-rails", "~> 0.22"
+# Catches unsafe migrations (locks, rewrites) in development and test; see docs/MIGRATIONS.md
+gem "strong_migrations", "~> 2.8"
 
 # Use Active Model has_secure_password [https://guides.rubyonrails.org/active_model_basics.html#securepassword]
 gem "bcrypt", "~> 3.1.7"
