@@ -251,6 +251,61 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.headers["Cache-Control"], "no-store"
   end
 
+  test "the issue page's Ask your AI button copies a prompt with only the short id and the app" do
+    issue = issues(:nomethod)
+    issue.update_columns(message: "boom for jane@example.com", culprit: "secret_culprit in leak")
+
+    get project_issue_path(@project, issue)
+
+    assert_response :success
+    assert_select "#ask_your_ai button.btn.btn-sm[data-controller=clipboard][data-action='clipboard#copy']", 1 do |buttons|
+      prompt = buttons.first["data-clipboard-text-value"]
+      assert_equal "Use the Good Sorcery MCP server to look into issue GS-#{issue.number} in the storefront app " \
+                   "and suggest a fix. Start with get_issue for GS-#{issue.number}.", prompt
+      [ "jane@example.com", "secret_culprit", issue.exception_class, issue.transaction_name ].each do |captured|
+        assert_not_includes prompt, captured
+      end
+    end
+    assert_select "#ask_your_ai [data-clipboard-target=label]", "Ask your AI"
+  end
+
+  test "Set up MCP shows only while the viewer has no active token for this account" do
+    issue = issues(:nomethod)
+
+    get project_issue_path(@project, issue)
+    assert_select "#ask_your_ai a[href=?]", access_tokens_path, count: 0
+
+    PersonalAccessToken.revoke_all(user_id: users(:philip).id)
+    get project_issue_path(@project, issue)
+    assert_select "#ask_your_ai a[href=?]", access_tokens_path, text: "Set up MCP"
+  end
+
+  test "another member's token doesn't hide Set up MCP" do
+    sign_in_as users(:jo)
+    users(:jo).personal_access_tokens.update_all(revoked_at: 1.minute.ago)
+
+    get project_issue_path(@project, issues(:nomethod))
+
+    assert_select "#ask_your_ai a", text: "Set up MCP"
+  end
+
+  test "the occurrence page carries the Ask your AI button too" do
+    issue = issues(:nomethod)
+
+    get project_issue_occurrence_path(@project, issue, "latest")
+
+    assert_response :success
+    assert_select "#ask_your_ai button", 1
+  end
+
+  test "an outsider gets 404 for another account's issue page" do
+    sign_in_as users(:outsider)
+
+    get project_issue_path(@project, issues(:nomethod))
+
+    assert_response :not_found
+  end
+
   private
     def create_issues(count, assignee: nil)
       count.times do |index|

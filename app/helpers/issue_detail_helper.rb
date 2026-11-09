@@ -43,6 +43,25 @@ module IssueDetailHelper
     @assignable_members ||= Current.account.users.order(:name).to_a
   end
 
+  # ── ask your AI ─────────────────────────────────────────────
+
+  # The prompt "Ask your AI" copies. It names only what the MCP tools look an
+  # issue up by (the short id for get_issue, the app slug for search_issues)
+  # and the app's name: never the title, message, culprit or anything else
+  # captured with the error.
+  def issue_ai_prompt(issue)
+    "Use the Good Sorcery MCP server to look into issue #{issue.short_id} in the #{ai_prompt_app(issue.project)} " \
+      "and suggest a fix. Start with get_issue for #{issue.short_id}."
+  end
+
+  # Whether the viewer has no usable token for this account yet, so the hero
+  # offers "Set up MCP" (one EXISTS query per page).
+  def mcp_setup_needed?
+    return @mcp_setup_needed if defined?(@mcp_setup_needed)
+
+    @mcp_setup_needed = !Current.user.personal_access_tokens.active.exists?(account_id: Current.account.id)
+  end
+
   # ── chart ───────────────────────────────────────────────────
 
   def issue_chart_color(issue)
@@ -103,4 +122,11 @@ module IssueDetailHelper
     else "text-mint-300"
     end
   end
+
+  private
+    # "storefront app", or "Storefront app (slug: storefront)" when they differ.
+    def ai_prompt_app(project)
+      name = project.name.squish
+      name == project.slug ? "#{name} app" : "#{name} app (slug: #{project.slug})"
+    end
 end

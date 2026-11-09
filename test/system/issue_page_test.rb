@@ -40,20 +40,30 @@ class IssuePageSystemTest < ApplicationSystemTestCase
     assert_selector "[role=tab][aria-selected=true]", text: "Job"
   end
 
+  test "Ask your AI copies a prompt with the short id and app only, and says so" do
+    issue = issues(:nomethod)
+    PersonalAccessToken.revoke_all(user_id: users(:philip).id)
+    visit_connected project_issue_path(@project, issue)
+    stub_clipboard
+
+    assert_link "Set up MCP", href: access_tokens_path
+    button = find("#ask_your_ai button", text: "Ask your AI")
+    press button
+
+    assert_equal "Use the Good Sorcery MCP server to look into issue #{issue.short_id} in the storefront app " \
+                 "and suggest a fix. Start with get_issue for #{issue.short_id}.", copied_text
+    assert_selector "#ask_your_ai button", text: "Prompt copied ✓"
+    assert_selector "#ask_your_ai button", text: "Ask your AI"
+    assert_selector "#ask_your_ai button span[aria-hidden]", text: "✦"
+  end
+
   test "copying the install snippet leaves out the prompt and the masked key" do
     visit_connected project_setup_path(@project)
-    page.execute_script(<<~JS)
-      Object.defineProperty(navigator, "clipboard", { configurable: true,
-        value: { writeText: (text) => { window.copiedText = text; return Promise.resolve() } } })
-    JS
+    stub_clipboard
 
     within("#install_generator") { press find_button("Copy") }
 
-    copied = Timeout.timeout(Capybara.default_max_wait_time) do
-      sleep 0.05 until (text = page.evaluate_script("window.copiedText"))
-      text
-    end
-    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install --api-key=YOUR_PRODUCTION_KEY", copied
+    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install --api-key=YOUR_PRODUCTION_KEY", copied_text
   end
 
   test "dropdowns close on Escape and on outside clicks" do
@@ -70,4 +80,19 @@ class IssuePageSystemTest < ApplicationSystemTestCase
     press find("h1")
     assert_no_selector "[data-dropdown-target=button][aria-expanded=true]"
   end
+
+  private
+    def stub_clipboard
+      page.execute_script(<<~JS)
+        Object.defineProperty(navigator, "clipboard", { configurable: true,
+          value: { writeText: (text) => { window.copiedText = text; return Promise.resolve() } } })
+      JS
+    end
+
+    def copied_text
+      Timeout.timeout(Capybara.default_max_wait_time) do
+        sleep 0.05 until (text = page.evaluate_script("window.copiedText"))
+        text
+      end
+    end
 end

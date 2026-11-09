@@ -71,5 +71,17 @@
         <%= empty_avatar(size: :sm) %> Unassigned
       <% end %>
     </div>
+
+    <%# The prompt carries only the short id and the app (issue_ai_prompt): never captured data. %>
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 lg:flex-row-reverse" id="ask_your_ai">
+      <button type="button" class="btn btn-sm" data-controller="clipboard"
+              data-clipboard-text-value="<%= issue_ai_prompt(issue) %>" data-clipboard-copied-value="Prompt copied ✓"
+              data-action="clipboard#copy" title="Copy a prompt for your AI assistant to look into this issue over MCP">
+        <span aria-hidden="true">✦</span><span data-clipboard-target="label">Ask your AI</span>
+      </button>
+      <% if mcp_setup_needed? %>
+        <%= link_to "Set up MCP", access_tokens_path, class: "tap-link text-[12.5px] text-iris-300 hover:underline" %>
+      <% end %>
+    </div>
   </div>
 </div>
