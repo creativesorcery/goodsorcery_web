@@ -29,9 +29,9 @@ class Staff::EntitlementsFormTest < ActiveSupport::TestCase
   test "translates the form into JSON integers, lists of integers and null" do
     form = Staff::EntitlementsForm.new(@account, params(
       "uptime_intervals" => [ "", "1", "60" ], "retention_days" => [ "", "30", "90" ],
-      "max_monitors" => " 7 ", "max_projects" => "", "no_limit" => [ "", "max_projects" ],
+      "max_monitors" => " 7 ", "max_projects" => "",
       "monthly_event_quota" => "250000", "apm_retention_days" => "14"
-    ))
+    ).merge(settings("max_projects" => "unlimited")))
 
     assert_equal({ "uptime_intervals" => [ 1, 60 ], "max_monitors" => 7, "apm_retention_days" => 14, "max_projects" => nil,
                    "monthly_event_quota" => 250_000, "retention_days" => [ 30, 90 ] }, form.entitlement_values)
@@ -61,30 +61,31 @@ class Staff::EntitlementsFormTest < ActiveSupport::TestCase
     assert Staff::EntitlementsForm.new(@account, params("setting" => "custom")).entitlement_values.empty?
   end
 
-  test "No limit applies to caps only; the monthly quota has none" do
-    form = Staff::EntitlementsForm.new(@account, params("no_limit" => [ "max_monitors", "monthly_event_quota" ], "max_monitors" => ""))
+  test "No limit stores null for a cap and ignores its number; the monthly quota has no No limit" do
+    form = Staff::EntitlementsForm.new(@account, params(settings("max_monitors" => "unlimited", "monthly_event_quota" => "unlimited")))
 
+    assert form.no_limit?("max_monitors")
     assert_nil form.entitlement_values.fetch("max_monitors")
-    assert_equal 5_000, form.entitlement_values.fetch("monthly_event_quota")
+    assert_not form.no_limit?("monthly_event_quota")
+    assert_not form.entitlement_values.key?("monthly_event_quota"), "an unknown setting is Default"
     assert_empty form.problems
   end
 
-  test "a blank cap with No limit unticked means no limit too" do
+  test "a blank Custom cap is rejected" do
     form = Staff::EntitlementsForm.new(@account, params("max_projects" => "  "))
 
-    assert form.save
-    assert_nil @account.reload.entitlement_values.fetch("max_projects")
+    assert_not form.save
+    assert_equal Entitlements::PROBLEMS["max_projects"], form.problem("max_projects")
   end
 
-  test "No limit ticked with a number beside it is rejected instead of dropping the number" do
-    before = @account.entitlement_values
-    form = Staff::EntitlementsForm.new(@account, params("no_limit" => [ "max_projects" ], "max_projects" => "5"))
+  test "fields that weren't sent show what is stored, or the default" do
+    @account.update!(entitlement_values: { "max_projects" => nil, "max_monitors" => 3 })
+    form = Staff::EntitlementsForm.new(@account, { "setting" => { "max_projects" => "unlimited" } })
 
-    assert_not form.save
-    assert_equal [ "Max projects must be a number or No limit, not both." ], form.errors[:base]
-    assert_equal "Max projects must be a number or No limit, not both.", form.problem("max_projects")
-    assert_nil form.problem("max_monitors")
-    assert_equal before, @account.reload.entitlement_values
+    assert_equal 3, form.field_value("max_monitors")
+    assert_equal 2, form.field_value("max_projects"), "a stored No limit offers the default number"
+    assert form.chosen?("uptime_intervals", 10)
+    assert_equal "unlimited", Staff::EntitlementsForm.new(@account).setting("max_projects")
   end
 
   test "problems are keyed by field, and a key left to its default has none" do
@@ -147,11 +148,15 @@ class Staff::EntitlementsFormTest < ActiveSupport::TestCase
     # A valid, complete submission; overrides replace single fields.
     def params(overrides = {})
       { "uptime_intervals" => [ "", "10", "60" ], "retention_days" => [ "", "30" ], "max_monitors" => "1", "max_projects" => "2",
-        "monthly_event_quota" => "5000", "apm_retention_days" => "1", "no_limit" => [ "" ], "setting" => Staff::EntitlementsForm::KEYS.index_with("custom") }.merge(overrides)
+        "monthly_event_quota" => "5000", "apm_retention_days" => "1" }.merge(settings).merge(overrides)
     end
 
-    # The setting param with the given keys on Default and the rest Custom.
+    # The setting param: every key Custom except the given changes.
+    def settings(changes = {})
+      { "setting" => Staff::EntitlementsForm::KEYS.index_with("custom").merge(changes) }
+    end
+
     def defaults(*keys)
-      { "setting" => Staff::EntitlementsForm::KEYS.index_with { |key| keys.include?(key) ? "default" : "custom" } }
+      settings(keys.index_with("default"))
     end
 end

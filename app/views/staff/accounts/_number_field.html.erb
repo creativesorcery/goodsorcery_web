@@ -2,18 +2,12 @@
 <div id="field_<%= key %>" class="px-5 py-4" data-controller="entitlement-setting">
   <fieldset class="space-y-3">
     <%= render "staff/accounts/legend", key: %>
-    <%= render "staff/accounts/setting", form:, key: %>
+    <%= render "staff/accounts/setting", form:, key:, no_limit: %>
     <fieldset class="ml-6 flex flex-wrap items-center gap-x-5 gap-y-2 transition-opacity" aria-label="Custom value"
               data-entitlement-setting-target="fields">
       <%= number_field_tag "entitlements[#{key}]", form.field_value(key), id: "entitlements_#{key}", min:, max:, step: 1,
             inputmode: "numeric", class: "field max-w-[12rem]",
             aria: { label: "Number", invalid: (form.problem(key) ? "true" : nil), describedby: staff_entitlement_describedby(form, key) } %>
-      <% if no_limit %>
-        <label class="flex items-center gap-2 text-[13.5px] text-ink-100">
-          <%= check_box_tag "entitlements[no_limit][]", key, form.no_limit?(key), id: "no_limit_#{key}", class: "accent-iris-300" %>
-          No limit
-        </label>
-      <% end %>
     </fieldset>
     <%= render "staff/accounts/problem", form:, key: %>
     <p id="<%= key %>_hint" class="hint mt-0"><%= hint %></p>

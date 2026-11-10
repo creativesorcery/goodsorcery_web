@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 // Staff › Accounts › Entitlements: greys out and disables one entitlement's
-// custom fields while "Default" is chosen. The server ignores those fields
+// custom fields unless "Custom" is chosen (Default, or No limit for a cap). The server ignores those fields
 // then anyway; without JavaScript they just stay editable.
 //
 // <div data-controller="entitlement-setting">

@@ -152,10 +152,10 @@ class Staff::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type=number]#entitlements_max_monitors[value='3'][min='0'][step='1']"
     assert_select "input[type=number]#entitlements_apm_retention_days[min='1'][max='30']"
     assert_select "input[type=number]#entitlements_monthly_event_quota[min='1']"
-    assert_select "input#no_limit_max_monitors"
-    assert_select "input#no_limit_max_projects"
-    assert_select "input#no_limit_monthly_event_quota", 0
-    assert_select "input[type=radio][name^='entitlements[setting]']", 12
+    assert_select "input[type=radio]#setting_max_monitors_unlimited[value=unlimited]"
+    assert_select "input[type=radio]#setting_max_projects_unlimited"
+    assert_select "input#setting_monthly_event_quota_unlimited", 0
+    assert_select "input[type=radio][name^='entitlements[setting]']", 14
     assert_select "#field_uptime_intervals", text: /Default \(10, 60 minutes\)/
     assert_select "#field_max_monitors", text: /Default \(1\)/
     assert_select "#field_monthly_event_quota", text: /Default \(3,000\)/
@@ -168,8 +168,8 @@ class Staff::AccountsControllerTest < ActionDispatch::IntegrationTest
 
   test "update stores typed values and removes keys left to their default" do
     patch staff_account_path(accounts(:umbrella)), params: { entitlements: entitlements_params(
-      uptime_intervals: [ "", "1", "5" ], max_projects: "", no_limit: [ "", "max_projects" ]
-    ).deep_merge(setting: { max_monitors: "default" }) }
+      uptime_intervals: [ "", "1", "5" ], max_projects: "5"
+    ).deep_merge(setting: { max_monitors: "default", max_projects: "unlimited" }) }
 
     assert_redirected_to staff_account_path(accounts(:umbrella))
     assert_equal "Saved Umbrella Corp's entitlements.", flash[:notice]
@@ -208,13 +208,15 @@ class Staff::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_equal({ "uptime_intervals" => [ 5, 10, 60 ], "max_monitors" => 3 }, accounts(:umbrella).reload.entitlement_values)
   end
 
-  test "No limit ticked with a number re-renders the form and keeps the number" do
-    patch staff_account_path(accounts(:umbrella)), params: { entitlements: entitlements_params(max_projects: "5", no_limit: [ "", "max_projects" ]) }
+  test "a re-rendered form keeps Default and No limit rows showing values, not blanks" do
+    params = entitlements_params(apm_retention_days: "0").except(:uptime_intervals, :max_projects)
+    patch staff_account_path(accounts(:umbrella)), params: { entitlements: params.deep_merge(setting: { uptime_intervals: "default", max_projects: "unlimited" }) }
 
     assert_response :unprocessable_entity
-    assert_select "#entitlements_errors", text: "Max projects must be a number or No limit, not both."
-    assert_select "#field_max_projects #max_projects_error", text: "Max projects must be a number or No limit, not both."
-    assert_select "input#entitlements_max_projects[value='5']"
+    assert_select "input#setting_uptime_intervals_default[checked]"
+    assert_select "input#uptime_intervals_5[checked]", 1, "the stored choices, since the disabled boxes weren't sent"
+    assert_select "input#setting_max_projects_unlimited[checked]"
+    assert_select "input#entitlements_max_projects[value='2']", 1, "the default number, ready for Custom"
   end
 
   test "an unknown account is a 404" do
@@ -225,7 +227,7 @@ class Staff::AccountsControllerTest < ActionDispatch::IntegrationTest
   private
     def entitlements_params(overrides = {})
       { uptime_intervals: [ "", "10" ], retention_days: [ "", "30", "60" ], max_monitors: "4", max_projects: "3",
-        monthly_event_quota: "20000", apm_retention_days: "7", no_limit: [ "" ],
+        monthly_event_quota: "20000", apm_retention_days: "7",
         setting: Staff::EntitlementsForm::KEYS.index_with("custom") }.merge(overrides)
     end
 

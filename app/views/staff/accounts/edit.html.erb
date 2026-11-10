@@ -28,14 +28,13 @@
       </div>
     <% end %>
 
-    <%= hidden_field_tag "entitlements[no_limit][]", "", id: nil %>
     <div class="divide-y divide-paper-700/70">
       <%= render "staff/accounts/choice_field", form: @form, key: "uptime_intervals", choices: Entitlements::UPTIME_INTERVALS, unit: "minute",
             hint: "Check intervals the account's monitors may use. Tick at least one." %>
       <%= render "staff/accounts/number_field", form: @form, key: "max_monitors", min: 0, no_limit: true,
-            hint: "Per app. Blank or No limit means no cap. Monitors over the limit are paused, newest first." %>
+            hint: "Per app. Monitors over the limit are paused, newest first." %>
       <%= render "staff/accounts/number_field", form: @form, key: "max_projects", min: 0, no_limit: true,
-            hint: "Per account. Blank or No limit means no cap. Apps over the limit are kept; only new ones are blocked." %>
+            hint: "Per account. Apps over the limit are kept; only new ones are blocked." %>
       <%= render "staff/accounts/number_field", form: @form, key: "monthly_event_quota", min: 1,
             hint: "Error events accepted per UTC month. A whole number greater than 0." %>
       <%= render "staff/accounts/choice_field", form: @form, key: "retention_days", choices: Entitlements::RETENTION_CHOICES, unit: "day",

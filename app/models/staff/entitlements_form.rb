@@ -2,13 +2,12 @@
 # docs/ARCHITECTURE.md §12.2), translated to and from
 # accounts.entitlement_values:
 #
-# - Each key is set to "default" or "custom" (entitlements[setting][key]).
-#   A key set to "default", or not set at all, is left out of the document,
-#   so the account follows config/entitlements.yml; its fields are ignored.
-# - Every custom key is stored as a JSON integer, a list of integers or, for
-#   a cap ticked "No limit" or left blank, null. A cap ticked "No limit"
-#   with a number beside it is a problem, so the number is never dropped
-#   silently. monthly_event_quota has no "No limit".
+# - Each key is set to "default" or "custom" (entitlements[setting][key]),
+#   and the caps (max_monitors, max_projects) also to "unlimited". A key set
+#   to "default", or to nothing it allows, is left out of the document, so
+#   the account follows config/entitlements.yml; its fields are ignored.
+# - A custom key is stored as a JSON integer or a list of integers, an
+#   unlimited cap as null. monthly_event_quota has no "unlimited".
 # - Text that isn't a whole number is passed on as it came, so
 #   Entitlements.problems rejects it and nothing is saved: a string is never
 #   stored.
@@ -32,7 +31,7 @@ class Staff::EntitlementsForm
   KEYS = LABELS.keys.freeze
 
   PERMITTED = [ :max_monitors, :max_projects, :monthly_event_quota, :apm_retention_days,
-                { uptime_intervals: [], retention_days: [], no_limit: [], setting: KEYS.map(&:to_sym) } ].freeze
+                { uptime_intervals: [], retention_days: [], setting: KEYS.map(&:to_sym) } ].freeze
 
   attr_reader :account
 
@@ -60,21 +59,25 @@ class Staff::EntitlementsForm
     Entitlements.valid_value?(key, stored[key]) ? :stored : :invalid
   end
 
-  def use_default?(key)
-    submitted? ? submitted_setting(key) != "custom" : !stored.key?(key)
+  # "default", "custom" or (caps only) "unlimited".
+  def setting(key)
+    return stored_setting(key) unless submitted?
+
+    settings_for(key).include?(submitted_setting(key)) ? submitted_setting(key) : "default"
   end
 
-  def no_limit?(key)
-    return submitted_list("no_limit").include?(key) if submitted?
+  def use_default?(key) = setting(key) == "default"
 
-    stored.key?(key) ? stored[key].nil? : hosted_defaults.public_send(key).nil?
-  end
+  def no_limit?(key) = setting(key) == "unlimited"
 
-  # The number field's text, or the ticked choices of a list key.
+  # The number field's text, or the ticked choices of a list key. Fields
+  # that weren't sent (disabled while Default or No limit is chosen) show
+  # what is stored, or the default, so Custom starts from a real value.
   def field_value(key)
-    return @params[key] if submitted?
+    return @params[key] if submitted? && @params.key?(key)
 
-    stored.fetch(key) { hosted_defaults.public_send(key) }
+    value = stored.fetch(key, nil)
+    value.nil? ? hosted_defaults.public_send(key) : value
   end
 
   def chosen?(key, choice)
@@ -117,6 +120,16 @@ class Staff::EntitlementsForm
       @hosted_entitlements ||= Entitlements.new(stored, hosted: true, account_id: account.id)
     end
 
+    def settings_for(key)
+      Entitlements::CAP_KEYS.include?(key) ? %w[ default custom unlimited ] : %w[ default custom ]
+    end
+
+    def stored_setting(key)
+      return "default" unless stored.key?(key)
+
+      stored[key].nil? && Entitlements::CAP_KEYS.include?(key) ? "unlimited" : "custom"
+    end
+
     def submitted_setting(key)
       settings = @params["setting"]
       settings[key].to_s if settings.is_a?(Hash)
@@ -128,23 +141,14 @@ class Staff::EntitlementsForm
 
     def submitted_value(key)
       return submitted_list(key).map { |choice| whole_number(choice) } if Entitlements::CHOICE_KEYS.key?(key)
-      return nil if Entitlements::CAP_KEYS.include?(key) && (no_limit?(key) || number_blank?(key))
+      return nil if no_limit?(key)
 
       whole_number(@params[key])
     end
 
     def problem_with(key)
-      # Named like Entitlements::PROBLEMS ("Max monitors ..."), after the key shown under each label.
-      return "#{key.humanize} must be a number or No limit, not both." if no_limit_with_number?(key)
-
       Entitlements::PROBLEMS[key] unless Entitlements.valid_value?(key, submitted_value(key))
     end
-
-    def no_limit_with_number?(key)
-      Entitlements::CAP_KEYS.include?(key) && no_limit?(key) && !number_blank?(key)
-    end
-
-    def number_blank?(key) = @params[key].to_s.strip.empty?
 
     # "25" → 25; anything else stays text, for Entitlements.problems to reject.
     def whole_number(text)
