@@ -79,6 +79,17 @@ module ActiveSupport
       Rails.configuration.x.terms_url, Rails.configuration.x.privacy_url = previous
     end
 
+    # Leaves one key out of config/entitlements.yml's hosted defaults, so
+    # hosted mode resolves it to the unlimited value (nil for a cap or quota).
+    def without_hosted_default(key)
+      config = Rails.configuration.x.entitlements
+      previous = config.hosted_defaults
+      config.hosted_defaults = previous.to_h.reject { |name, _| name.to_s == key.to_s }
+      yield
+    ensure
+      config.hosted_defaults = previous
+    end
+
     # The test cache store is a null store; this swaps in a real one.
     def with_memory_cache
       previous = Rails.cache

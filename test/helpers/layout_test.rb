@@ -73,12 +73,11 @@ class LayoutTest < ActionView::TestCase
     assert_select "aside", text: %r{Events this month\s*[\d.]+k?\s*/ 1M}
   end
 
-  test "hosted with no quota stored as null, and self-hosted whatever is stored, show no usage meter" do
+  test "hosted with no quota (no hosted default), and self-hosted whatever is stored, show no usage meter" do
     account = accounts(:acme)
-    account.update_entitlements!("monthly_event_quota" => nil)
     Current.session = users(:philip).sessions.create!(account:)
 
-    with_hosted_mode { render_shell }
+    without_hosted_default(:monthly_event_quota) { with_hosted_mode { render_shell } }
     assert_select "aside", text: /Events this month/, count: 0
 
     account.update_entitlements!("monthly_event_quota" => 5_000)

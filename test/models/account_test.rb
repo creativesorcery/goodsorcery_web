@@ -30,8 +30,8 @@ class AccountTest < ActiveSupport::TestCase
       account.entitlement_values = { "monthly_event_quota" => 10_000_000 }
       assert_in_delta account.events_this_month / 10_000_000.0, account.event_quota_fraction
 
-      account.entitlement_values = { "monthly_event_quota" => nil }
-      assert_nil account.event_quota_fraction
+      account.entitlement_values = {}
+      assert_in_delta [ account.events_this_month / 3_000.0, 1.0 ].min, account.event_quota_fraction, 1e-9, "the hosted default"
     end
     assert_nil account.event_quota_fraction, "self-hosted has no quota"
   end
@@ -48,8 +48,8 @@ class AccountTest < ActiveSupport::TestCase
       assert_not account.over_quota?
       assert_not Account.over_quota?(account.id)
 
-      account.update_entitlements!("monthly_event_quota" => nil)
-      assert_not account.over_quota?, "a stored null is no quota"
+      error = assert_raises(ActiveRecord::RecordInvalid) { account.update_entitlements!("monthly_event_quota" => nil) }
+      assert_equal [ Entitlements::PROBLEMS["monthly_event_quota"] ], error.record.errors[:base], "a quota is always stored as a number"
     end
   end
 
@@ -150,7 +150,7 @@ class AccountTest < ActiveSupport::TestCase
     account.update_entitlements!("monthly_event_quota" => 50_000)
     assert_equal({ "monthly_event_quota" => 50_000 }, account.reload.entitlement_values)
 
-    [ 0, -5, "100", 1.5, true, [ 10 ] ].each do |value|
+    [ nil, 0, -5, "100", 1.5, true, [ 10 ] ].each do |value|
       error = assert_raises(ActiveRecord::RecordInvalid, value.inspect) { account.update_entitlements!("monthly_event_quota" => value) }
       assert_equal [ Entitlements::PROBLEMS["monthly_event_quota"] ], error.record.errors[:base]
     end

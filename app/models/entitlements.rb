@@ -25,10 +25,10 @@ class Entitlements
 
   PROBLEMS = {
     "uptime_intervals" => "Uptime intervals must be a non-empty list of distinct values from #{UPTIME_INTERVALS.to_sentence}.",
-    "max_monitors" => "Max monitors must be empty (no limit) or a whole number of 0 or more.",
+    "max_monitors" => "Max monitors must be a whole number of 0 or more, or no limit.",
     "apm_retention_days" => "APM retention days must be a whole number from 1 to #{MAX_APM_RETENTION_DAYS}.",
-    "max_projects" => "Max projects must be empty (no limit) or a whole number of 0 or more.",
-    "monthly_event_quota" => "Monthly event quota must be empty (no limit) or a whole number greater than 0.",
+    "max_projects" => "Max projects must be a whole number of 0 or more, or no limit.",
+    "monthly_event_quota" => "Monthly event quota must be a whole number greater than 0.",
     "retention_days" => "Retention days must be a non-empty list of distinct values from #{RETENTION_CHOICES.to_sentence}."
   }.freeze
 
@@ -44,7 +44,7 @@ class Entitlements
     when *CHOICE_KEYS.keys then valid_choices?(value, CHOICE_KEYS.fetch(key))
     when *CAP_KEYS then value.nil? || (value.is_a?(Integer) && value >= 0)
     when "apm_retention_days" then value.is_a?(Integer) && value.between?(1, MAX_APM_RETENTION_DAYS)
-    when "monthly_event_quota" then value.nil? || (value.is_a?(Integer) && value.positive?)
+    when "monthly_event_quota" then value.is_a?(Integer) && value.positive?
     else false
     end
   end
@@ -111,8 +111,10 @@ class Entitlements
     !max_projects.nil? && count >= max_projects
   end
 
-  # Error events accepted per UTC month: an Integer, or nil for no quota.
-  # Ingest reads it through Account.over_quota?, cached.
+  # Error events accepted per UTC month: an Integer, or nil for no quota,
+  # which only self-hosted instances (and a hosted default left out of
+  # config/entitlements.yml) give: a stored value is always a whole number
+  # above 0. Ingest reads it through Account.over_quota?, cached.
   def monthly_event_quota
     resolved("monthly_event_quota")
   end

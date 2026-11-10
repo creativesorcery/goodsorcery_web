@@ -217,11 +217,12 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
 
   test "hosted, the app limit costs the overview no extra query" do
     # No quota, so the hosted usage meter (its own cached query) stays out of the count.
-    accounts(:acme).update_entitlements!("monthly_event_quota" => nil)
-    get projects_path
-    self_hosted = count_queries { get projects_path }
+    without_hosted_default(:monthly_event_quota) do
+      get projects_path
+      self_hosted = count_queries { get projects_path }
 
-    assert_equal self_hosted, with_hosted_mode { count_queries { get projects_path } }
+      assert_equal self_hosted, with_hosted_mode { count_queries { get projects_path } }
+    end
   end
 
   test "signed out, new and create redirect to sign in" do

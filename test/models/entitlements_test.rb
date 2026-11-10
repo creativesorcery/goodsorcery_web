@@ -158,11 +158,20 @@ class EntitlementsTest < ActiveSupport::TestCase
     assert_match(/\A[A-Z].*\.\z/, Entitlements::PROBLEMS["max_projects"])
   end
 
-  test "monthly_event_quota: hosted default 3,000, a stored value wins, null means no quota" do
+  test "monthly_event_quota: hosted default 3,000, a stored value wins" do
     assert_equal 3_000, hosted({}).monthly_event_quota
     assert_equal 50_000, hosted("monthly_event_quota" => 50_000).monthly_event_quota
-    assert_nil hosted("monthly_event_quota" => nil).monthly_event_quota
     with_hosted_mode { assert_equal 3_000, Entitlements.new({}).monthly_event_quota }
+  end
+
+  test "monthly_event_quota: a stored null is invalid, falls back to the default and is logged" do
+    log = capture_log { assert_equal 3_000, hosted("monthly_event_quota" => nil).monthly_event_quota }
+    assert_includes log, "Ignoring invalid entitlement monthly_event_quota"
+  end
+
+  test "monthly_event_quota: a hosted default left out of the config is no quota" do
+    entitlements = Entitlements.new({}, hosted: true, hosted_defaults: HOSTED_DEFAULTS.except(:monthly_event_quota))
+    assert_nil entitlements.monthly_event_quota
   end
 
   test "monthly_event_quota self-hosted is unlimited, whatever is stored" do
@@ -180,10 +189,9 @@ class EntitlementsTest < ActiveSupport::TestCase
 
   test "problems describes an invalid monthly_event_quota" do
     assert_includes Entitlements::KEYS, "monthly_event_quota"
-    assert_empty Entitlements.problems("monthly_event_quota" => nil)
     assert_empty Entitlements.problems("monthly_event_quota" => 1)
     assert_empty Entitlements.problems(monthly_event_quota: 10_000_000_000)
-    [ 0, -1, "2", 2.5, true, [ 2 ] ].each do |value|
+    [ nil, 0, -1, "2", 2.5, true, [ 2 ] ].each do |value|
       assert_equal [ Entitlements::PROBLEMS["monthly_event_quota"] ], Entitlements.problems("monthly_event_quota" => value), value.inspect
     end
     assert_match(/\A[A-Z].*\.\z/, Entitlements::PROBLEMS["monthly_event_quota"])
