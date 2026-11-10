@@ -1,0 +1,4 @@
+<%# locals: (form:, key:) -%>
+<% if (problem = form.problem(key)) %>
+  <p id="<%= key %>_error" class="text-[12.5px] text-coral-300"><%= problem %></p>
+<% end %>

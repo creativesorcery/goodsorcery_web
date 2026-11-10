@@ -1,0 +1,13 @@
+<%# locals: (form:, key:) -%>
+<div class="flex flex-wrap gap-x-5 gap-y-2">
+  <label class="flex items-center gap-2 text-[13.5px] text-ink-100">
+    <%= radio_button_tag "entitlements[setting][#{key}]", "default", form.use_default?(key), id: "setting_#{key}_default",
+          class: "accent-iris-300", data: { action: "entitlement-setting#update" } %>
+    Default <span class="text-ink-300">(<%= staff_entitlement_default(form, key) %>)</span>
+  </label>
+  <label class="flex items-center gap-2 text-[13.5px] text-ink-100">
+    <%= radio_button_tag "entitlements[setting][#{key}]", "custom", !form.use_default?(key), id: "setting_#{key}_custom",
+          class: "accent-iris-300", data: { action: "entitlement-setting#update", entitlement_setting_target: "custom" } %>
+    Custom
+  </label>
+</div>

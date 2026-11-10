@@ -1,0 +1,9 @@
+<header class="topbar sticky top-0 z-20 flex items-center gap-2 sm:gap-4 page-gutter border-b border-iris-500/10 bg-paper-950/70 backdrop-blur">
+  <button type="button" class="icon-btn -ml-2 lg:hidden" data-drawer-target="button" data-action="drawer#open"
+          aria-controls="sidebar" aria-expanded="false" aria-label="Open menu">
+    <%= icon :menu, classes: "w-5 h-5" %>
+  </button>
+  <%= render "layouts/breadcrumbs" %>
+  <div class="flex-1"></div>
+  <%= chip "Staff area", tone: :iris %>
+</header>

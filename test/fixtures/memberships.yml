@@ -15,3 +15,9 @@ outsider_umbrella:
   user: outsider
   role: owner
   created_at: <%= 30.days.ago.to_fs(:db) %>
+
+staffer_staff_hq:
+  account: staff_hq
+  user: staffer
+  role: owner
+  created_at: <%= 30.days.ago.to_fs(:db) %>

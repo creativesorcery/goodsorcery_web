@@ -1,0 +1,41 @@
+<% provide :title, "Staff access · #{@user.name} · Staff" %>
+<% provide :nav, "staff_users" %>
+<% breadcrumb "Staff", staff_root_path %>
+<% breadcrumb "Users", staff_users_path %>
+<% breadcrumb @user.name, staff_user_path(@user) %>
+<% breadcrumb "Staff access" %>
+
+<div class="page-gutter pt-8 pb-16 max-w-2xl">
+  <div class="rise">
+    <div class="eyebrow">User <span class="font-mono">#<%= @user.id %></span> · <span class="normal-case tracking-normal"><%= @user.email_address %></span></div>
+    <h1 class="page-title break-words"><%= @user.name %></h1>
+  </div>
+
+  <%= form_with model: @user, url: staff_user_path(@user), method: :patch, class: "panel mt-6 p-6 space-y-5 rise rise-1" do |form| %>
+    <% if @user.errors.any? %>
+      <div id="user_errors" class="rounded-xl border border-coral-500/40 bg-coral-500/10 px-4 py-3 text-[13px] text-coral-300" role="alert">
+        <ul class="space-y-1">
+          <% @user.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <div>
+      <label class="flex items-center gap-2 text-[14px] font-semibold text-ink-100">
+        <%= form.check_box :staff, class: "accent-iris-300", aria: { describedby: "user_staff_hint" } %>
+        Staff
+      </label>
+      <p id="user_staff_hint" class="hint">
+        Staff can open the staff area: every account and user, and each account's entitlements.
+        <% if @user == Current.user %>You can't remove your own staff access.<% end %>
+      </p>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <%= form.submit "Save", class: "btn btn-primary", name: nil %>
+      <%= link_to "Cancel", staff_user_path(@user), class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>

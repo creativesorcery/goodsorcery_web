@@ -1,0 +1,8 @@
+<%# locals: (pagy:, first_page:, none:, no_match:) -%>
+<p class="panel mt-8 px-5 py-6 text-[13.5px] text-ink-400 rise rise-1">
+  <% if pagy.count.positive? %>
+    This page is past the end. <%= link_to "Go to page 1", first_page, class: "text-iris-300 hover:underline" %>
+  <% else %>
+    <%= search_query ? no_match : none %>
+  <% end %>
+</p>

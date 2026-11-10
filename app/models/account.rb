@@ -10,6 +10,14 @@ class Account < ApplicationRecord
 
   # After has_many :projects, which its has_many :through needs.
   include Account::UptimeMonitoring, Account::ProjectRetention, Account::EventQuota
+  include StaffSearchable
+
+  staff_searchable_by :name
+
+  # Each account's member count in the same query as the accounts (the staff list).
+  scope :with_users_count, -> {
+    select(arel_table[Arel.star], "(SELECT COUNT(*) FROM memberships WHERE memberships.account_id = accounts.id) AS users_count")
+  }
 
   validates :name, presence: true, length: { maximum: 80 }
   validate :entitlement_values_well_formed, if: :entitlement_values_changed?

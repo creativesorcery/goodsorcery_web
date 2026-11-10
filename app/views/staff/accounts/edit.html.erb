@@ -1,0 +1,52 @@
+<% provide :title, "Entitlements · #{@account.name} · Staff" %>
+<% provide :nav, "staff_accounts" %>
+<% breadcrumb "Staff", staff_root_path %>
+<% breadcrumb "Accounts", staff_accounts_path %>
+<% breadcrumb @account.name, staff_account_path(@account) %>
+<% breadcrumb "Entitlements" %>
+
+<div class="page-gutter pt-8 pb-16 max-w-3xl">
+  <div class="rise">
+    <div class="eyebrow">Account <span class="font-mono">#<%= @account.id %></span> · <%= @account.name %></div>
+    <h1 class="page-title">Entitlements</h1>
+    <p class="mt-2 text-[13.5px] text-ink-300">
+      “Default” stores nothing, so the account follows <span class="font-mono text-[12.5px]">config/entitlements.yml</span>
+      and any later change to it. “Custom” stores the value you set.
+    </p>
+  </div>
+
+  <%= render "staff/shared/self_hosted_notice" %>
+
+  <%= form_with scope: :entitlements, url: staff_account_path(@account), method: :patch, class: "panel mt-6 rise rise-1" do %>
+    <% if @form.errors.any? %>
+      <div id="entitlements_errors" class="m-5 mb-0 rounded-xl border border-coral-500/40 bg-coral-500/10 px-4 py-3 text-[13px] text-coral-300" role="alert">
+        <ul class="space-y-1">
+          <% @form.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+
+    <%= hidden_field_tag "entitlements[no_limit][]", "", id: nil %>
+    <div class="divide-y divide-paper-700/70">
+      <%= render "staff/accounts/choice_field", form: @form, key: "uptime_intervals", choices: Entitlements::UPTIME_INTERVALS, unit: "minute",
+            hint: "Check intervals the account's monitors may use. Tick at least one." %>
+      <%= render "staff/accounts/number_field", form: @form, key: "max_monitors", min: 0, no_limit: true,
+            hint: "Per app. Blank or No limit means no cap. Monitors over the limit are paused, newest first." %>
+      <%= render "staff/accounts/number_field", form: @form, key: "max_projects", min: 0, no_limit: true,
+            hint: "Per account. Blank or No limit means no cap. Apps over the limit are kept; only new ones are blocked." %>
+      <%= render "staff/accounts/number_field", form: @form, key: "monthly_event_quota", min: 1,
+            hint: "Error events accepted per UTC month. A whole number greater than 0." %>
+      <%= render "staff/accounts/choice_field", form: @form, key: "retention_days", choices: Entitlements::RETENTION_CHOICES, unit: "day",
+            hint: "Error retention periods each app may choose from. Tick at least one." %>
+      <%= render "staff/accounts/number_field", form: @form, key: "apm_retention_days", min: 1, max: Entitlements::MAX_APM_RETENTION_DAYS,
+            hint: "Days of performance data kept, 1 to #{Entitlements::MAX_APM_RETENTION_DAYS}." %>
+    </div>
+
+    <div class="flex items-center gap-3 border-t border-paper-700 px-5 py-4">
+      <%= submit_tag "Save entitlements", class: "btn btn-primary", name: nil %>
+      <%= link_to "Cancel", staff_account_path(@account), class: "btn btn-ghost" %>
+    </div>
+  <% end %>
+</div>

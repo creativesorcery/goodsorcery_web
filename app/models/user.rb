@@ -1,5 +1,7 @@
 class User < ApplicationRecord
-  include EmailVerification
+  include EmailVerification, StaffSearchable
+
+  SELF_DEMOTION = "You can't remove your own staff access. Ask another staff member to do it."
 
   has_secure_password
   has_many :sessions, dependent: :destroy
@@ -17,6 +19,8 @@ class User < ApplicationRecord
   validates :name, presence: true, length: { maximum: 80 }
   validates :password, length: { minimum: 8 }, allow_nil: true
 
+  staff_searchable_by :name, :email_address
+
   # The account a new browser session works in: the earliest membership.
   def default_account
     accounts.order("memberships.created_at", "memberships.id").first
@@ -28,6 +32,17 @@ class User < ApplicationRecord
 
   def first_name
     name.to_s.split.first
+  end
+
+  # Grants or removes access to the staff area. `by` is the staff member
+  # making the change, who can't remove their own access (so the last staff
+  # member can't lock everyone out by accident).
+  def update_staff(staff, by:)
+    staff = ActiveModel::Type::Boolean.new.cast(staff) || false
+    return update(staff:) unless by == self && !staff
+
+    errors.add(:base, SELF_DEMOTION)
+    false
   end
 
   # For the List-Unsubscribe link of an alert ("alerts") or digest ("digest") email.

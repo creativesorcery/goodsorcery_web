@@ -20,3 +20,13 @@ outsider:
   name: Oscar Outsider
   time_zone: UTC
   email_verified_at: <%= 1.month.ago.to_fs(:db) %>
+
+# Staff (/staff). In an account of their own, so no other account's member
+# lists, alert recipients or counts change.
+staffer:
+  email_address: staff@goodsorcery.test
+  password_digest: <%= password_digest %>
+  name: Sam Staff
+  time_zone: UTC
+  email_verified_at: <%= 1.month.ago.to_fs(:db) %>
+  staff: true

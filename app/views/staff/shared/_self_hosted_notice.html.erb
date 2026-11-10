@@ -1,0 +1,9 @@
+<% unless hosted? %>
+  <div id="self_hosted_notice" class="panel mt-6 flex flex-wrap items-center gap-3 px-4 py-2.5 rise" role="status">
+    <%= chip "Self-hosted", tone: :lilac %>
+    <span class="flex-1 min-w-[min(16rem,100%)] break-words text-[13.5px] text-ink-100">
+      This instance is self-hosted, so every account is unlimited. Entitlements saved here are stored,
+      but they only apply in hosted mode (<span class="font-mono text-[12.5px]">GOODSORCERY_HOSTED</span>).
+    </span>
+  </div>
+<% end %>

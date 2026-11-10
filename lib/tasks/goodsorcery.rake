@@ -24,6 +24,18 @@ namespace :goodsorcery do
     puts "Fitted the uptime monitors and app retention of #{count} account(s) to their entitlements."
   end
 
+  desc "Give a user staff access to /staff (EMAIL=person@example.com); afterwards staff can grant it to others from Staff › Users"
+  task make_staff: :environment do
+    email = ENV["EMAIL"].to_s.strip
+    abort "Usage: bin/rails goodsorcery:make_staff EMAIL=person@example.com" if email.empty?
+
+    user = User.find_by(email_address: email)
+    abort "No user has the email address #{email}." unless user
+
+    user.update!(staff: true)
+    puts "#{user.email_address} is now staff."
+  end
+
   desc "Alias of goodsorcery:fit_entitlements, which also fits each app's error retention"
   task fit_uptime_monitors: :environment do
     Rake::Task["goodsorcery:fit_entitlements"].execute

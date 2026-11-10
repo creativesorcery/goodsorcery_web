@@ -264,4 +264,21 @@ class AccountTest < ActiveSupport::TestCase
     ensure
       Rails.logger = previous
     end
+
+  test "staff_search matches a name substring, case-insensitively, or an exact id, with wildcards matched literally" do
+    assert_equal [ accounts(:acme) ], Account.staff_search("acme").to_a
+    assert_equal [ accounts(:umbrella) ], Account.staff_search("UMBRELLA corp").to_a
+    assert_equal [ accounts(:umbrella) ], Account.staff_search(accounts(:umbrella).id.to_s).to_a
+    assert_empty Account.staff_search("%")
+
+    sale = Account.create!(name: "50% off")
+    assert_equal [ sale ], Account.staff_search("%").to_a
+  end
+
+  test "with_users_count counts each account's members in the same query" do
+    accounts = assert_queries_count(1) { Account.with_users_count.order(:id).to_a }
+
+    assert_equal({ accounts(:acme) => 2, accounts(:umbrella) => 1, accounts(:staff_hq) => 1 },
+                 accounts.to_h { |account| [ account, account.users_count ] })
+  end
 end

@@ -3,19 +3,7 @@
           aria-controls="sidebar" aria-expanded="false" aria-label="Open menu">
     <%= icon :menu, classes: "w-5 h-5" %>
   </button>
-  <%# Phones show the last crumb only, tablets the last two; the drawer has the rest of the way back. -%>
-  <nav aria-label="Breadcrumb" class="min-w-0 text-[13px] text-ink-400 flex items-center gap-2">
-    <% breadcrumbs.each_with_index do |crumb, index| %>
-      <span class="<%= breadcrumb_item_classes(index, breadcrumbs.size) %>">
-        <% if index.positive? %><span class="text-paper-500 shrink-0 <%= breadcrumb_separator_classes(index, breadcrumbs.size) %>" aria-hidden="true">/</span><% end %>
-        <% if crumb.path %>
-          <%= link_to crumb.label, crumb.path, class: "truncate hover:text-ink-100" %>
-        <% else %>
-          <span class="truncate text-ink-100" aria-current="page"><%= crumb.label %></span>
-        <% end %>
-      </span>
-    <% end %>
-  </nav>
+  <%= render "layouts/breadcrumbs" %>
   <div class="hidden lg:block flex-1"></div>
   <%= form_with url: search_path, method: :get, html: { role: "search" },
         class: "input max-lg:ml-auto flex flex-1 min-w-[7.5rem] max-w-72 sm:flex-none sm:w-72 lg:flex-initial lg:min-w-auto items-center gap-2 rounded-lg px-3 py-1.5 text-[13px]" do |form| %>

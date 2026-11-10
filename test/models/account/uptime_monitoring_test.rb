@@ -134,7 +134,7 @@ class Account::UptimeMonitoringTest < ActiveSupport::TestCase
     Rails.application.load_tasks unless Rake::Task.task_defined?("goodsorcery:fit_entitlements")
     UptimeMonitor.where(id: @third.id).update_all(paused_at: 1.day.ago)
 
-    assert_output(/Fitted the uptime monitors and app retention of 2 account\(s\)/) { Rake::Task["goodsorcery:fit_entitlements"].execute }
+    assert_output(/Fitted the uptime monitors and app retention of #{Account.count} account\(s\)/) { Rake::Task["goodsorcery:fit_entitlements"].execute }
     assert_not @third.reload.paused?
   end
 
@@ -142,7 +142,7 @@ class Account::UptimeMonitoringTest < ActiveSupport::TestCase
     Rails.application.load_tasks unless Rake::Task.task_defined?("goodsorcery:fit_uptime_monitors")
     UptimeMonitor.where(id: @third.id).update_all(paused_at: 1.day.ago)
 
-    assert_output(/Fitted the uptime monitors and app retention of 2 account\(s\)/) { Rake::Task["goodsorcery:fit_uptime_monitors"].execute }
+    assert_output(/Fitted the uptime monitors and app retention of #{Account.count} account\(s\)/) { Rake::Task["goodsorcery:fit_uptime_monitors"].execute }
     assert_not @third.reload.paused?
   end
 end

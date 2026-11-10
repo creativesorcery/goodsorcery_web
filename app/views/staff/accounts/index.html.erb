@@ -1,0 +1,46 @@
+<% provide :title, "Accounts · Staff" %>
+<% provide :nav, "staff_accounts" %>
+<% breadcrumb "Staff", staff_root_path %>
+<% breadcrumb "Accounts" %>
+
+<div class="page-gutter pt-8 pb-16 max-w-[1200px]">
+  <div class="page-header rise">
+    <div>
+      <div class="eyebrow">Staff</div>
+      <h1 class="page-title">Accounts <span class="text-ink-400 text-[22px] sm:text-[30px]">— <%= number_with_delimiter(@pagy.count) %></span></h1>
+    </div>
+    <%= render "staff/shared/search", url: staff_accounts_path, placeholder: "Search by name or id" %>
+  </div>
+
+  <% if @accounts.empty? %>
+    <%= render "staff/shared/empty_page", pagy: @pagy, first_page: staff_accounts_path(q: search_query), none: "No accounts yet.",
+          no_match: "No accounts match “#{search_query}”." %>
+  <% else %>
+    <section class="panel mt-8 overflow-hidden rise rise-1" aria-label="Accounts">
+      <div class="scroll-x">
+        <table id="staff_accounts" class="w-full min-w-[36rem] text-[13.5px]">
+          <thead class="<%= StaffHelper::TABLE_HEAD_CLASSES %>">
+            <tr>
+              <th scope="col" class="px-5 py-2.5 font-normal">ID</th>
+              <th scope="col" class="px-5 py-2.5 font-normal">Name</th>
+              <th scope="col" class="px-5 py-2.5 font-normal text-right">Users</th>
+              <th scope="col" class="px-5 py-2.5 font-normal">Created</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-paper-700/70">
+            <% @accounts.each do |account| %>
+              <tr id="<%= dom_id(account, :staff) %>" class="relative hover:bg-iris-500/[.04] transition">
+                <td class="px-5 py-3 font-mono text-[12.5px] text-ink-400"><%= account.id %></td>
+                <td class="px-5 py-3"><%= link_to account.name, staff_account_path(account), class: "text-ink-50 hover:underline after:absolute after:inset-0" %></td>
+                <td class="px-5 py-3 text-right font-mono text-[12.5px] text-ink-100"><%= number_with_delimiter(account.users_count) %></td>
+                <td class="px-5 py-3 text-ink-300 whitespace-nowrap"><%= staff_date(account.created_at) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% end %>
+
+  <div class="mt-6"><%= staff_pagination(@pagy) %></div>
+</div>

@@ -76,3 +76,6 @@ gem "goodsorcery"
 
 # Model Context Protocol server (POST /mcp, docs/MCP.md): the official Ruby SDK
 gem "mcp", "1.8.1"
+
+# Pagination for the staff area's account and user lists [https://github.com/ddnexus/pagy]
+gem "pagy", "~> 43.8"

@@ -1,0 +1,63 @@
+<% provide :title, "#{@user.name} · Staff" %>
+<% provide :nav, "staff_users" %>
+<% breadcrumb "Staff", staff_root_path %>
+<% breadcrumb "Users", staff_users_path %>
+<% breadcrumb @user.name %>
+
+<div class="page-gutter pt-8 pb-16 max-w-[1100px]">
+  <div class="page-header rise">
+    <div class="min-w-0">
+      <div class="eyebrow">User <span class="font-mono">#<%= @user.id %></span></div>
+      <h1 class="page-title break-words"><%= @user.name %></h1>
+    </div>
+    <%= link_to "Edit staff access", edit_staff_user_path(@user), class: "btn btn-primary" %>
+  </div>
+
+  <section id="user_details" class="panel mt-6 rise rise-1" aria-label="Details">
+    <dl class="divide-y divide-paper-700/70 text-[13.5px]">
+      <% [
+           [ "Email", tag.span(@user.email_address, class: "break-all") ],
+           [ "Email verified", @user.email_verified_at ? staff_date(@user.email_verified_at) : "Not verified" ],
+           [ "Time zone", tag.span(@user.time_zone, class: "font-mono text-[12.5px]") ],
+           [ "Staff", @user.staff? ? chip("Staff", tone: :iris, small: true) : "No" ],
+           [ "Created", staff_date(@user.created_at) ]
+         ].each do |label, value| %>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 px-5 py-3">
+          <dt class="w-40 text-ink-400"><%= label %></dt>
+          <dd class="flex-1 min-w-0 text-ink-50"><%= value %></dd>
+        </div>
+      <% end %>
+    </dl>
+  </section>
+
+  <section class="panel mt-6 overflow-hidden rise rise-2" aria-labelledby="user_accounts_heading">
+    <h2 id="user_accounts_heading" class="px-5 py-3 border-b border-paper-700 font-semibold text-ink-50">
+      Accounts <span class="text-ink-400 font-normal">— <%= @memberships.size %></span>
+    </h2>
+    <% if @memberships.empty? %>
+      <p class="px-5 py-6 text-[13.5px] text-ink-400">Not a member of any account.</p>
+    <% else %>
+      <div class="scroll-x">
+        <table id="user_accounts" class="w-full min-w-[28rem] text-[13.5px]">
+          <thead class="<%= StaffHelper::TABLE_HEAD_CLASSES %>">
+            <tr>
+              <th scope="col" class="px-5 py-2.5 font-normal">ID</th>
+              <th scope="col" class="px-5 py-2.5 font-normal">Account</th>
+              <th scope="col" class="px-5 py-2.5 font-normal">Role</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-paper-700/70">
+            <% @memberships.each do |membership| %>
+              <% account = membership.account %>
+              <tr id="<%= dom_id(account, :staff) %>">
+                <td class="px-5 py-3 font-mono text-[12.5px] text-ink-400"><%= account.id %></td>
+                <td class="px-5 py-3"><%= link_to account.name, staff_account_path(account), class: "text-ink-50 hover:underline" %></td>
+                <td class="px-5 py-3"><%= staff_role_chip(membership) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </section>
+</div>

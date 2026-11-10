@@ -35,6 +35,13 @@ Rails.application.routes.draw do
   # The MCP endpoint (docs/ARCHITECTURE.md §14.2): POST only; GET and DELETE answer 405.
   resource :mcp, only: %i[show create destroy], controller: "mcp"
 
+  # The staff area (Staff::BaseController): a 404 for everyone but staff.
+  namespace :staff do
+    resources :accounts, only: %i[index show edit update]
+    resources :users, only: %i[index show edit update]
+    root "accounts#index"
+  end
+
   resource :search, only: :show
   resource :recent_issues, only: :show
 

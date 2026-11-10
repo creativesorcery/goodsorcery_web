@@ -9,3 +9,8 @@ umbrella:
   entitlement_values:
     uptime_intervals: [5, 10, 60]
     max_monitors: 3
+
+# The staffer's own account: no apps, no stored values.
+staff_hq:
+  name: Sorcery HQ
+  entitlement_values: {}

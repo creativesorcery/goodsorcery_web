@@ -1,0 +1,7 @@
+<%# locals: (url:, placeholder:) -%>
+<%= form_with url:, method: :get, html: { role: "search" },
+      class: "input flex w-full sm:w-80 items-center gap-2 rounded-lg px-3 py-1.5 text-[13px]" do |form| %>
+  <%= icon :search, classes: "w-4 h-4 text-ink-400" %>
+  <%= form.search_field :q, value: search_query, placeholder:, "aria-label": placeholder, autocomplete: "off",
+        class: "flex-1 min-w-0 bg-transparent outline-none text-ellipsis placeholder:text-ink-400" %>
+<% end %>

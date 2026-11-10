@@ -1,0 +1,48 @@
+<% provide :title, "Users · Staff" %>
+<% provide :nav, "staff_users" %>
+<% breadcrumb "Staff", staff_root_path %>
+<% breadcrumb "Users" %>
+
+<div class="page-gutter pt-8 pb-16 max-w-[1200px]">
+  <div class="page-header rise">
+    <div>
+      <div class="eyebrow">Staff</div>
+      <h1 class="page-title">Users <span class="text-ink-400 text-[22px] sm:text-[30px]">— <%= number_with_delimiter(@pagy.count) %></span></h1>
+    </div>
+    <%= render "staff/shared/search", url: staff_users_path, placeholder: "Search by name, email or id" %>
+  </div>
+
+  <% if @users.empty? %>
+    <%= render "staff/shared/empty_page", pagy: @pagy, first_page: staff_users_path(q: search_query), none: "No users yet.",
+          no_match: "No users match “#{search_query}”." %>
+  <% else %>
+    <section class="panel mt-8 overflow-hidden rise rise-1" aria-label="Users">
+      <div class="scroll-x">
+        <table id="staff_users" class="w-full min-w-[40rem] text-[13.5px]">
+          <thead class="<%= StaffHelper::TABLE_HEAD_CLASSES %>">
+            <tr>
+              <th scope="col" class="px-5 py-2.5 font-normal">ID</th>
+              <th scope="col" class="px-5 py-2.5 font-normal">Name</th>
+              <th scope="col" class="px-5 py-2.5 font-normal">Email</th>
+              <th scope="col" class="px-5 py-2.5 font-normal"><span class="sr-only">Staff</span></th>
+              <th scope="col" class="px-5 py-2.5 font-normal">Created</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-paper-700/70">
+            <% @users.each do |user| %>
+              <tr id="<%= dom_id(user, :staff) %>" class="relative hover:bg-iris-500/[.04] transition">
+                <td class="px-5 py-3 font-mono text-[12.5px] text-ink-400"><%= user.id %></td>
+                <td class="px-5 py-3"><%= link_to user.name, staff_user_path(user), class: "text-ink-50 hover:underline after:absolute after:inset-0" %></td>
+                <td class="px-5 py-3 text-ink-300 break-all"><%= user.email_address %></td>
+                <td class="px-5 py-3"><%= chip("Staff", tone: :iris, small: true) if user.staff? %></td>
+                <td class="px-5 py-3 text-ink-300 whitespace-nowrap"><%= staff_date(user.created_at) %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  <% end %>
+
+  <div class="mt-6"><%= staff_pagination(@pagy) %></div>
+</div>

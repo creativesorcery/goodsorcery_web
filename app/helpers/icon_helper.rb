@@ -22,7 +22,13 @@ module IconHelper
     check: [ [ :path, { d: "M5 12.5l4.5 4.5L19 7.5" } ] ],
     plus: [ [ :path, { d: "M12 5v14M5 12h14" } ] ],
     external: [ [ :path, { d: "M14 4h6v6" } ], [ :path, { d: "M20 4l-9 9" } ], [ :path, { d: "M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" } ] ],
-    sign_out: [ [ :path, { d: "M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" } ], [ :path, { d: "M10 17l-5-5 5-5" } ], [ :path, { d: "M5 12h11" } ] ]
+    sign_out: [ [ :path, { d: "M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" } ], [ :path, { d: "M10 17l-5-5 5-5" } ], [ :path, { d: "M5 12h11" } ] ],
+    accounts: [ [ :path, { d: "M4 21V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v15" } ], [ :path, { d: "M16 10h2a2 2 0 0 1 2 2v9" } ],
+                [ :path, { d: "M3 21h18M8 8h4M8 12h4M8 16h4" } ] ],
+    users: [ [ :circle, { cx: 9, cy: 8, r: 3.5 } ], [ :path, { d: "M2.5 20a6.5 6.5 0 0 1 13 0" } ],
+             [ :path, { d: "M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6" } ] ],
+    shield: [ [ :path, { d: "M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z" } ], [ :path, { d: "M9 12l2 2 4-4" } ] ],
+    arrow_left: [ [ :path, { d: "M19 12H5" } ], [ :path, { d: "m11 6-6 6 6 6" } ] ]
   }.freeze
 
   def icon(name, classes: "w-[17px] h-[17px]")

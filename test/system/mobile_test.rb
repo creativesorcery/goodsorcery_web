@@ -78,6 +78,21 @@ class MobileSystemTest < ApplicationSystemTestCase
     end
   end
 
+  test "the staff pages fit the screen without sideways scrolling, and the staff sidebar is a drawer" do
+    page.reset! # signs philip out
+    sign_in users(:staffer)
+    [ staff_accounts_path, staff_account_path(accounts(:acme)), edit_staff_account_path(accounts(:acme)),
+      staff_users_path, staff_user_path(users(:philip)), edit_staff_user_path(users(:philip)) ].each do |path|
+      visit_connected path
+      overflow = page.evaluate_script("document.documentElement.scrollWidth - window.innerWidth")
+      assert_operator overflow, :<=, 0, "#{path} scrolls sideways by #{overflow}px"
+    end
+
+    press menu_button
+    assert_drawer_open
+    assert_selector "#sidebar a.nav-link", text: "Accounts"
+  end
+
   test "a newly created access token and its client snippets fit the screen" do
     visit_connected access_tokens_path
     type_into find_field("Name"), "Phone Claude"

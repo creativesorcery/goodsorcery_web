@@ -1,0 +1,19 @@
+<%# locals: (form:, key:, choices:, unit:, hint:) -%>
+<div id="field_<%= key %>" class="px-5 py-4" data-controller="entitlement-setting">
+  <fieldset class="space-y-3" aria-describedby="<%= staff_entitlement_describedby(form, key) %>">
+    <%= render "staff/accounts/legend", key: %>
+    <%= render "staff/accounts/setting", form:, key: %>
+    <fieldset class="ml-6 flex flex-wrap gap-x-5 gap-y-2 transition-opacity" aria-label="Custom value"
+              data-entitlement-setting-target="fields">
+      <%= hidden_field_tag "entitlements[#{key}][]", "", id: nil %>
+      <% choices.each do |choice| %>
+        <label class="flex items-center gap-2 text-[13.5px] text-ink-100">
+          <%= check_box_tag "entitlements[#{key}][]", choice, form.chosen?(key, choice), id: "#{key}_#{choice}", class: "accent-iris-300" %>
+          <%= pluralize(choice, unit) %>
+        </label>
+      <% end %>
+    </fieldset>
+    <%= render "staff/accounts/problem", form:, key: %>
+    <p id="<%= key %>_hint" class="hint mt-0"><%= hint %></p>
+  </fieldset>
+</div>
