@@ -24,6 +24,13 @@ namespace :goodsorcery do
     puts "Fitted the uptime monitors and app retention of #{count} account(s) to their entitlements."
   end
 
+  desc "Create an account and its verified owner (EMAIL=, NAME=, ACCOUNT=; PASSWORD= or a no-echo prompt; STAFF=1 also grants /staff), e.g. on a fresh instance with GOODSORCERY_DISABLE_SIGNUPS=1"
+  task create_owner: :environment do
+    puts OwnerSetup.new.create
+  rescue OwnerSetup::Failure => failure
+    abort failure.message
+  end
+
   desc "Give a user staff access to /staff (EMAIL=person@example.com); afterwards staff can grant it to others from Staff › Users"
   task make_staff: :environment do
     email = ENV["EMAIL"].to_s.strip

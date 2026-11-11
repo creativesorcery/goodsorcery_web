@@ -60,6 +60,11 @@ env:
     # Keep public sign-up open after the first account (see Signup.open?).
     GOODSORCERY_ENABLE_SIGNUPS: "1"
 <% end %>
+<% if ENV["GOODSORCERY_DISABLE_SIGNUPS"] == "1" %>
+    # Close sign-up entirely, even for the first account; create the owner
+    # with bin/rails goodsorcery:create_owner instead (see Signup.open?).
+    GOODSORCERY_DISABLE_SIGNUPS: "1"
+<% end %>
 <% if ENV["GOODSORCERY_HOSTED"].to_s.strip != "" %>
     # Managed hosting: entitlements come from each account (docs/ARCHITECTURE.md §12.2).
     GOODSORCERY_HOSTED: <%= ENV["GOODSORCERY_HOSTED"].to_json %>
@@ -91,7 +96,11 @@ env:
     - ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY
     - ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT
     - GOODSORCERY_WEB_DATABASE_PASSWORD
+<% if ENV["POSTMARK_API_TOKEN"].to_s.strip != "" %>
+    # Optional: mail through Postmark's API; without it, configure SMTP
+    # (config/environments/production.rb) or run without mail.
     - POSTMARK_API_TOKEN
+<% end %>
 <% if ENV["GOODSORCERY_API_KEY"].to_s.strip != "" %>
     # Optional: Good Sorcery reports its own errors (config/initializers/goodsorcery.rb).
     - GOODSORCERY_API_KEY
