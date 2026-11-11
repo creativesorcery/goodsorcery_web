@@ -9,6 +9,15 @@ dashboard updates live. Use it hosted at
 [goodsorcery.com](https://goodsorcery.com), or run it yourself under
 the MIT License.
 
+<p>
+  <img src="docs/screenshots/issues.png" width="49%" alt="The issue list for a demo app: unresolved issues with summary tiles, query chips and a 24-hour histogram per issue.">
+  <img src="docs/screenshots/issue.png" width="49%" alt="An issue page for a NoMethodError: occurrence chart, app-first backtrace with the failing line highlighted, affected user and tag breakdowns.">
+</p>
+<p>
+  <img src="docs/screenshots/performance.png" width="49%" alt="The performance overview: requests per minute, average and percentile response times, failed requests, and a chart of request time by layer.">
+  <img src="docs/screenshots/slow-trace.png" width="49%" alt="A slow request trace for POST /checkout with an N+1 query callout: one query run 38 times, with the call site and a suggested fix.">
+</p>
+
 Built with Rails 8.1, Hotwire (Turbo and Stimulus), Action Cable, Postgres,
 Sidekiq, Redis and Tailwind. No single-page JavaScript framework and no Node.js.
 
