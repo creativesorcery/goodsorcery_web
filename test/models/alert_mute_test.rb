@@ -2,14 +2,14 @@ require "test_helper"
 
 class AlertMuteTest < ActiveSupport::TestCase
   setup do
-    @user = users(:philip)
+    @user = users(:alex)
     @project = projects(:storefront)
   end
 
   test "a valid token names the member, the app and the stream" do
     mute = AlertMute.find_by_token(@user.alert_mute_token(@project))
 
-    assert_equal memberships(:philip_acme), mute.membership
+    assert_equal memberships(:alex_acme), mute.membership
     assert_equal @user, mute.user
     assert_equal @project, mute.project
     assert_equal "alerts", mute.stream
@@ -23,15 +23,15 @@ class AlertMuteTest < ActiveSupport::TestCase
     mute.apply
 
     assert mute.applied?
-    assert_not memberships(:philip_acme).reload.receives_alerts?(@project)
-    assert memberships(:philip_acme).receives_digest?(@project)
-    assert memberships(:philip_acme).receives_alerts?(projects(:billing))
+    assert_not memberships(:alex_acme).reload.receives_alerts?(@project)
+    assert memberships(:alex_acme).receives_digest?(@project)
+    assert memberships(:alex_acme).receives_alerts?(projects(:billing))
   end
 
   test "a digest token turns off the digest only" do
     AlertMute.find_by_token(@user.alert_mute_token(@project, stream: "digest")).apply
 
-    membership = memberships(:philip_acme).reload
+    membership = memberships(:alex_acme).reload
     assert_not membership.receives_digest?(@project)
     assert membership.receives_alerts?(@project)
   end
@@ -43,7 +43,7 @@ class AlertMuteTest < ActiveSupport::TestCase
 
     mute.apply
 
-    membership = memberships(:philip_acme).reload
+    membership = memberships(:alex_acme).reload
     assert_not membership.receives_uptime_alerts?(@project)
     assert membership.receives_alerts?(@project)
     assert membership.receives_digest?(@project)
@@ -82,8 +82,8 @@ class AlertMuteTest < ActiveSupport::TestCase
 
     AlertMute.find_by_token(token).apply
 
-    assert memberships(:philip_acme).reload.receives_alerts?(@project)
-    assert_not memberships(:philip_acme).receives_alerts?(projects(:billing))
+    assert memberships(:alex_acme).reload.receives_alerts?(@project)
+    assert_not memberships(:alex_acme).receives_alerts?(projects(:billing))
   end
 
   test "a token stops working once the person leaves the app's account" do

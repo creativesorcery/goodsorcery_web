@@ -1,20 +1,20 @@
 require "test_helper"
 
 class Issue::TriageTest < ActiveSupport::TestCase
-  setup { @philip = users(:philip) }
+  setup { @alex = users(:alex) }
 
   test "resolve sets status, timestamp, clears regression and records activity" do
     issue = issues(:regressed)
 
     assert_difference -> { issue.activities.resolved.count } => 1 do
-      issue.resolve(by: @philip)
+      issue.resolve(by: @alex)
     end
 
     issue.reload
     assert issue.resolved?
     assert issue.resolved_at
     assert_nil issue.regressed_at
-    assert_equal @philip, issue.activities.recent.first.user
+    assert_equal @alex, issue.activities.recent.first.user
   end
 
   test "triage expires the cached unresolved counts at once" do
@@ -24,10 +24,10 @@ class Issue::TriageTest < ActiveSupport::TestCase
     before = project.cached_unresolved_count
     staging = project.cached_unresolved_count("staging")
 
-    issues(:nomethod).resolve(by: @philip)
+    issues(:nomethod).resolve(by: @alex)
     assert_equal before - 1, project.cached_unresolved_count
 
-    Issue.where(id: issues(:regressed).id).resolve_all(by: @philip)
+    Issue.where(id: issues(:regressed).id).resolve_all(by: @alex)
     assert_equal before - 2, project.cached_unresolved_count
     assert_operator project.cached_unresolved_count("staging"), :<=, staging
   ensure
@@ -37,18 +37,18 @@ class Issue::TriageTest < ActiveSupport::TestCase
   test "resolving twice records one activity" do
     issue = issues(:nomethod)
     assert_difference -> { issue.activities.count } => 1 do
-      issue.resolve(by: @philip)
-      issue.resolve(by: @philip)
+      issue.resolve(by: @alex)
+      issue.resolve(by: @alex)
     end
   end
 
   test "ignore and reopen" do
     issue = issues(:nomethod)
 
-    issue.ignore(by: @philip)
+    issue.ignore(by: @alex)
     assert issue.reload.ignored?
 
-    issue.reopen(by: @philip)
+    issue.reopen(by: @alex)
     assert issue.reload.unresolved?
     assert_equal %w[reopened ignored], issue.activities.recent.limit(2).pluck(:kind)
   end
@@ -65,17 +65,17 @@ class Issue::TriageTest < ActiveSupport::TestCase
   test "assign and unassign record the subject user" do
     issue = issues(:regressed)
 
-    issue.assign(users(:jo), by: @philip)
+    issue.assign(users(:jo), by: @alex)
     assert_equal users(:jo), issue.reload.assignee
     assert_equal users(:jo), issue.activities.assigned.sole.subject_user
 
-    issue.unassign(by: @philip)
+    issue.unassign(by: @alex)
     assert_nil issue.reload.assignee
     assert_equal users(:jo), issue.activities.unassigned.sole.subject_user
   end
 
   test "assigning a non-member fails" do
-    assert_raises(ActiveRecord::RecordInvalid) { issues(:regressed).assign(users(:outsider), by: @philip) }
+    assert_raises(ActiveRecord::RecordInvalid) { issues(:regressed).assign(users(:outsider), by: @alex) }
     assert_nil issues(:regressed).reload.assignee
   end
 
@@ -84,7 +84,7 @@ class Issue::TriageTest < ActiveSupport::TestCase
 
     ids = nil
     assert_difference -> { IssueActivity.resolved.count } => 2 do
-      ids = scope.resolve_all(by: @philip)
+      ids = scope.resolve_all(by: @alex)
     end
 
     assert_equal issues(:nomethod, :regressed).map(&:id).sort, ids.sort
@@ -93,7 +93,7 @@ class Issue::TriageTest < ActiveSupport::TestCase
   end
 
   test "bulk triage never escapes the relation" do
-    projects(:storefront).issues.where(id: issues(:umbrella_issue).id).ignore_all(by: @philip)
+    projects(:storefront).issues.where(id: issues(:umbrella_issue).id).ignore_all(by: @alex)
     assert issues(:umbrella_issue).reload.unresolved?
   end
 
@@ -104,32 +104,32 @@ class Issue::TriageTest < ActiveSupport::TestCase
   test "ignore_all and reopen_all" do
     scope = projects(:storefront).issues.where(id: [ issues(:nomethod).id, issues(:ignored_issue).id ])
 
-    assert_equal [ issues(:nomethod).id ], scope.ignore_all(by: @philip)
+    assert_equal [ issues(:nomethod).id ], scope.ignore_all(by: @alex)
     assert scope.reload.all?(&:ignored?)
 
-    assert_equal 2, scope.reopen_all(by: @philip).size
+    assert_equal 2, scope.reopen_all(by: @alex).size
     assert scope.reload.all?(&:unresolved?)
   end
 
   test "assign_all only assigns account members" do
     scope = projects(:storefront).issues.where(id: [ issues(:nomethod).id, issues(:regressed).id ])
 
-    assert_equal [ issues(:regressed).id ], scope.assign_all(users(:philip), by: @philip)
-    assert_equal users(:philip), issues(:regressed).reload.assignee
-    assert_raises(ArgumentError) { scope.assign_all(users(:outsider), by: @philip) }
+    assert_equal [ issues(:regressed).id ], scope.assign_all(users(:alex), by: @alex)
+    assert_equal users(:alex), issues(:regressed).reload.assignee
+    assert_raises(ArgumentError) { scope.assign_all(users(:outsider), by: @alex) }
   end
 
   test "bulk triage on an empty relation is a no-op" do
     assert_no_difference -> { IssueActivity.count } do
-      assert_empty projects(:marketing).issues.resolve_all(by: @philip)
+      assert_empty projects(:marketing).issues.resolve_all(by: @alex)
     end
   end
 
   test "bulk triage marks its activity rows with where the change came from" do
-    Issue.where(id: [ issues(:nomethod).id, issues(:card_error).id ]).ignore_all(by: @philip, via: "mcp")
+    Issue.where(id: [ issues(:nomethod).id, issues(:card_error).id ]).ignore_all(by: @alex, via: "mcp")
 
     assert_equal %w[mcp mcp], IssueActivity.where(issue: [ issues(:nomethod), issues(:card_error) ], kind: "ignored").pluck(:via)
-    Issue.where(id: issues(:nomethod).id).reopen_all(by: @philip)
+    Issue.where(id: issues(:nomethod).id).reopen_all(by: @alex)
     assert_nil issues(:nomethod).activities.recent.first.via
   end
 

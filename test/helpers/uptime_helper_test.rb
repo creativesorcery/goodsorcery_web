@@ -63,14 +63,14 @@ class UptimeHelperTest < ActionView::TestCase
   end
 
   test "interval options are all open when self-hosted" do
-    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
+    Current.session = users(:alex).sessions.create!(account: accounts(:acme))
 
     assert_equal [ [ "Every minute", 1 ], [ "Every 5 minutes", 5 ], [ "Every 10 minutes", 10 ], [ "Every hour", 60 ] ],
       uptime_interval_options
   end
 
   test "hosted with an upgrade URL, locked interval options say Upgrade to unlock" do
-    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
+    Current.session = users(:alex).sessions.create!(account: accounts(:acme))
 
     with_hosted_mode do
       with_upgrade_url do
@@ -82,7 +82,7 @@ class UptimeHelperTest < ActionView::TestCase
   end
 
   test "hosted without an upgrade URL, locked interval options say Coming soon" do
-    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
+    Current.session = users(:alex).sessions.create!(account: accounts(:acme))
 
     with_hosted_mode do
       with_upgrade_url(nil) do

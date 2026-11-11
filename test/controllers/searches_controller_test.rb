@@ -2,7 +2,7 @@ require "test_helper"
 
 class SearchesControllerTest < ActionDispatch::IntegrationTest
   setup do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "requires authentication" do

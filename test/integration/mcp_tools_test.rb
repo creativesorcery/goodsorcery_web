@@ -33,7 +33,7 @@ class McpToolsTest < ActionDispatch::IntegrationTest
   # ── list_apps ────────────────────────────────────────────────
 
   test "list_apps lists the account's apps with unresolved counts" do
-    result = mcp_tool(:philip_read, "list_apps")
+    result = mcp_tool(:alex_read, "list_apps")
 
     apps = structured(result)["apps"].index_by { it["slug"] }
     assert_equal %w[billing-api marketing-site storefront], apps.keys
@@ -51,7 +51,7 @@ class McpToolsTest < ActionDispatch::IntegrationTest
   # ── search_issues ────────────────────────────────────────────
 
   test "search_issues uses the issue list's query syntax and sort" do
-    result = mcp_tool(:philip_read, "search_issues", query: "is:unresolved env:staging")
+    result = mcp_tool(:alex_read, "search_issues", query: "is:unresolved env:staging")
 
     assert_untrusted_notice result
     assert_equal %w[GS-1038], structured(result)["issues"].map { it["short_id"] }
@@ -59,48 +59,48 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     assert_equal "storefront", row["app"]
     assert_match %r{/projects/storefront/issues/GS-1038\z}, row["url"]
 
-    events = structured(mcp_tool(:philip_read, "search_issues", sort: "events"))["issues"].map { it["events"] }
+    events = structured(mcp_tool(:alex_read, "search_issues", sort: "events"))["issues"].map { it["events"] }
     assert_equal events.sort.reverse, events
   end
 
   test "search_issues defaults to unresolved across all apps and narrows by app, text and range" do
-    all = structured(mcp_tool(:philip_read, "search_issues"))["issues"].map { it["short_id"] }
+    all = structured(mcp_tool(:alex_read, "search_issues"))["issues"].map { it["short_id"] }
     assert_includes all, "BA-#{issues(:billing_timeout).number}" if issues(:billing_timeout).unresolved?
     assert_not_includes all, "GS-1020"
 
-    by_app = structured(mcp_tool(:philip_read, "search_issues", app: "billing-api", query: "is:resolved is:unresolved"))
+    by_app = structured(mcp_tool(:alex_read, "search_issues", app: "billing-api", query: "is:resolved is:unresolved"))
     assert by_app["issues"].all? { it["app"] == "billing-api" }
 
-    assert_equal %w[GS-1042], structured(mcp_tool(:philip_read, "search_issues", query: "price_cents"))["issues"].map { it["short_id"] }
-    recent = structured(mcp_tool(:philip_read, "search_issues", range: "1h"))["issues"]
+    assert_equal %w[GS-1042], structured(mcp_tool(:alex_read, "search_issues", query: "price_cents"))["issues"].map { it["short_id"] }
+    recent = structured(mcp_tool(:alex_read, "search_issues", range: "1h"))["issues"]
     assert recent.all? { Time.zone.parse(it["last_seen_at"]) >= 1.hour.ago }
   end
 
   test "search_issues pages with a cursor" do
-    first = structured(mcp_tool(:philip_read, "search_issues", query: "", limit: 1, app: "storefront"))
+    first = structured(mcp_tool(:alex_read, "search_issues", query: "", limit: 1, app: "storefront"))
     assert_equal 1, first["issues"].size
     assert first["next_cursor"]
 
-    second = structured(mcp_tool(:philip_read, "search_issues", query: "", limit: 1, app: "storefront", cursor: first["next_cursor"]))
+    second = structured(mcp_tool(:alex_read, "search_issues", query: "", limit: 1, app: "storefront", cursor: first["next_cursor"]))
     assert_not_equal first["issues"].first["short_id"], second["issues"].first["short_id"]
 
-    assert_tool_error mcp_tool(:philip_read, "search_issues", cursor: "bogus!"), /Invalid cursor/
+    assert_tool_error mcp_tool(:alex_read, "search_issues", cursor: "bogus!"), /Invalid cursor/
   end
 
   test "search_issues: unknown and other-account apps are not found" do
-    assert_tool_error mcp_tool(:philip_read, "search_issues", app: "nope"), /No app with the slug "nope"/
-    assert_tool_error mcp_tool(:philip_read, "search_issues", app: "umbrella-app"), /No app with the slug "umbrella-app"/
+    assert_tool_error mcp_tool(:alex_read, "search_issues", app: "nope"), /No app with the slug "nope"/
+    assert_tool_error mcp_tool(:alex_read, "search_issues", app: "umbrella-app"), /No app with the slug "umbrella-app"/
   end
 
   # ── get_issue ────────────────────────────────────────────────
 
   test "get_issue returns the summary, trend, tags and the latest occurrence's backtrace and breadcrumbs" do
-    result = mcp_tool(:philip_read, "get_issue", issue: "gs-1042")
+    result = mcp_tool(:alex_read, "get_issue", issue: "gs-1042")
     issue = structured(result)
 
     assert_untrusted_notice result
     assert_equal "GS-1042", issue["short_id"]
-    assert_equal "Philip Nguyen", issue["assignee"]
+    assert_equal "Alex Rivera", issue["assignee"]
     assert_equal 24, issue.dig("trend", "hourly_24h", "counts").size
     assert_equal 30, issue.dig("trend", "daily_30d", "counts").size
     assert_equal %w[a1b2c3d], issue["releases"].map { it["release"] }
@@ -118,18 +118,18 @@ class McpToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "get_issue finds issues by numeric id too" do
-    assert_equal "GS-1042", structured(mcp_tool(:philip_read, "get_issue", issue: issues(:nomethod).id))["short_id"]
-    assert_equal "GS-1042", structured(mcp_tool(:philip_read, "get_issue", issue: issues(:nomethod).id.to_s))["short_id"]
+    assert_equal "GS-1042", structured(mcp_tool(:alex_read, "get_issue", issue: issues(:nomethod).id))["short_id"]
+    assert_equal "GS-1042", structured(mcp_tool(:alex_read, "get_issue", issue: issues(:nomethod).id.to_s))["short_id"]
   end
 
   test "get_issue: unknown, malformed and other-account issues are all simply not found" do
     [ "GS-9999", "ZZ-1", "banana", issues(:umbrella_issue).id, "UA-#{issues(:umbrella_issue).number}" ].each do |reference|
-      assert_tool_error mcp_tool(:philip_read, "get_issue", issue: reference), /Issue not found/
+      assert_tool_error mcp_tool(:alex_read, "get_issue", issue: reference), /Issue not found/
     end
   end
 
   test "without request_data the message is redacted and locals are left out" do
-    result = mcp_tool(:philip_read, "get_issue", issue: "GS-1042")
+    result = mcp_tool(:alex_read, "get_issue", issue: "GS-1042")
     occurrence = structured(result)["latest_occurrence"]
 
     assert_match "[email]", occurrence["message"]
@@ -140,7 +140,7 @@ class McpToolsTest < ActionDispatch::IntegrationTest
   # ── list_occurrences ─────────────────────────────────────────
 
   test "list_occurrences lists stored occurrences newest first with host and transaction, paged" do
-    result = mcp_tool(:philip_read, "list_occurrences", issue: "GS-1042", limit: 1)
+    result = mcp_tool(:alex_read, "list_occurrences", issue: "GS-1042", limit: 1)
     page = structured(result)
 
     assert_untrusted_notice result
@@ -148,19 +148,19 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     assert_equal "web-7f9c-2", page["occurrences"].first["host"]
     assert_equal "CheckoutsController#create", page["occurrences"].first["transaction"]
 
-    following = structured(mcp_tool(:philip_read, "list_occurrences", issue: "GS-1042", limit: 1, cursor: page["next_cursor"]))
+    following = structured(mcp_tool(:alex_read, "list_occurrences", issue: "GS-1042", limit: 1, cursor: page["next_cursor"]))
     assert_equal [ occurrences(:nomethod_oldest).uuid ], following["occurrences"].map { it["id"] }
     assert_nil following["next_cursor"]
   end
 
   test "list_occurrences: other-account issues are not found" do
-    assert_tool_error mcp_tool(:philip_read, "list_occurrences", issue: issues(:umbrella_issue).id), /Issue not found/
+    assert_tool_error mcp_tool(:alex_read, "list_occurrences", issue: issues(:umbrella_issue).id), /Issue not found/
   end
 
   # ── get_occurrence ───────────────────────────────────────────
 
   test "get_occurrence without request_data omits personal data and says which scope adds it" do
-    result = mcp_tool(:philip_read, "get_occurrence", occurrence: occurrences(:nomethod_latest).uuid)
+    result = mcp_tool(:alex_read, "get_occurrence", occurrence: occurrences(:nomethod_latest).uuid)
     occurrence = structured(result)
 
     assert_untrusted_notice result
@@ -180,7 +180,7 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     context = occurrence.context.merge("cause" => [ cause ], "current_user_email" => "alice@example.com", "tenant_id" => 4411)
     occurrence.update!(payload: occurrence.data.merge("context" => context).to_json)
 
-    result = mcp_tool(:philip_read, "get_occurrence", occurrence: occurrence.uuid)
+    result = mcp_tool(:alex_read, "get_occurrence", occurrence: occurrence.uuid)
     environment = structured(result)["environment_context"]
 
     assert_not_includes result.to_json, "alice@example.com"
@@ -191,14 +191,14 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     assert_includes structured(result)["omitted"], "context.custom"
     assert_match "Custom context keys left out: current_user_email, tenant_id", mcp_text(result)
 
-    full = structured(mcp_tool(:philip_full, "get_occurrence", occurrence: occurrence.uuid))
+    full = structured(mcp_tool(:alex_full, "get_occurrence", occurrence: occurrence.uuid))
     assert_equal "alice@example.com", full.dig("environment_context", "current_user_email")
     assert_match "alice@example.com", full.dig("environment_context", "cause", 0, "message")
     assert_nil full["omitted_context_keys"]
   end
 
   test "get_occurrence with request_data includes request, params, headers, session, user and locals" do
-    result = mcp_tool(:philip_full, "get_occurrence", occurrence: occurrences(:nomethod_latest).uuid)
+    result = mcp_tool(:alex_full, "get_occurrence", occurrence: occurrences(:nomethod_latest).uuid)
     occurrence = structured(result)
 
     assert_equal "FALL25", occurrence.dig("params", "coupon")
@@ -215,23 +215,23 @@ class McpToolsTest < ActionDispatch::IntegrationTest
   test "get_occurrence shows job details, with arguments only for request_data" do
     uuid = occurrences(:regressed_latest).uuid
 
-    job = structured(mcp_tool(:philip_read, "get_occurrence", occurrence: uuid))["job"]
+    job = structured(mcp_tool(:alex_read, "get_occurrence", occurrence: uuid))["job"]
     assert_equal "Orders::PlaceJob", job["class"]
     assert_nil job["arguments"]
 
-    assert structured(mcp_tool(:philip_full, "get_occurrence", occurrence: uuid))["job"]["arguments"].present?
+    assert structured(mcp_tool(:alex_full, "get_occurrence", occurrence: uuid))["job"]["arguments"].present?
   end
 
   test "get_occurrence: unknown and other-account occurrences are not found" do
     [ occurrences(:umbrella_occurrence).uuid, SecureRandom.uuid, "not-a-uuid" ].each do |id|
-      assert_tool_error mcp_tool(:philip_full, "get_occurrence", occurrence: id), /Occurrence not found/
+      assert_tool_error mcp_tool(:alex_full, "get_occurrence", occurrence: id), /Occurrence not found/
     end
   end
 
   # ── get_uptime ───────────────────────────────────────────────
 
   test "get_uptime shows monitors with hosts, never URLs" do
-    result = mcp_tool(:philip_read, "get_uptime")
+    result = mcp_tool(:alex_read, "get_uptime")
     monitors = structured(result)["monitors"].index_by { it["name"] }
 
     assert_equal "storefront.example", monitors["Storefront home"]["host"]
@@ -244,14 +244,14 @@ class McpToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "get_uptime narrows to one app; other-account apps are not found" do
-    assert_equal [ "billing-api" ], structured(mcp_tool(:philip_read, "get_uptime", app: "billing-api"))["monitors"].map { it["app"] }.uniq
-    assert_tool_error mcp_tool(:philip_read, "get_uptime", app: "umbrella-app"), /No app/
+    assert_equal [ "billing-api" ], structured(mcp_tool(:alex_read, "get_uptime", app: "billing-api"))["monitors"].map { it["app"] }.uniq
+    assert_tool_error mcp_tool(:alex_read, "get_uptime", app: "umbrella-app"), /No app/
   end
 
   # ── get_performance ──────────────────────────────────────────
 
   test "get_performance returns totals and transactions with flags and the slowest trace" do
-    result = mcp_tool(:philip_read, "get_performance", app: "storefront")
+    result = mcp_tool(:alex_read, "get_performance", app: "storefront")
     performance = structured(result)
 
     assert_equal "production", performance["environment"]
@@ -270,21 +270,21 @@ class McpToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "get_performance shows jobs, and refuses locked ranges and unknown environments" do
-    jobs = structured(mcp_tool(:philip_read, "get_performance", app: "storefront", kind: "job"))
+    jobs = structured(mcp_tool(:alex_read, "get_performance", app: "storefront", kind: "job"))
     assert_equal [ "Orders::PlaceJob" ], jobs["transactions"].map { it["name"] }
 
     with_hosted_mode do
       accounts(:acme).update_entitlements!("apm_retention_days" => 1)
-      assert_tool_error mcp_tool(:philip_read, "get_performance", app: "storefront", range: "7d"), /isn't available/
+      assert_tool_error mcp_tool(:alex_read, "get_performance", app: "storefront", range: "7d"), /isn't available/
     end
-    assert_tool_error mcp_tool(:philip_read, "get_performance", app: "storefront", environment: "moon"), /No performance data/
-    assert_tool_error mcp_tool(:philip_read, "get_performance", app: "umbrella-app"), /No app/
+    assert_tool_error mcp_tool(:alex_read, "get_performance", app: "storefront", environment: "moon"), /No performance data/
+    assert_tool_error mcp_tool(:alex_read, "get_performance", app: "umbrella-app"), /No app/
   end
 
   # ── get_trace ────────────────────────────────────────────────
 
   test "get_trace returns layers, spans and N+1 groups with call site and code" do
-    result = mcp_tool(:philip_read, "get_trace", trace: apm_traces(:checkout_slow).uuid)
+    result = mcp_tool(:alex_read, "get_trace", trace: apm_traces(:checkout_slow).uuid)
     trace = structured(result)
 
     assert_untrusted_notice result
@@ -302,46 +302,46 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     with_hosted_mode do
       accounts(:acme).update_entitlements!("apm_retention_days" => 1)
       travel 2.days do
-        assert_tool_error mcp_tool(:philip_read, "get_trace", trace: apm_traces(:checkout_slow).uuid), /no longer kept/
+        assert_tool_error mcp_tool(:alex_read, "get_trace", trace: apm_traces(:checkout_slow).uuid), /no longer kept/
       end
     end
   end
 
   test "get_trace: other-account and unknown traces are not found" do
-    assert_tool_error mcp_tool(:philip_read, "get_trace", trace: apm_traces(:umbrella_trace).uuid), /no longer kept|not found/i
-    assert_tool_error mcp_tool(:philip_read, "get_trace", trace: SecureRandom.uuid), /Trace not found/
-    assert_tool_error mcp_tool(:philip_read, "get_trace", trace: "nope"), /Trace not found/
+    assert_tool_error mcp_tool(:alex_read, "get_trace", trace: apm_traces(:umbrella_trace).uuid), /no longer kept|not found/i
+    assert_tool_error mcp_tool(:alex_read, "get_trace", trace: SecureRandom.uuid), /Trace not found/
+    assert_tool_error mcp_tool(:alex_read, "get_trace", trace: "nope"), /Trace not found/
   end
 
   # ── triage ───────────────────────────────────────────────────
 
   test "resolve_issue resolves through Issue::Triage, marks the activity via MCP, audits and broadcasts" do
     assert_enqueued_with(job: BroadcastProjectChangesJob) do
-      result = mcp_tool(:philip_triage, "resolve_issue", issues: [ "GS-1042", "GS-1020" ])
+      result = mcp_tool(:alex_triage, "resolve_issue", issues: [ "GS-1042", "GS-1020" ])
       assert_equal({ "GS-1042" => "resolved", "GS-1020" => "resolved" }, structured(result)["issues"].to_h { [ it["short_id"], it["status"] ] })
       assert_equal 1, structured(result)["changed"]
     end
 
     assert issues(:nomethod).reload.resolved?
     activity = issues(:nomethod).activities.recent.first
-    assert_equal [ "resolved", "mcp", users(:philip).id ], [ activity.kind, activity.via, activity.user_id ]
+    assert_equal [ "resolved", "mcp", users(:alex).id ], [ activity.kind, activity.via, activity.user_id ]
     audit = AccessTokenActivity.order(:id).last
-    assert_equal [ personal_access_tokens(:philip_triage).id, users(:philip).id, "resolve", [ issues(:nomethod).id ] ],
+    assert_equal [ personal_access_tokens(:alex_triage).id, users(:alex).id, "resolve", [ issues(:nomethod).id ] ],
                  [ audit.personal_access_token_id, audit.user_id, audit.action, audit.issue_ids ]
   end
 
   test "ignore_issue and unresolve_issue change status and are audited" do
-    mcp_tool(:philip_triage, "ignore_issue", issues: [ "GS-1001" ])
+    mcp_tool(:alex_triage, "ignore_issue", issues: [ "GS-1001" ])
     assert issues(:card_error).reload.ignored?
 
-    result = mcp_tool(:philip_triage, "unresolve_issue", issues: [ "GS-1001", "GS-1020" ])
+    result = mcp_tool(:alex_triage, "unresolve_issue", issues: [ "GS-1001", "GS-1020" ])
     assert_equal %w[unresolved unresolved], structured(result)["issues"].map { it["status"] }
     assert_equal %w[ignore unresolve], AccessTokenActivity.order(:id).last(2).map(&:action)
   end
 
   test "triage with any unknown or other-account id changes nothing" do
     assert_no_difference -> { AccessTokenActivity.count } do
-      result = mcp_tool(:philip_triage, "resolve_issue", issues: [ "GS-1042", issues(:umbrella_issue).id ])
+      result = mcp_tool(:alex_triage, "resolve_issue", issues: [ "GS-1042", issues(:umbrella_issue).id ])
       assert_tool_error result, /Issue not found/
     end
     assert issues(:nomethod).reload.unresolved?
@@ -349,21 +349,21 @@ class McpToolsTest < ActionDispatch::IntegrationTest
   end
 
   test "triage takes at most 25 issues" do
-    assert mcp_tool(:philip_triage, "resolve_issue", issues: Array.new(26) { "GS-1042" })["isError"]
+    assert mcp_tool(:alex_triage, "resolve_issue", issues: Array.new(26) { "GS-1042" })["isError"]
   end
 
   test "add_note adds a note as the token's user via MCP and audits it without the text" do
-    result = mcp_tool(:philip_triage, "add_note", issue: "GS-1042", body: "Investigated from Claude Code")
+    result = mcp_tool(:alex_triage, "add_note", issue: "GS-1042", body: "Investigated from Claude Code")
 
     note = issues(:nomethod).activities.note.recent.first
-    assert_equal [ "Investigated from Claude Code", users(:philip), "mcp" ], [ note.body, note.user, note.via ]
+    assert_equal [ "Investigated from Claude Code", users(:alex), "mcp" ], [ note.body, note.user, note.via ]
     assert_equal "GS-1042", structured(result)["issue"]
     assert_equal [ "note", [ issues(:nomethod).id ] ], AccessTokenActivity.order(:id).last.then { [ it.action, it.issue_ids ] }
   end
 
   test "add_note refuses notes over 2,000 characters and other-account issues" do
-    assert mcp_tool(:philip_triage, "add_note", issue: "GS-1042", body: "x" * 2_001)["isError"]
-    assert_tool_error mcp_tool(:philip_triage, "add_note", issue: issues(:umbrella_issue).id, body: "hi"), /Issue not found/
+    assert mcp_tool(:alex_triage, "add_note", issue: "GS-1042", body: "x" * 2_001)["isError"]
+    assert_tool_error mcp_tool(:alex_triage, "add_note", issue: issues(:umbrella_issue).id, body: "hi"), /Issue not found/
   end
 
   # ── performance and size ─────────────────────────────────────
@@ -376,29 +376,29 @@ class McpToolsTest < ActionDispatch::IntegrationTest
       "get_performance" => { app: "storefront" }, "get_performance " => { app: "storefront", kind: "job" },
       "get_trace" => { trace: apm_traces(:checkout_slow).uuid }
     }
-    mcp_tool(:philip_read, "list_apps") # the first call of a while records the token's use
-    baseline = calls.to_h { |name, arguments| [ name, count_queries { mcp_tool(:philip_read, name.strip, **arguments) } ] }
+    mcp_tool(:alex_read, "list_apps") # the first call of a while records the token's use
+    baseline = calls.to_h { |name, arguments| [ name, count_queries { mcp_tool(:alex_read, name.strip, **arguments) } ] }
 
     add_more_data
     calls.each do |name, arguments|
-      assert_equal baseline[name], count_queries { mcp_tool(:philip_read, name.strip, **arguments) }, name
+      assert_equal baseline[name], count_queries { mcp_tool(:alex_read, name.strip, **arguments) }, name
     end
   end
 
   test "triage tools run a fixed number of queries however many issues they change" do
-    mcp_tool(:philip_triage, "list_apps") # the first call of a while records the token's use
-    one = count_queries { mcp_tool(:philip_triage, "resolve_issue", issues: [ "GS-1042" ]) }
-    many = count_queries { mcp_tool(:philip_triage, "ignore_issue", issues: %w[GS-1042 GS-1001 GS-1020]) }
+    mcp_tool(:alex_triage, "list_apps") # the first call of a while records the token's use
+    one = count_queries { mcp_tool(:alex_triage, "resolve_issue", issues: [ "GS-1042" ]) }
+    many = count_queries { mcp_tool(:alex_triage, "ignore_issue", issues: %w[GS-1042 GS-1001 GS-1020]) }
     assert_equal one, many
 
-    note = count_queries { mcp_tool(:philip_triage, "add_note", issue: "GS-1042", body: "first") }
+    note = count_queries { mcp_tool(:alex_triage, "add_note", issue: "GS-1042", body: "first") }
     add_more_data
-    assert_equal note, count_queries { mcp_tool(:philip_triage, "add_note", issue: "GS-1042", body: "second") }
+    assert_equal note, count_queries { mcp_tool(:alex_triage, "add_note", issue: "GS-1042", body: "second") }
   end
 
   test "responses stay small" do
     %w[list_apps get_uptime].each { assert_operator response_size("tools/call", name: it, arguments: {}), :<, 50_000 }
-    assert_operator response_size("tools/call", name: "get_issue", arguments: { issue: "GS-1042" }, token: :philip_full), :<, 50_000
+    assert_operator response_size("tools/call", name: "get_issue", arguments: { issue: "GS-1042" }, token: :alex_full), :<, 50_000
   end
 
   test "responses stay under 50 KB even for an occurrence and a trace at the ingest size limits" do
@@ -407,7 +407,7 @@ class McpToolsTest < ActionDispatch::IntegrationTest
     assert_operator occurrence.payload.bytesize, :>, 400_000
     apm_traces(:checkout_slow).update!(payload: huge_trace_payload(apm_traces(:checkout_slow)))
 
-    %i[philip_read philip_full].each do |token|
+    %i[alex_read alex_full].each do |token|
       { "get_issue" => { issue: "GS-1042" }, "get_occurrence" => { occurrence: occurrence.uuid },
         "get_trace" => { trace: apm_traces(:checkout_slow).uuid } }.each do |name, arguments|
         assert_operator response_size("tools/call", name:, arguments:, token:), :<, 50_000, "#{name} (#{token})"
@@ -424,7 +424,7 @@ class McpToolsTest < ActionDispatch::IntegrationTest
       queries.size
     end
 
-    def response_size(method, token: :philip_read, **params)
+    def response_size(method, token: :alex_read, **params)
       mcp_request(method, params, token:)
       response.body.bytesize
     end

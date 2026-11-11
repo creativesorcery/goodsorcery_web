@@ -14,7 +14,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   # ── authentication ───────────────────────────────────────────
 
   test "401 with the same body for missing, malformed, unknown, expired and revoked tokens" do
-    [ nil, "not-a-token", "gs_pat_unknown", PAT_FIXTURE_TOKENS[:philip_expired], PAT_FIXTURE_TOKENS[:philip_revoked] ].each do |token|
+    [ nil, "not-a-token", "gs_pat_unknown", PAT_FIXTURE_TOKENS[:alex_expired], PAT_FIXTURE_TOKENS[:alex_revoked] ].each do |token|
       mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }, token:)
       assert_invalid_token
     end
@@ -22,7 +22,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
   test "401 for other schemes and for ingest API keys" do
     mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }, token: nil,
-             headers: { "Authorization" => "Basic #{Base64.strict_encode64("a:#{PAT_FIXTURE_TOKENS[:philip_read]}")}" })
+             headers: { "Authorization" => "Basic #{Base64.strict_encode64("a:#{PAT_FIXTURE_TOKENS[:alex_read]}")}" })
     assert_invalid_token
 
     mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }, token: FIXTURE_TOKENS[:storefront_production])
@@ -39,11 +39,11 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a revoked token stops working at once" do
-    mcp_request("ping", token: :philip_read)
+    mcp_request("ping", token: :alex_read)
     assert_response :ok
 
-    personal_access_tokens(:philip_read).revoke
-    mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }, token: :philip_read)
+    personal_access_tokens(:alex_read).revoke
+    mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }, token: :alex_read)
     assert_invalid_token
   end
 
@@ -58,9 +58,9 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "records the token's last use" do
-    assert_nil personal_access_tokens(:philip_read).last_used_at
+    assert_nil personal_access_tokens(:alex_read).last_used_at
     mcp_request("ping")
-    assert personal_access_tokens(:philip_read).reload.last_used_at
+    assert personal_access_tokens(:alex_read).reload.last_used_at
   end
 
   # ── protocol ─────────────────────────────────────────────────
@@ -103,11 +103,11 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "tools/list shows exactly the tools the token's scopes allow, with schemas and annotations" do
-    assert_equal READ_TOOLS, mcp_tool_names(:philip_read)
-    assert_equal READ_TOOLS + TRIAGE_TOOLS, mcp_tool_names(:philip_triage)
-    assert_equal READ_TOOLS + TRIAGE_TOOLS, mcp_tool_names(:philip_full)
+    assert_equal READ_TOOLS, mcp_tool_names(:alex_read)
+    assert_equal READ_TOOLS + TRIAGE_TOOLS, mcp_tool_names(:alex_triage)
+    assert_equal READ_TOOLS + TRIAGE_TOOLS, mcp_tool_names(:alex_full)
 
-    tools = mcp_request("tools/list", {}, token: :philip_triage).dig("result", "tools").index_by { it["name"] }
+    tools = mcp_request("tools/list", {}, token: :alex_triage).dig("result", "tools").index_by { it["name"] }
     assert_equal "object", tools["get_issue"].dig("inputSchema", "type")
     assert_equal %w[issue], tools["get_issue"].dig("inputSchema", "required")
     assert tools["get_issue"].dig("annotations", "readOnlyHint")
@@ -119,7 +119,7 @@ class McpControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a triage tool is unavailable to a read-only token" do
-    body = mcp_request("tools/call", { name: "resolve_issue", arguments: { issues: [ "GS-1042" ] } }, token: :philip_read)
+    body = mcp_request("tools/call", { name: "resolve_issue", arguments: { issues: [ "GS-1042" ] } }, token: :alex_read)
 
     assert body["error"].present?
     assert issues(:nomethod).reload.unresolved?
@@ -131,10 +131,10 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     mcp_post("{not json")
     assert_equal(-32700, response.parsed_body.dig("error", "code"))
 
-    result = mcp_tool(:philip_read, "search_issues", limit: 500)
+    result = mcp_tool(:alex_read, "search_issues", limit: 500)
     assert result["isError"]
 
-    result = mcp_tool(:philip_read, "list_apps", unexpected: "x")
+    result = mcp_tool(:alex_read, "list_apps", unexpected: "x")
     assert result["isError"]
   end
 
@@ -180,12 +180,12 @@ class McpControllerTest < ActionDispatch::IntegrationTest
 
   test "never logs the request body or the token, and logs reads by tool, token and duration only" do
     log = capture_log do
-      mcp_tool(:philip_read, "search_issues", query: "mcp-log-canary price_cents")
+      mcp_tool(:alex_read, "search_issues", query: "mcp-log-canary price_cents")
     end
 
     assert_no_match(/mcp-log-canary/, log)
-    assert_no_match(/#{PAT_FIXTURE_TOKENS[:philip_read]}/, log)
-    assert_match(/MCP tools\/call tool=search_issues token=#{personal_access_tokens(:philip_read).id} duration_ms=/, log)
+    assert_no_match(/#{PAT_FIXTURE_TOKENS[:alex_read]}/, log)
+    assert_match(/MCP tools\/call tool=search_issues token=#{personal_access_tokens(:alex_read).id} duration_ms=/, log)
   end
 
   private
@@ -218,20 +218,20 @@ class McpControllerTest < ActionDispatch::IntegrationTest
     teardown { Rails.cache = @original_cache }
 
     test "limits calls per token, then 429 with Retry-After" do
-      Rails.cache.increment("rate-limit:mcp:token:#{personal_access_tokens(:philip_read).id}", Mcp::RATE_PER_TOKEN, expires_in: 1.minute)
+      Rails.cache.increment("rate-limit:mcp:token:#{personal_access_tokens(:alex_read).id}", Mcp::RATE_PER_TOKEN, expires_in: 1.minute)
 
-      mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }, token: :philip_read)
+      mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }, token: :alex_read)
       assert_response :too_many_requests
       assert_equal "60", response.headers["Retry-After"]
       assert_equal(-32000, response.parsed_body.dig("error", "code"))
 
-      mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }, token: :philip_triage)
+      mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }, token: :alex_triage)
       assert_response :ok, "other tokens are unaffected"
     end
 
     test "counts each call once" do
       3.times { mcp_post({ jsonrpc: "2.0", id: 1, method: "ping" }) }
-      assert_equal 3, Rails.cache.read("rate-limit:mcp:token:#{personal_access_tokens(:philip_read).id}", raw: true).to_i
+      assert_equal 3, Rails.cache.read("rate-limit:mcp:token:#{personal_access_tokens(:alex_read).id}", raw: true).to_i
     end
 
     test "limits calls per IP before authentication" do

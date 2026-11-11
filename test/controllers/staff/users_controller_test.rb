@@ -10,9 +10,9 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_select "#sidebar a.nav-link[aria-current=page][href=?]", staff_users_path
     assert_select "#staff_users tbody tr", User.count
     assert_select "##{dom_id(users(:staffer), :staff)} .chip", text: "Staff"
-    assert_select "##{dom_id(users(:philip), :staff)}" do
-      assert_select "a[href=?]", staff_user_path(users(:philip)), text: "Philip Nguyen"
-      assert_select "td", text: "philip@example.com"
+    assert_select "##{dom_id(users(:alex), :staff)}" do
+      assert_select "a[href=?]", staff_user_path(users(:alex)), text: "Alex Rivera"
+      assert_select "td", text: "alex@example.com"
       assert_select ".chip", 0
     end
     assert_select "#staff_users", text: /Acme Labs/, count: 0
@@ -27,9 +27,9 @@ class Staff::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_select "#staff_users tbody tr", 1
     assert_select "#staff_users", text: /outsider@umbrella.test/
 
-    get staff_users_path(q: users(:philip).id)
+    get staff_users_path(q: users(:alex).id)
     assert_select "#staff_users tbody tr", 1
-    assert_select "#staff_users", text: /Philip Nguyen/
+    assert_select "#staff_users", text: /Alex Rivera/
   end
 
   test "index matches LIKE wildcards literally" do

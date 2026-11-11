@@ -6,7 +6,7 @@ class Issues::RowsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
     @issue = issues(:nomethod)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "renders one row in its frame" do

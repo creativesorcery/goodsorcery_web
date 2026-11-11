@@ -76,7 +76,7 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
 
   test "a resolved issue regresses, with a system activity" do
     issue = process_event(event_json)
-    Issue.find(issue.id).resolve(by: users(:philip))
+    Issue.find(issue.id).resolve(by: users(:alex))
 
     regressed = nil
     assert_difference -> { IssueActivity.where(issue_id: issue.id, kind: "regressed", user_id: nil).count }, 1 do
@@ -128,7 +128,7 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
 
   test "a resolved staging issue that regresses in production records both milestones" do
     issue = process_event(event_json, key: api_keys(:storefront_staging))
-    Issue.find(issue.id).resolve(by: users(:philip))
+    Issue.find(issue.id).resolve(by: users(:alex))
 
     reached = process_event(event_json)
     assert reached.regressed?
@@ -152,7 +152,7 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
 
   test "ignored issues stay ignored" do
     issue = process_event(event_json)
-    Issue.find(issue.id).ignore(by: users(:philip))
+    Issue.find(issue.id).ignore(by: users(:alex))
     assert process_event(event_json).ignored?
   end
 

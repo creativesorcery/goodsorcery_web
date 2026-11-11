@@ -1,6 +1,6 @@
 <% fp = ->(name) { Digest::SHA256.hexdigest("fixture:#{name}") } %>
 
-# New (first seen 3h ago), unresolved, assigned to philip. Short id GS-1042.
+# New (first seen 3h ago), unresolved, assigned to alex. Short id GS-1042.
 nomethod:
   project: storefront
   number: 1042
@@ -16,7 +16,7 @@ nomethod:
   last_seen_at: <%= 2.minutes.ago.to_fs(:db) %>
   events_count: 1284
   users_count: 212
-  assignee: philip
+  assignee: alex
 
 # Resolved earlier, came back 6 minutes ago. Short id GS-1038.
 regressed:

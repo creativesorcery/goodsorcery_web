@@ -9,7 +9,7 @@ class Projects::Performance::TransactionsControllerTest < ActionDispatch::Integr
   setup do
     @project = projects(:storefront)
     @checkout = apm_transactions(:checkout_create)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "the header shows the name, route, file and the Slower line" do

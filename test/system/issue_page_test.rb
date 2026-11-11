@@ -42,7 +42,7 @@ class IssuePageSystemTest < ApplicationSystemTestCase
 
   test "Ask your AI copies a prompt with the short id and app only, and says so" do
     issue = issues(:nomethod)
-    PersonalAccessToken.revoke_all(user_id: users(:philip).id)
+    PersonalAccessToken.revoke_all(user_id: users(:alex).id)
     visit_connected project_issue_path(@project, issue)
     stub_clipboard
 

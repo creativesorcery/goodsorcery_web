@@ -8,7 +8,7 @@ class Projects::Performance::OverviewsControllerTest < ActionDispatch::Integrati
 
   setup do
     @project = projects(:storefront)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "the tiles are Requests per minute, Average, p75, p90, p95, p99 and Failed, each with a Last hour subline" do

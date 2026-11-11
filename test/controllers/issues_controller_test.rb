@@ -5,7 +5,7 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
 
   setup do
     @project = projects(:storefront)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "requires authentication" do
@@ -57,7 +57,7 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#{nomethod} a[href=?]", project_issue_path(@project, issues(:nomethod)), text: "undefined method `price_cents' for nil"
     assert_select nomethod, text: /GS-1042/
     assert_select nomethod, text: /1,284/
-    assert_select "#{nomethod} span[title=?]", "Philip Nguyen"
+    assert_select "#{nomethod} span[title=?]", "Alex Rivera"
     assert_select "#{nomethod} svg rect", 24
     assert_select "#{nomethod} input[type=checkbox][form=bulk_triage][name='issue_ids[]'][value=?]", issues(:nomethod).id.to_s
 
@@ -275,7 +275,7 @@ class IssuesControllerTest < ActionDispatch::IntegrationTest
     get project_issue_path(@project, issue)
     assert_select "#ask_your_ai a[href=?]", access_tokens_path, count: 0
 
-    PersonalAccessToken.revoke_all(user_id: users(:philip).id)
+    PersonalAccessToken.revoke_all(user_id: users(:alex).id)
     get project_issue_path(@project, issue)
     assert_select "#ask_your_ai a[href=?]", access_tokens_path, text: "Set up MCP"
   end

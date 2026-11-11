@@ -7,8 +7,8 @@ class AlertSummaryTest < ActiveSupport::TestCase
     travel_to Time.utc(2026, 10, 14, 10, 30)
     # The fixture is stamped from the real clock; keep it in this test's past
     # so it never counts towards the frozen hour's cap.
-    alert_deliveries(:philip_nomethod_new_issue).update_columns(created_at: 2.hours.ago)
-    @user = users(:philip)
+    alert_deliveries(:alex_nomethod_new_issue).update_columns(created_at: 2.hours.ago)
+    @user = users(:alex)
     @storefront = projects(:storefront)
     @billing = projects(:billing)
   end
@@ -51,7 +51,7 @@ class AlertSummaryTest < ActiveSupport::TestCase
   end
 
   test "deliver_due summarizes every user with folded alerts from before this hour" do
-    claim(@storefront, "philip", status: "folded")
+    claim(@storefront, "alex", status: "folded")
     AlertDelivery.record(user: users(:jo), project: @storefront, kind: :new_issue, dedupe_key: "jo", status: "folded")
     travel 1.hour
 

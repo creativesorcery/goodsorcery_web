@@ -9,7 +9,7 @@ class LayoutTest < ActionView::TestCase
   def issues_environment_for(_project) = nil
 
   test "signed-in shell shows the switcher, nav, quota-free account and user menu" do
-    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
+    Current.session = users(:alex).sessions.create!(account: accounts(:acme))
     @project = projects(:storefront)
 
     render_shell nav: "issues"
@@ -25,7 +25,7 @@ class LayoutTest < ActionView::TestCase
     assert_select "aside a.nav-link[href=?]", project_alerts_path(@project), text: /Alerts/
     assert_select "aside", text: /Alerts\s*soon/, count: 0
     assert_select "aside a.menu-item[href=?]", notifications_path, text: /Notifications/
-    assert_select "aside", text: /#{Regexp.escape(users(:philip).name)}/
+    assert_select "aside", text: /#{Regexp.escape(users(:alex).name)}/
     assert_select "form[action=?][method=get] input[name=q]", search_path
     assert_select "header nav[aria-label=Breadcrumb]", text: /Acme Labs/
     assert_select "title", "Issues — Good Sorcery"
@@ -54,7 +54,7 @@ class LayoutTest < ActionView::TestCase
   end
 
   test "hosted, the usage meter shows this month's events against the hosted default quota" do
-    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
+    Current.session = users(:alex).sessions.create!(account: accounts(:acme))
 
     with_hosted_mode { render_shell }
 
@@ -66,7 +66,7 @@ class LayoutTest < ActionView::TestCase
   test "hosted, the usage meter reads the account's stored quota" do
     account = accounts(:acme)
     account.update_entitlements!("monthly_event_quota" => 1_000_000)
-    Current.session = users(:philip).sessions.create!(account:)
+    Current.session = users(:alex).sessions.create!(account:)
 
     with_hosted_mode { render_shell }
 
@@ -75,25 +75,25 @@ class LayoutTest < ActionView::TestCase
 
   test "hosted with no quota (no hosted default), and self-hosted whatever is stored, show no usage meter" do
     account = accounts(:acme)
-    Current.session = users(:philip).sessions.create!(account:)
+    Current.session = users(:alex).sessions.create!(account:)
 
     without_hosted_default(:monthly_event_quota) { with_hosted_mode { render_shell } }
     assert_select "aside", text: /Events this month/, count: 0
 
     account.update_entitlements!("monthly_event_quota" => 5_000)
     reset_view
-    Current.session = users(:philip).sessions.create!(account:)
+    Current.session = users(:alex).sessions.create!(account:)
     render_shell
     assert_select "aside", text: /Events this month/, count: 0
   end
 
   test "the sidebar's query count does not grow with the number of projects" do
-    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
+    Current.session = users(:alex).sessions.create!(account: accounts(:acme))
     baseline = count_queries { render_shell }
 
     3.times { |n| accounts(:acme).projects.create!(name: "extra #{n}") }
     reset_view
-    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
+    Current.session = users(:alex).sessions.create!(account: accounts(:acme))
 
     assert_equal baseline, count_queries { render_shell }
     assert_operator baseline, :<=, 3

@@ -2,7 +2,7 @@ require "test_helper"
 
 class AuthorizedStreamsChannelTest < ActionCable::Channel::TestCase
   test "a member subscribes to the account projects stream" do
-    subscribe_as users(:philip), [ accounts(:acme), :projects ]
+    subscribe_as users(:alex), [ accounts(:acme), :projects ]
 
     assert subscription.confirmed?
     assert_has_stream stream_name_from([ accounts(:acme), :projects ])
@@ -18,7 +18,7 @@ class AuthorizedStreamsChannelTest < ActionCable::Channel::TestCase
   end
 
   test "a member subscribes to an issue stream" do
-    subscribe_as users(:philip), [ issues(:nomethod) ]
+    subscribe_as users(:alex), [ issues(:nomethod) ]
 
     assert subscription.confirmed?
     assert_has_stream stream_name_from([ issues(:nomethod) ])
@@ -53,7 +53,7 @@ class AuthorizedStreamsChannelTest < ActionCable::Channel::TestCase
   end
 
   test "an unsigned stream name is rejected even for a member" do
-    stub_connection current_user: users(:philip)
+    stub_connection current_user: users(:alex)
     subscribe signed_stream_name: stream_name_from([ projects(:storefront), :issues ])
 
     assert subscription.rejected?
@@ -62,27 +62,27 @@ class AuthorizedStreamsChannelTest < ActionCable::Channel::TestCase
   test "a name signed with another secret is rejected" do
     forged = ActiveSupport::MessageVerifier.new("not-the-app-secret").generate(stream_name_from([ projects(:storefront), :issues ]))
 
-    stub_connection current_user: users(:philip)
+    stub_connection current_user: users(:alex)
     subscribe signed_stream_name: forged
 
     assert subscription.rejected?
   end
 
   test "a missing signed stream name is rejected" do
-    stub_connection current_user: users(:philip)
+    stub_connection current_user: users(:alex)
     subscribe
 
     assert subscription.rejected?
   end
 
   test "a stream not anchored on an account, project or issue is rejected" do
-    subscribe_as users(:philip), [ :global ]
+    subscribe_as users(:alex), [ :global ]
     assert subscription.rejected?
 
-    subscribe_as users(:philip), [ users(:philip) ]
+    subscribe_as users(:alex), [ users(:alex) ]
     assert subscription.rejected?
 
-    subscribe_as users(:philip), [ occurrences(:nomethod_latest) ]
+    subscribe_as users(:alex), [ occurrences(:nomethod_latest) ]
     assert subscription.rejected?
   end
 
@@ -90,7 +90,7 @@ class AuthorizedStreamsChannelTest < ActionCable::Channel::TestCase
     signed = Turbo::StreamsChannel.signed_stream_name([ issues(:nomethod), :issues ])
     issues(:nomethod).delete
 
-    stub_connection current_user: users(:philip)
+    stub_connection current_user: users(:alex)
     subscribe signed_stream_name: signed
 
     assert subscription.rejected?
@@ -121,11 +121,11 @@ end
 
 class ApplicationCable::ConnectionTest < ActionCable::Connection::TestCase
   test "connects with a signed session cookie and identifies the user" do
-    cookies.signed[:session_id] = sessions(:philip_browser).id
+    cookies.signed[:session_id] = sessions(:alex_browser).id
 
     connect
 
-    assert_equal users(:philip), connection.current_user
+    assert_equal users(:alex), connection.current_user
   end
 
   test "rejects anonymous connections" do
@@ -133,7 +133,7 @@ class ApplicationCable::ConnectionTest < ActionCable::Connection::TestCase
   end
 
   test "rejects an unsigned or unknown session cookie" do
-    cookies[:session_id] = sessions(:philip_browser).id.to_s
+    cookies[:session_id] = sessions(:alex_browser).id.to_s
     assert_reject_connection { connect }
 
     cookies.signed[:session_id] = 0
@@ -149,7 +149,7 @@ class TurboStreamsChannelTest < ActionCable::Channel::TestCase
   test "rejects even a correctly signed name, so a removed member cannot listen in" do
     signed = Turbo::StreamsChannel.signed_stream_name([ projects(:storefront), :issues ])
 
-    [ users(:outsider), users(:philip) ].each do |user|
+    [ users(:outsider), users(:alex) ].each do |user|
       stub_connection current_user: user
       subscribe signed_stream_name: signed
 

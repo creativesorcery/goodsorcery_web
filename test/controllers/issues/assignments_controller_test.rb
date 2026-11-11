@@ -4,7 +4,7 @@ class Issues::AssignmentsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
     @issue = issues(:nomethod)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "assigns to an account member" do
@@ -19,7 +19,7 @@ class Issues::AssignmentsControllerTest < ActionDispatch::IntegrationTest
     patch project_issue_assignment_path(@project, @issue), params: { assignee_id: users(:outsider).id }
 
     assert_response :not_found
-    assert_equal users(:philip), @issue.reload.assignee
+    assert_equal users(:alex), @issue.reload.assignee
   end
 
   test "an assignee is required" do
@@ -45,6 +45,6 @@ class Issues::AssignmentsControllerTest < ActionDispatch::IntegrationTest
     delete project_issue_assignment_path(@project, @issue)
     assert_response :not_found
 
-    assert_equal users(:philip), @issue.reload.assignee
+    assert_equal users(:alex), @issue.reload.assignee
   end
 end

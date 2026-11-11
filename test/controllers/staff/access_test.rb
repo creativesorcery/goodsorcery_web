@@ -10,9 +10,9 @@ class Staff::AccessTest < ActionDispatch::IntegrationTest
     [ :get, -> { edit_staff_account_path(accounts(:acme)) } ],
     [ :patch, -> { staff_account_path(accounts(:acme)) } ],
     [ :get, -> { staff_users_path } ],
-    [ :get, -> { staff_user_path(users(:philip)) } ],
-    [ :get, -> { edit_staff_user_path(users(:philip)) } ],
-    [ :patch, -> { staff_user_path(users(:philip)) } ]
+    [ :get, -> { staff_user_path(users(:alex)) } ],
+    [ :get, -> { edit_staff_user_path(users(:alex)) } ],
+    [ :patch, -> { staff_user_path(users(:alex)) } ]
   ].freeze
 
   IE11_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko".freeze
@@ -24,24 +24,24 @@ class Staff::AccessTest < ActionDispatch::IntegrationTest
   end
 
   test "signed in without staff, every staff route is a 404" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     assert_every_route_not_found
   end
 
   test "with forgery protection on, as in production, a write without a token is a 404, not a CSRF 422" do
     with_forgery_protection do
-      [ nil, users(:philip) ].each do |user|
+      [ nil, users(:alex) ].each do |user|
         user ? sign_in_as(user) : reset!
         patch staff_account_path(accounts(:acme)), params: PARAMS
         assert_response :not_found, "PATCH as #{user&.name || 'signed out'}"
-        put staff_user_path(users(:philip)), params: PARAMS
+        put staff_user_path(users(:alex)), params: PARAMS
         assert_response :not_found, "PUT as #{user&.name || 'signed out'}"
       end
     end
   end
 
   test "an old browser without staff gets a 404, not the unsupported-browser 406" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     get staff_accounts_path, headers: { "User-Agent" => IE11_USER_AGENT }
 
     assert_response :not_found
@@ -54,11 +54,11 @@ class Staff::AccessTest < ActionDispatch::IntegrationTest
   end
 
   test "non-staff can't change anything through the staff routes" do
-    sign_in_as users(:philip)
-    patch staff_user_path(users(:philip)), params: PARAMS
+    sign_in_as users(:alex)
+    patch staff_user_path(users(:alex)), params: PARAMS
     patch staff_account_path(accounts(:acme)), params: PARAMS
 
-    assert_not users(:philip).reload.staff?
+    assert_not users(:alex).reload.staff?
     assert_equal({}, accounts(:acme).reload.entitlement_values)
   end
 
@@ -71,7 +71,7 @@ class Staff::AccessTest < ActionDispatch::IntegrationTest
   end
 
   test "the user menu links to the staff area for staff only" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     get projects_path
     assert_select "a[href=?]", staff_root_path, count: 0
 

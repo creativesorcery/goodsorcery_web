@@ -3,7 +3,7 @@ require "test_helper"
 class Issues::IgnoresControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "ignores an issue" do

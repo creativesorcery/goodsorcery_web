@@ -93,7 +93,7 @@ module SetupHelper
     api_key.environment.humanize
   end
 
-  # "Created 10 min ago by Philip · never used"
+  # "Created 10 min ago by Alex · never used"
   def api_key_history(api_key)
     creator = api_key.created_by && " by #{api_key.created_by.first_name}"
     used = api_key.last_used_at ? "last used #{time_ago_compact(api_key.last_used_at)}" : "never used"

@@ -7,7 +7,7 @@ class UserTest < ActiveSupport::TestCase
   end
 
   test "requires a name and a valid unique email" do
-    user = User.new(email_address: "philip@example.com", password: "long-enough")
+    user = User.new(email_address: "alex@example.com", password: "long-enough")
     assert_not user.valid?
     assert user.errors.added?(:name, :blank)
     assert user.errors.of_kind?(:email_address, :taken)
@@ -31,8 +31,8 @@ class UserTest < ActiveSupport::TestCase
   end
 
   test "initials and first name" do
-    assert_equal "PN", users(:philip).initials
-    assert_equal "Philip", users(:philip).first_name
+    assert_equal "AR", users(:alex).initials
+    assert_equal "Alex", users(:alex).first_name
     assert_equal "C", User.new(name: "cher").initials
   end
 
@@ -40,17 +40,17 @@ class UserTest < ActiveSupport::TestCase
     assert_equal false, User.new.staff?
     assert_equal false, User.create!(name: "New", email_address: "new@example.com", password: "long-enough").reload.staff?
     assert users(:staffer).staff?
-    assert_not users(:philip).staff?
+    assert_not users(:alex).staff?
   end
 
   test "update_staff lets a staff member grant and remove another user's staff access" do
-    staffer, philip = users(:staffer), users(:philip)
+    staffer, alex = users(:staffer), users(:alex)
 
-    assert philip.update_staff("1", by: staffer)
-    assert philip.reload.staff?
+    assert alex.update_staff("1", by: staffer)
+    assert alex.reload.staff?
 
-    assert philip.update_staff("0", by: staffer)
-    assert_not philip.reload.staff?
+    assert alex.update_staff("0", by: staffer)
+    assert_not alex.reload.staff?
   end
 
   test "update_staff never removes a staff member's own access" do
@@ -66,7 +66,7 @@ class UserTest < ActiveSupport::TestCase
   end
 
   test "staff_search matches a name or email substring, case-insensitively, or an exact id" do
-    assert_equal [ users(:philip) ], User.staff_search("PHILIP").to_a
+    assert_equal [ users(:alex) ], User.staff_search("ALEX").to_a
     assert_equal [ users(:outsider) ], User.staff_search("umbrella.TEST").to_a
     assert_equal [ users(:jo) ], User.staff_search(users(:jo).id.to_s).to_a
     assert_equal User.count, User.staff_search(" ").count

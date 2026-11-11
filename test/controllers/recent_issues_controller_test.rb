@@ -2,7 +2,7 @@ require "test_helper"
 
 class RecentIssuesControllerTest < ActionDispatch::IntegrationTest
   test "renders the account feed frame without the layout" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
 
     get recent_issues_path
 
@@ -18,7 +18,7 @@ class RecentIssuesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "shows resolutions with the resolver" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     issues(:card_error).resolve(by: users(:jo))
 
     get recent_issues_path

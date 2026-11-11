@@ -2,7 +2,7 @@ require "test_helper"
 
 class ProjectsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "requires sign in" do
@@ -263,7 +263,7 @@ class ProjectsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to project_setup_path(project)
     assert_predicate project, :ruby?
     assert_predicate project, :listening?
-    assert_equal [ users(:philip) ], project.api_keys.map(&:created_by).uniq
+    assert_equal [ users(:alex) ], project.api_keys.map(&:created_by).uniq
   end
 
   test "create adds a rust app" do

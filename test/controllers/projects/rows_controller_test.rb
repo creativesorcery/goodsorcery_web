@@ -5,7 +5,7 @@ class Projects::RowsControllerTest < ActionDispatch::IntegrationTest
 
   setup do
     @project = projects(:storefront)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "replaces each requested row of the project in one turbo stream response" do
@@ -21,7 +21,7 @@ class Projects::RowsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "uses a fixed number of queries however many rows are requested" do
-    issues(:regressed).update!(assignee: users(:philip))
+    issues(:regressed).update!(assignee: users(:alex))
     one, all = [ issues(:regressed).id.to_s, @project.issues.ids.join(",") ].map { |ids| queries_for(ids) }
 
     assert_operator @project.issues.count, :>, 2

@@ -8,7 +8,7 @@ class Projects::UptimeMonitors::ChecksControllerTest < ActionDispatch::Integrati
     @monitor = uptime_monitors(:storefront_home)
     @original_cache = Rails.cache
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   teardown { Rails.cache = @original_cache }
@@ -97,7 +97,7 @@ class Projects::UptimeMonitors::ChecksControllerTest < ActionDispatch::Integrati
     post project_uptime_monitor_check_path(@project, @monitor)
     assert_response :not_found
 
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     post project_uptime_monitor_check_path(@project, uptime_monitors(:billing_checkout))
     assert_response :not_found
     assert_no_enqueued_jobs only: UptimeCheckJob

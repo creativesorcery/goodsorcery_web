@@ -3,7 +3,7 @@ require "test_helper"
 class Projects::AlertsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "requires sign in" do

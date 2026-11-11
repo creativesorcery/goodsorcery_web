@@ -7,16 +7,16 @@ resolved:
 
 note:
   issue: nomethod
-  user: philip
+  user: alex
   kind: note
   body: Looks like discontinued variants have no default. Guarding in CartTotal.
   created_at: <%= 1.hour.ago.to_fs(:db) %>
 
 assigned:
   issue: nomethod
-  user: philip
+  user: alex
   kind: assigned
-  subject_user: philip
+  subject_user: alex
   created_at: <%= 2.hours.ago.to_fs(:db) %>
 
 regressed:

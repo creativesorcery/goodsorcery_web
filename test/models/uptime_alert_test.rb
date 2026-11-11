@@ -14,8 +14,8 @@ class UptimeAlertTest < ActiveSupport::TestCase
       recipients = UptimeAlert.new(@incident, "monitor_down").deliver
     end
 
-    assert_equal [ users(:jo), users(:philip) ].sort_by(&:id), recipients.sort_by(&:id)
-    assert_enqueued_email_with AlertsMailer, :monitor_down, args: [ users(:philip), @incident ]
+    assert_equal [ users(:jo), users(:alex) ].sort_by(&:id), recipients.sort_by(&:id)
+    assert_enqueued_email_with AlertsMailer, :monitor_down, args: [ users(:alex), @incident ]
     deliveries = AlertDelivery.where(dedupe_key: "monitor_down:#{@incident.id}")
     assert_equal [ [ "monitor_down", "sent", nil ] ] * 2, deliveries.pluck(:kind, :status, :issue_id)
   end
@@ -41,9 +41,9 @@ class UptimeAlertTest < ActiveSupport::TestCase
     @incident.update_columns(resolved_at: Time.current)
 
     assert_enqueued_emails 1 do
-      assert_equal [ users(:philip) ], UptimeAlert.new(@incident, "monitor_recovered").deliver
+      assert_equal [ users(:alex) ], UptimeAlert.new(@incident, "monitor_recovered").deliver
     end
-    assert_enqueued_email_with AlertsMailer, :monitor_recovered, args: [ users(:philip), @incident ]
+    assert_enqueued_email_with AlertsMailer, :monitor_recovered, args: [ users(:alex), @incident ]
     assert_empty UptimeAlert.new(@incident, "monitor_recovered").deliver, "once per incident"
   end
 
@@ -60,7 +60,7 @@ class UptimeAlertTest < ActiveSupport::TestCase
     @incident.update_columns(resolved_at: Time.current)
 
     assert_enqueued_emails 2 do
-      assert_equal [ users(:jo), users(:philip) ].sort_by(&:id), UptimeAlert.new(@incident, "monitor_recovered").deliver.sort_by(&:id)
+      assert_equal [ users(:jo), users(:alex) ].sort_by(&:id), UptimeAlert.new(@incident, "monitor_recovered").deliver.sort_by(&:id)
     end
   end
 
@@ -99,44 +99,44 @@ class UptimeAlertTest < ActiveSupport::TestCase
   end
 
   test "muted uptime alerts send nothing, while issue alerts still flow" do
-    memberships(:philip_acme).update_notification_preference(@project, uptime_alerts_muted: true)
+    memberships(:alex_acme).update_notification_preference(@project, uptime_alerts_muted: true)
 
     assert_equal [ users(:jo) ], UptimeAlert.new(@incident, "monitor_down").deliver
-    assert_includes IssueAlert.new(issues(:regressed), "regression").deliver, users(:philip)
+    assert_includes IssueAlert.new(issues(:regressed), "regression").deliver, users(:alex)
   end
 
   test "muted issue alerts still let uptime alerts through" do
-    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+    memberships(:alex_acme).update_notification_preference(@project, alerts_muted: true)
 
-    assert_not_includes IssueAlert.new(issues(:regressed), "regression").deliver, users(:philip)
-    assert_includes UptimeAlert.new(@incident, "monitor_down").deliver, users(:philip)
+    assert_not_includes IssueAlert.new(issues(:regressed), "regression").deliver, users(:alex)
+    assert_includes UptimeAlert.new(@incident, "monitor_down").deliver, users(:alex)
   end
 
   test "unverified members are never mailed" do
     users(:jo).update_columns(email_verified_at: nil)
 
-    assert_equal [ users(:philip) ], UptimeAlert.new(@incident, "monitor_down").deliver
+    assert_equal [ users(:alex) ], UptimeAlert.new(@incident, "monitor_down").deliver
   end
 
   test "a user at the hourly cap still gets the down alert, and it is never folded or summarised" do
     AlertDelivery::HOURLY_CAP.times do |n|
-      AlertDelivery.record(user: users(:philip), project: @project, kind: :new_issue, dedupe_key: "test:#{n}")
+      AlertDelivery.record(user: users(:alex), project: @project, kind: :new_issue, dedupe_key: "test:#{n}")
     end
-    assert AlertDelivery.cap_reached?(users(:philip))
+    assert AlertDelivery.cap_reached?(users(:alex))
 
-    assert_enqueued_email_with AlertsMailer, :monitor_down, args: [ users(:philip), @incident ] do
-      assert_includes UptimeAlert.new(@incident, "monitor_down").deliver, users(:philip)
+    assert_enqueued_email_with AlertsMailer, :monitor_down, args: [ users(:alex), @incident ] do
+      assert_includes UptimeAlert.new(@incident, "monitor_down").deliver, users(:alex)
     end
-    delivery = AlertDelivery.find_by!(user: users(:philip), dedupe_key: "monitor_down:#{@incident.id}")
+    delivery = AlertDelivery.find_by!(user: users(:alex), dedupe_key: "monitor_down:#{@incident.id}")
     assert_predicate delivery, :sent?
-    assert_equal AlertDelivery::HOURLY_CAP, AlertDelivery.sent_in_last_hour(users(:philip)), "uptime rows don't move the count"
+    assert_equal AlertDelivery::HOURLY_CAP, AlertDelivery.sent_in_last_hour(users(:alex)), "uptime rows don't move the count"
   end
 
   test "uptime alerts are never part of the hourly summary" do
     UptimeAlert.new(@incident, "monitor_down").deliver
 
     travel 1.hour do
-      assert_nil AlertSummary.new(users(:philip)).deliver
+      assert_nil AlertSummary.new(users(:alex)).deliver
     end
     assert_empty AlertDelivery.awaiting_summary.where(kind: AlertRule::UPTIME_KINDS)
   end

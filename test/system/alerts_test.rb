@@ -64,7 +64,7 @@ class AlertsSystemTest < ApplicationSystemTestCase
 
   test "muting an app from the Notifications page in the user menu" do
     visit_connected projects_path
-    user_menu = find("aside [data-controller=dropdown]", text: users(:philip).name)
+    user_menu = find("aside [data-controller=dropdown]", text: users(:alex).name)
     press user_menu.find("button")
     press user_menu.find_link("Notifications")
     assert_current_path notifications_path
@@ -73,7 +73,7 @@ class AlertsSystemTest < ApplicationSystemTestCase
 
     assert_text "Notification settings saved."
     assert_selector "button.toggle[aria-label='Email alerts from storefront'][aria-pressed=false]"
-    assert_not memberships(:philip_acme).receives_alerts?(@project)
+    assert_not memberships(:alex_acme).receives_alerts?(@project)
   end
 
   test "the mute link from an email confirms, then mutes" do

@@ -2,7 +2,7 @@ require "test_helper"
 
 class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "a listening project shows step two of three" do
@@ -237,7 +237,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
       assert_select "a[href=?]", project_api_key_reveal_path(projects(:storefront), production), text: "Reveal"
       assert_select "form[action=?] button", project_api_key_rotation_path(projects(:storefront), production), text: "Rotate…"
       assert_select "form[data-turbo-confirm]"
-      assert_select "*", text: /Created .* by Philip · last used 2 min ago/
+      assert_select "*", text: /Created .* by Alex · last used 2 min ago/
     end
     assert_select "turbo-frame##{dom_id(staging)}" do
       assert_select ".chip", count: 0

@@ -97,9 +97,9 @@ class Staff::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "h1", "Acme Labs"
     assert_select "#account_users tbody tr", 2
-    assert_select "##{dom_id(users(:philip), :staff)}" do
-      assert_select "a[href=?]", staff_user_path(users(:philip)), text: "Philip Nguyen"
-      assert_select "td", text: "philip@example.com"
+    assert_select "##{dom_id(users(:alex), :staff)}" do
+      assert_select "a[href=?]", staff_user_path(users(:alex)), text: "Alex Rivera"
+      assert_select "td", text: "alex@example.com"
       assert_select ".chip", text: "Owner"
     end
     assert_select "##{dom_id(users(:jo), :staff)} .chip", text: "Member"

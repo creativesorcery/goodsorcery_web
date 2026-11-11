@@ -75,7 +75,7 @@ class StillHappeningCheckTest < ActiveSupport::TestCase
   test "skips apps with nobody to mail, so muted apps don't get a job every sweep" do
     slack_connections(:storefront).update!(enabled: false)
     seen(@issue, current: 80)
-    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+    memberships(:alex_acme).update_notification_preference(@project, alerts_muted: true)
     memberships(:jo_acme).update_notification_preference(@project, alerts_muted: true)
 
     assert_no_enqueued_jobs(only: IssueAlertJob) { assert_empty StillHappeningCheck.new.alert_hot_issues }
@@ -97,7 +97,7 @@ class StillHappeningCheckTest < ActiveSupport::TestCase
 
   test "an app with Slack on but nobody to mail still gets a job, until the Slack post starts the throttle" do
     seen(@issue, current: 80)
-    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+    memberships(:alex_acme).update_notification_preference(@project, alerts_muted: true)
     memberships(:jo_acme).update_notification_preference(@project, alerts_muted: true)
 
     assert_enqueued_jobs(1, only: IssueAlertJob) { StillHappeningCheck.new.alert_hot_issues }

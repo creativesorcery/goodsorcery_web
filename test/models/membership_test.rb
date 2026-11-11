@@ -2,7 +2,7 @@ require "test_helper"
 
 class MembershipTest < ActiveSupport::TestCase
   test "roles" do
-    assert memberships(:philip_acme).owner?
+    assert memberships(:alex_acme).owner?
     assert memberships(:jo_acme).member?
     assert_not Membership.new(account: accounts(:acme), user: users(:outsider), role: "admin").valid?
   end
@@ -22,7 +22,7 @@ class MembershipTest < ActiveSupport::TestCase
   end
 
   test "without a saved preference a member gets alerts and the digest" do
-    membership = memberships(:philip_acme)
+    membership = memberships(:alex_acme)
     preference = membership.notification_preference_for(projects(:storefront))
 
     assert preference.new_record?
@@ -47,7 +47,7 @@ class MembershipTest < ActiveSupport::TestCase
     membership.update_notification_preference(projects(:storefront), uptime_alerts_muted: true)
     assert_not membership.receives_uptime_alerts?(projects(:storefront))
     assert membership.receives_alerts?(projects(:storefront))
-    assert_equal [ memberships(:philip_acme) ], accounts(:acme).memberships.receiving_uptime_alerts_for(projects(:storefront)).to_a
+    assert_equal [ memberships(:alex_acme) ], accounts(:acme).memberships.receiving_uptime_alerts_for(projects(:storefront)).to_a
   end
 
   test "an unverified address receives nothing" do
@@ -60,7 +60,7 @@ class MembershipTest < ActiveSupport::TestCase
   end
 
   test "update_notification_preference creates the row once, then updates it" do
-    membership = memberships(:philip_acme)
+    membership = memberships(:alex_acme)
 
     assert_difference -> { NotificationPreference.count }, 1 do
       membership.update_notification_preference(projects(:storefront), alerts_muted: true)

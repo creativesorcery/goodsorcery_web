@@ -4,7 +4,7 @@ class Issues::StatsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
     @issue = issues(:nomethod)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "renders the stat ribbon frame" do

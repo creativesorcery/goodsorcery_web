@@ -11,7 +11,7 @@ class IssueListEnvironmentsTest < ActionDispatch::IntegrationTest
 
   setup do
     @project = projects(:storefront)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "the switch reads All · production · staging, coloured, with All current by default" do

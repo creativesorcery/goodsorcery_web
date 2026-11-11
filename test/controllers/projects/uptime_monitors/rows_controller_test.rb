@@ -7,7 +7,7 @@ class Projects::UptimeMonitors::RowsControllerTest < ActionDispatch::Integration
   setup do
     @project = projects(:storefront)
     @monitor = uptime_monitors(:storefront_home)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "renders one row in its frame, without the URL's path or query" do
@@ -32,7 +32,7 @@ class Projects::UptimeMonitors::RowsControllerTest < ActionDispatch::Integration
     get project_uptime_monitor_row_path(@project, @monitor)
     assert_response :not_found
 
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     get project_uptime_monitor_row_path(@project, uptime_monitors(:billing_checkout))
     assert_response :not_found
   end

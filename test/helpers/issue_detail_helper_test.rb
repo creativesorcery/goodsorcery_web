@@ -21,11 +21,11 @@ class IssueDetailHelperTest < ActionView::TestCase
   end
 
   test "MCP setup is offered only without an active token for the current account" do
-    Current.session = users(:philip).sessions.create!(account: accounts(:acme))
-    assert_not mcp_setup_needed?, "philip has active tokens"
+    Current.session = users(:alex).sessions.create!(account: accounts(:acme))
+    assert_not mcp_setup_needed?, "alex has active tokens"
 
     remove_instance_variable(:@mcp_setup_needed)
-    PersonalAccessToken.revoke_all(user_id: users(:philip).id)
+    PersonalAccessToken.revoke_all(user_id: users(:alex).id)
     assert_queries_count(1) { assert mcp_setup_needed?, "revoked and expired tokens don't count" }
     assert_queries_count(0) { assert mcp_setup_needed?, "asked once per page" }
   end

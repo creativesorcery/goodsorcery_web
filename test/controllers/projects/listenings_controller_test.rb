@@ -2,7 +2,7 @@ require "test_helper"
 
 class Projects::ListeningsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "a listening project keeps listening" do

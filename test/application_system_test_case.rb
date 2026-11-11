@@ -11,7 +11,7 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   driven_by :selenium, using: :headless_chrome, screen_size: [ 1440, 900 ]
 
   # Signs in through the real form, so the session cookie is the browser's.
-  def sign_in(user = users(:philip), password: "password")
+  def sign_in(user = users(:alex), password: "password")
     visit new_session_path
     type_into find_field("email_address"), user.email_address
     type_into find_field("password"), password

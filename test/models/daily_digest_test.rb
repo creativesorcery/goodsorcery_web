@@ -1,6 +1,6 @@
 require "test_helper"
 
-# philip's zone is Europe/London (BST, UTC+1, until 2026-10-25 01:00 UTC);
+# alex's zone is Europe/London (BST, UTC+1, until 2026-10-25 01:00 UTC);
 # jo's is UTC.
 class DailyDigestTest < ActiveSupport::TestCase
   include ActionMailer::TestHelper
@@ -16,7 +16,7 @@ class DailyDigestTest < ActiveSupport::TestCase
   end
 
   test "mails each recipient in the 09:00 hour of their own time zone" do
-    assert_equal [ users(:philip) ], deliver
+    assert_equal [ users(:alex) ], deliver
 
     travel_to SUMMER_MORNING + 1.hour
     assert_equal [ users(:jo) ], deliver
@@ -31,28 +31,28 @@ class DailyDigestTest < ActiveSupport::TestCase
   end
 
   test "a repeated or late run sends nothing twice the same local day" do
-    assert_equal [ users(:philip) ], deliver
+    assert_equal [ users(:alex) ], deliver
 
     travel 59.minutes
     assert_empty deliver
-    assert_equal 1, AlertDelivery.where(user: users(:philip), kind: "daily_digest").count
+    assert_equal 1, AlertDelivery.where(user: users(:alex), kind: "daily_digest").count
   end
 
   test "DST changes neither skip nor double a day: one digest per local date" do
     users(:jo).update!(time_zone: "America/Los_Angeles")
     travel_to Time.utc(2026, 10, 24, 8) # Saturday 09:00 BST
     seen(issues(:nomethod), events: 5)
-    assert_equal [ users(:philip) ], deliver
+    assert_equal [ users(:alex) ], deliver
 
     travel_to Time.utc(2026, 10, 25, 8) # clocks went back: 08:00 GMT
     seen(issues(:nomethod), events: 5)
     assert_empty deliver
     travel_to Time.utc(2026, 10, 25, 9) # 09:00 GMT, the next local date
-    assert_equal [ users(:philip) ], deliver
+    assert_equal [ users(:alex) ], deliver
     travel_to Time.utc(2026, 10, 25, 9, 40)
     assert_empty deliver
 
-    keys = AlertDelivery.where(user: users(:philip), kind: "daily_digest").pluck(:dedupe_key)
+    keys = AlertDelivery.where(user: users(:alex), kind: "daily_digest").pluck(:dedupe_key)
     assert_equal [ "2026-10-24", "2026-10-25" ], keys.map { |key| key.split(":").last }.sort
   end
 
@@ -112,7 +112,7 @@ class DailyDigestTest < ActiveSupport::TestCase
     billing = projects(:billing)
     seen(issues(:billing_timeout), events: 4)
 
-    assert_enqueued_email_with AlertsMailer, :digest, args: [ users(:philip), @project ] do
+    assert_enqueued_email_with AlertsMailer, :digest, args: [ users(:alex), @project ] do
       DailyDigest.deliver_due
     end
     assert_not AlertDelivery.exists?(project: billing, kind: "daily_digest")

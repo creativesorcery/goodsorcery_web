@@ -26,7 +26,7 @@ class Issue::SearchableTest < ActiveSupport::TestCase
   end
 
   test "assignment scopes" do
-    assert_equal [ issues(:nomethod) ], @issues.assigned_to(users(:philip)).to_a
+    assert_equal [ issues(:nomethod) ], @issues.assigned_to(users(:alex)).to_a
     assert_equal issues(:regressed, :resolved_issue, :ignored_issue).sort, @issues.unassigned.sort
   end
 

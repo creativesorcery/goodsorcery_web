@@ -3,7 +3,7 @@ require "test_helper"
 class Issues::ResolutionsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "resolves an issue and records who did it" do
@@ -16,7 +16,7 @@ class Issues::ResolutionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to project_issue_path(@project, issue)
     assert_equal 303, response.status
     assert issue.reload.resolved?
-    assert_equal users(:philip), issue.activities.resolved.last.user
+    assert_equal users(:alex), issue.activities.resolved.last.user
   end
 
   test "reopens a resolved issue" do

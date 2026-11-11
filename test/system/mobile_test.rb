@@ -79,10 +79,10 @@ class MobileSystemTest < ApplicationSystemTestCase
   end
 
   test "the staff pages fit the screen without sideways scrolling, and the staff sidebar is a drawer" do
-    page.reset! # signs philip out
+    page.reset! # signs alex out
     sign_in users(:staffer)
     [ staff_accounts_path, staff_account_path(accounts(:acme)), edit_staff_account_path(accounts(:acme)),
-      staff_users_path, staff_user_path(users(:philip)), edit_staff_user_path(users(:philip)) ].each do |path|
+      staff_users_path, staff_user_path(users(:alex)), edit_staff_user_path(users(:alex)) ].each do |path|
       visit_connected path
       overflow = page.evaluate_script("document.documentElement.scrollWidth - window.innerWidth")
       assert_operator overflow, :<=, 0, "#{path} scrolls sideways by #{overflow}px"

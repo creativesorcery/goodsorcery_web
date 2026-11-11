@@ -9,6 +9,6 @@
   token_digest: <%= Digest::SHA256.hexdigest(token) %>
   token_prefix: "<%= token.first(12) %>"
   token_last4: "<%= token.last(4) %>"
-  created_by: <%= label == :umbrella_production ? "outsider" : "philip" %>
+  created_by: <%= label == :umbrella_production ? "outsider" : "alex" %>
   last_used_at: <%= label == :storefront_production ? 2.minutes.ago.to_fs(:db) : "~" %>
 <% end %>

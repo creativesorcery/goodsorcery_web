@@ -16,7 +16,7 @@ module IssueActivityHelper
     "reached_production" => "Reached production: first seen there after other environments"
   }.freeze
 
-  # "Philip assigned themselves", "Jo resolved this", "Regressed after being resolved"
+  # "Alex assigned themselves", "Jo resolved this", "Regressed after being resolved"
   def activity_sentence(activity)
     return SYSTEM_SENTENCES.fetch(activity.kind) if SYSTEM_SENTENCES.key?(activity.kind)
 

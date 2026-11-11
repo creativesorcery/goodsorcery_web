@@ -3,7 +3,7 @@ require "test_helper"
 # Unverified users can sign in and browse, but can't create apps or API keys.
 class VerifiedEmailRequiredTest < ActionDispatch::IntegrationTest
   setup do
-    @user = users(:philip)
+    @user = users(:alex)
     @user.update!(email_verified_at: nil)
     sign_in_as @user
     @project = projects(:storefront)

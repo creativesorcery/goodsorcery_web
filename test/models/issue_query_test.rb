@@ -3,7 +3,7 @@ require "test_helper"
 class IssueQueryTest < ActiveSupport::TestCase
   setup do
     @project = projects(:storefront)
-    @philip = users(:philip)
+    @alex = users(:alex)
   end
 
   test "parses chips and free text" do
@@ -66,7 +66,7 @@ class IssueQueryTest < ActiveSupport::TestCase
   end
 
   test "assigned chips use the current user" do
-    assert_equal ids(:nomethod), filter("is:unresolved assigned:me", user: @philip)
+    assert_equal ids(:nomethod), filter("is:unresolved assigned:me", user: @alex)
     assert_equal ids(:regressed), filter("is:unresolved assigned:none")
     assert_empty filter("assigned:me")
   end

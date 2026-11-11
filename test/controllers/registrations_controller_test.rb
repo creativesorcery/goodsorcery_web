@@ -58,7 +58,7 @@ class RegistrationsControllerTest < ActionDispatch::IntegrationTest
 
   test "create with invalid data re-renders the form" do
     assert_no_difference -> { User.count } do
-      post registration_path, params: { signup: VALID.merge(email_address: users(:philip).email_address) }
+      post registration_path, params: { signup: VALID.merge(email_address: users(:alex).email_address) }
     end
 
     assert_response :unprocessable_entity

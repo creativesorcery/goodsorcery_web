@@ -1,6 +1,6 @@
-philip_triage_resolved:
-  personal_access_token: philip_triage
-  user: philip
+alex_triage_resolved:
+  personal_access_token: alex_triage
+  user: alex
   action: resolve
   issue_ids: [<%= ActiveRecord::FixtureSet.identify(:resolved_issue) %>]
   created_at: <%= 2.hours.ago.to_fs(:db) %>

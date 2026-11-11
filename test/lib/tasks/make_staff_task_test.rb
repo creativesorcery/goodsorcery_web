@@ -9,10 +9,10 @@ class MakeStaffTaskTest < ActiveSupport::TestCase
   teardown { ENV.delete("EMAIL") }
 
   test "makes the user with that email address staff" do
-    ENV["EMAIL"] = " Philip@Example.com "
+    ENV["EMAIL"] = " Alex@Example.com "
 
-    assert_output("philip@example.com is now staff.\n") { run_task }
-    assert users(:philip).reload.staff?
+    assert_output("alex@example.com is now staff.\n") { run_task }
+    assert users(:alex).reload.staff?
   end
 
   test "fails without EMAIL" do

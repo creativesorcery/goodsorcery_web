@@ -7,7 +7,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
     @monitor = uptime_monitors(:storefront_home)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   # --- index ---
@@ -369,7 +369,7 @@ class Projects::UptimeMonitorsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "new and create need a confirmed email" do
-    users(:philip).update_columns(email_verified_at: nil)
+    users(:alex).update_columns(email_verified_at: nil)
 
     get new_project_uptime_monitor_path(@project)
     assert_redirected_to root_path

@@ -27,9 +27,9 @@ class IssueAlertTest < ActiveSupport::TestCase
       recipients = IssueAlert.new(@issue, "regression").deliver
     end
 
-    assert_equal [ users(:jo), users(:philip) ].sort_by(&:id), recipients.sort_by(&:id)
+    assert_equal [ users(:jo), users(:alex) ].sort_by(&:id), recipients.sort_by(&:id)
     assert_not_includes recipients, users(:outsider)
-    assert_enqueued_email_with AlertsMailer, :issue_alert, args: [ users(:philip), @issue, "regression" ]
+    assert_enqueued_email_with AlertsMailer, :issue_alert, args: [ users(:alex), @issue, "regression" ]
     assert_equal 2, AlertDelivery.where(issue: @issue, kind: "regression", status: "sent").count
   end
 
@@ -49,16 +49,16 @@ class IssueAlertTest < ActiveSupport::TestCase
   test "members who muted the app are left out" do
     issue = issues(:billing_timeout) # jo muted billing-api (fixture)
 
-    assert_equal [ users(:philip) ], IssueAlert.new(issue, "new_issue").deliver
+    assert_equal [ users(:alex) ], IssueAlert.new(issue, "new_issue").deliver
   end
 
   test "members whose email isn't verified are never mailed" do
     users(:jo).update_columns(email_verified_at: nil)
 
-    assert_equal [ users(:philip) ], IssueAlert.new(@issue, "regression").deliver
+    assert_equal [ users(:alex) ], IssueAlert.new(@issue, "regression").deliver
   end
 
-  test "an earlier delivery of the same key is skipped (philip got this new_issue alert)" do
+  test "an earlier delivery of the same key is skipped (alex got this new_issue alert)" do
     issue = issues(:nomethod)
 
     assert_equal [ users(:jo) ], IssueAlert.new(issue, "new_issue").deliver
@@ -118,13 +118,13 @@ class IssueAlertTest < ActiveSupport::TestCase
 
   test "over the hourly cap the alert is folded for the summary, not mailed" do
     AlertDelivery::HOURLY_CAP.times do |n|
-      AlertDelivery.record(user: users(:philip), project: @project, kind: :new_issue, dedupe_key: "test:#{n}")
+      AlertDelivery.record(user: users(:alex), project: @project, kind: :new_issue, dedupe_key: "test:#{n}")
     end
 
     assert_enqueued_emails 1 do
       assert_equal [ users(:jo) ], IssueAlert.new(@issue, "regression").deliver
     end
-    folded = AlertDelivery.find_by!(user: users(:philip), issue: @issue, kind: "regression")
+    folded = AlertDelivery.find_by!(user: users(:alex), issue: @issue, kind: "regression")
     assert_predicate folded, :folded?
     assert_nil folded.summarized_at
   end

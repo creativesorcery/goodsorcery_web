@@ -5,7 +5,7 @@ class Projects::SummariesControllerTest < ActionDispatch::IntegrationTest
 
   setup do
     @project = projects(:storefront)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "a frame reload (live update or period switch) does not replay the page-load animation" do

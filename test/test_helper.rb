@@ -30,12 +30,12 @@ FIXTURE_TOKENS = {
 # Raw personal access tokens for the personal_access_tokens fixtures (stored
 # as SHA-256 digests only). Use these to authenticate MCP requests.
 PAT_FIXTURE_TOKENS = {
-  philip_read: "gs_pat_PhilipReadFixtureToken000000000000000000",
-  philip_triage: "gs_pat_PhilipTriageFixtureToken0000000000000000",
-  philip_full: "gs_pat_PhilipFullFixtureToken00000000000000000",
+  alex_read: "gs_pat_AlexReadFixtureToken000000000000000000",
+  alex_triage: "gs_pat_AlexTriageFixtureToken0000000000000000",
+  alex_full: "gs_pat_AlexFullFixtureToken00000000000000000",
   jo_read: "gs_pat_JoReadFixtureToken0000000000000000000000",
-  philip_expired: "gs_pat_PhilipExpiredFixtureToken000000000000000",
-  philip_revoked: "gs_pat_PhilipRevokedFixtureToken000000000000000",
+  alex_expired: "gs_pat_AlexExpiredFixtureToken000000000000000",
+  alex_revoked: "gs_pat_AlexRevokedFixtureToken000000000000000",
   outsider_read: "gs_pat_OutsiderReadFixtureToken00000000000000"
 }.freeze
 

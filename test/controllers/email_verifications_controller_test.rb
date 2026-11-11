@@ -58,7 +58,7 @@ class EmailVerificationsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "create sends nothing once verified" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     post email_verification_path
     assert_enqueued_emails 0
   end

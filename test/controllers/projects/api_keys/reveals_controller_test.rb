@@ -2,7 +2,7 @@ require "test_helper"
 
 class Projects::ApiKeys::RevealsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     @project = projects(:storefront)
     @api_key = api_keys(:storefront_production)
   end

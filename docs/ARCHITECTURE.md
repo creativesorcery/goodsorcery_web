@@ -1134,7 +1134,7 @@ Never edit a file you don't own. If you need a change in another slice's file, r
 
 **Fixtures contract** (other slices rely on these names). Passwords are all `"password"`.
 - accounts: `acme`, `umbrella`
-- users: `philip` (acme owner), `jo` (acme member), `outsider` (umbrella owner)
+- users: `alex` (acme owner), `jo` (acme member), `outsider` (umbrella owner)
 - projects:
   - `storefront` (acme, prefix GS, has events)
   - `billing` (acme, prefix BA, steady)
@@ -1142,7 +1142,7 @@ Never edit a file you don't own. If you need a change in another slice's file, r
   - `umbrella_app` (umbrella)
 - api_keys: `storefront_production`, `storefront_staging`, `marketing_production`, `umbrella_production`. Raw tokens are exposed as `FIXTURE_TOKENS[:storefront_production]` etc. in `test_helper.rb`, and `token_digest` is computed with ERB.
 - issues (storefront unless noted):
-  - `nomethod` (new, unresolved, assigned philip)
+  - `nomethod` (new, unresolved, assigned alex)
   - `regressed` (regressed_at set)
   - `card_error` (steady, old)
   - `resolved_issue`

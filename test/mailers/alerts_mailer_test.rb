@@ -9,7 +9,7 @@ class AlertsMailerTest < ActionMailer::TestCase
                "a1b2c3d", "88123" ].freeze
 
   setup do
-    @user = users(:philip) # Europe/London
+    @user = users(:alex) # Europe/London
     @project = projects(:storefront)
     @issue = issues(:nomethod)
   end
@@ -119,7 +119,7 @@ class AlertsMailerTest < ActionMailer::TestCase
   end
 
   test "no digest for members who turned it off, or when nothing is open" do
-    memberships(:philip_acme).update_notification_preference(@project, digest_enabled: false)
+    memberships(:alex_acme).update_notification_preference(@project, digest_enabled: false)
     assert_emails(0) { AlertsMailer.digest(@user, @project).deliver_now }
 
     assert_emails(0) { AlertsMailer.digest(users(:jo), projects(:marketing)).deliver_now }
@@ -227,12 +227,12 @@ class AlertsMailerTest < ActionMailer::TestCase
 
     assert_emails(0) { AlertsMailer.monitor_down(users(:jo), incident).deliver_now }
     assert_emails(0) { AlertsMailer.monitor_down(users(:outsider), incident).deliver_now }
-    users(:philip).update_columns(email_verified_at: nil)
-    assert_emails(0) { AlertsMailer.monitor_down(users(:philip), incident).deliver_now }
+    users(:alex).update_columns(email_verified_at: nil)
+    assert_emails(0) { AlertsMailer.monitor_down(users(:alex), incident).deliver_now }
   end
 
   test "muting issue alerts doesn't stop uptime emails" do
-    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+    memberships(:alex_acme).update_notification_preference(@project, alerts_muted: true)
 
     assert_emails(1) { AlertsMailer.monitor_down(@user, uptime_incidents(:storefront_api_outage)).deliver_now }
   end
@@ -253,8 +253,8 @@ class AlertsMailerTest < ActionMailer::TestCase
     assert_emails(0) { slack_disabled_mail(users(:jo)).deliver_now } # a member, not an owner
     assert_emails(0) { slack_disabled_mail(@user, projects(:storefront)).deliver_now } # connected
 
-    users(:philip).update_columns(email_verified_at: nil)
-    assert_emails(0) { slack_disabled_mail(users(:philip).reload).deliver_now }
+    users(:alex).update_columns(email_verified_at: nil)
+    assert_emails(0) { slack_disabled_mail(users(:alex).reload).deliver_now }
   end
 
   private

@@ -9,7 +9,7 @@ class Projects::Performance::TracesControllerTest < ActionDispatch::IntegrationT
   setup do
     @project = projects(:storefront)
     @trace = apm_traces(:checkout_slow)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "the header, chips and layer summary of a slow request" do

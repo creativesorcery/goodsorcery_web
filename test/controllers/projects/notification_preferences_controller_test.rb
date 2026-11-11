@@ -20,7 +20,7 @@ class Projects::NotificationPreferencesControllerTest < ActionDispatch::Integrat
     assert_redirected_to notifications_path
     assert_equal "Notification settings saved.", flash[:notice]
     assert_not memberships(:jo_acme).receives_alerts?(@project)
-    assert memberships(:philip_acme).receives_alerts?(@project)
+    assert memberships(:alex_acme).receives_alerts?(@project)
 
     patch project_notification_preference_path(@project), params: { notification_preference: { alerts_muted: false } }
     assert memberships(:jo_acme).reload.receives_alerts?(@project)
@@ -32,7 +32,7 @@ class Projects::NotificationPreferencesControllerTest < ActionDispatch::Integrat
     assert_redirected_to notifications_path
     assert_not memberships(:jo_acme).receives_uptime_alerts?(@project)
     assert memberships(:jo_acme).receives_alerts?(@project)
-    assert memberships(:philip_acme).receives_uptime_alerts?(@project)
+    assert memberships(:alex_acme).receives_uptime_alerts?(@project)
 
     patch project_notification_preference_path(@project), params: { notification_preference: { uptime_alerts_muted: false } }
     assert memberships(:jo_acme).reload.receives_uptime_alerts?(@project)

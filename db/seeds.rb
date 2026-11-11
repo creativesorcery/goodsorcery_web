@@ -12,7 +12,7 @@
 abort "db/seeds.rb is demo data for development only; it never runs in production." if Rails.env.production?
 
 class DemoSeeds
-  EMAIL = "philip@example.com".freeze
+  EMAIL = "alex@example.com".freeze
   PASSWORD = "password".freeze
 
   END_USERS = [
@@ -38,7 +38,7 @@ class DemoSeeds
   # [class, redacted message, file, line, method, transaction, first seen, last seen, events, users, kind, assignee]
   ISSUES = {
     "storefront" => [
-      [ "NoMethodError", "undefined method `price_cents' for nil", "app/services/cart_total.rb", 42, "line_total", "CheckoutsController#create", 3.hours, 2.minutes, 1284, 212, :new, :philip ],
+      [ "NoMethodError", "undefined method `price_cents' for nil", "app/services/cart_total.rb", 42, "line_total", "CheckoutsController#create", 3.hours, 2.minutes, 1284, 212, :new, :alex ],
       [ "ActiveRecord::RecordNotUnique", "PG::UniqueViolation: duplicate key value violates unique constraint \"index_orders_on_idempotency_key\"", "app/jobs/orders/place_job.rb", 27, "perform", "Orders::PlaceJob", 41.days, 6.minutes, 60, 41, :regressed, nil ],
       [ "Stripe::CardError", "Your card was declined.", "app/controllers/payments_controller.rb", 31, "confirm", "PaymentsController#confirm", 270.days, 11.minutes, 4102, 38, :steady, :jo ],
       [ "Net::ReadTimeout", "Net::ReadTimeout with #<TCPSocket:(closed)>", "lib/shipping/ups_client.rb", 88, "fetch_rates", "Shipping::RatesFetcher", 12.days, 24.minutes, 73, 51, :steady, nil ],
@@ -58,7 +58,7 @@ class DemoSeeds
     "fulfillment-workers" => [
       [ "Faraday::ConnectionFailed", "Failed to open TCP connection to api.shipbob.com:[n]", "app/jobs/shipments/sync_job.rb", 18, "perform", "Shipments::SyncJob", 30.minutes, 31.minutes, 12, 0, :new, nil ],
       [ "Sidekiq::Shutdown", "Sidekiq::Shutdown", "app/jobs/labels/print_job.rb", 40, "perform", "Labels::PrintJob", 60.days, 2.hours, 420, 0, :steady, nil ],
-      [ "Aws::S3::Errors::SlowDown", "Please reduce your request rate.", "app/jobs/manifests/upload_job.rb", 25, "perform", "Manifests::UploadJob", 20.days, 4.hours, 95, 0, :steady, :philip ]
+      [ "Aws::S3::Errors::SlowDown", "Please reduce your request rate.", "app/jobs/manifests/upload_job.rb", 25, "perform", "Manifests::UploadJob", 20.days, 4.hours, 95, 0, :steady, :alex ]
     ]
   }.freeze
 
@@ -79,17 +79,17 @@ class DemoSeeds
       # Hosted, a stored quota above the demo traffic; self-hosted ignores it.
       @account = Account.create!(name: "Acme Labs", entitlement_values: { "monthly_event_quota" => 1_000_000 })
       @users = {
-        philip: User.create!(name: "Philip Nguyen", email_address: EMAIL, password: PASSWORD, email_verified_at: Time.current),
+        alex: User.create!(name: "Alex Rivera", email_address: EMAIL, password: PASSWORD, email_verified_at: Time.current),
         jo: User.create!(name: "Jo Martin", email_address: "jo@example.com", password: PASSWORD, email_verified_at: Time.current)
       }
-      @account.memberships.create!(user: @users[:philip], role: :owner)
+      @account.memberships.create!(user: @users[:alex], role: :owner)
       @account.memberships.create!(user: @users[:jo], role: :member)
     end
 
     def seed_project(spec)
       project = beyond_app_limit { @account.projects.create!(spec.slice(:name, :platform, :runtime_label, :issue_prefix, :issues_sequence, :color, :first_event_at)) }
-      project.api_keys.update_all(created_by_id: @users[:philip].id)
-      (spec[:environments] - project.environments).each { |env| project.api_keys.create!(environment: env, created_by: @users[:philip]) }
+      project.api_keys.update_all(created_by_id: @users[:alex].id)
+      (spec[:environments] - project.environments).each { |env| project.api_keys.create!(environment: env, created_by: @users[:alex]) }
       ISSUES.fetch(spec[:name], []).each { |row| DemoIssue.new(project, row, @users).seed }
       DemoProjectRollup.new(project).seed
     end
@@ -185,7 +185,7 @@ class DemoIssue
       @issue.activities.create!(kind: :assigned, user: @issue.assignee, subject_user: @issue.assignee) if @issue.assignee
       @issue.activities.create!(kind: :resolved, user: @users[:jo]) if @issue.resolved?
       @issue.activities.create!(kind: :regressed) if @spec[:kind] == :regressed
-      @issue.activities.create!(kind: :note, user: @users[:philip], body: "Looking into this one.") if @spec[:kind] == :new
+      @issue.activities.create!(kind: :note, user: @users[:alex], body: "Looking into this one.") if @spec[:kind] == :new
     end
 end
 

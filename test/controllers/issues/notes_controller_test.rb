@@ -4,7 +4,7 @@ class Issues::NotesControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
     @issue = issues(:nomethod)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "adds a note and streams it into the activity feed" do
@@ -19,7 +19,7 @@ class Issues::NotesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Deploying &lt;b&gt;a fix&lt;/b&gt; now"
 
     note = @issue.activities.note.recent.first
-    assert_equal users(:philip), note.user
+    assert_equal users(:alex), note.user
     assert_equal "Deploying <b>a fix</b> now", note.body
   end
 

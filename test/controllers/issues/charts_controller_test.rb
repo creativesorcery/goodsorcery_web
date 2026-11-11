@@ -4,7 +4,7 @@ class Issues::ChartsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
     @issue = issues(:nomethod)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "renders the 24h chart frame by default" do

@@ -1,7 +1,7 @@
 require "test_helper"
 
 class Project::AlertingTest < ActiveSupport::TestCase
-  setup { Current.session = sessions(:philip_browser) }
+  setup { Current.session = sessions(:alex_browser) }
   teardown { Current.reset }
 
   test "a new app gets the default rule set" do
@@ -55,18 +55,18 @@ class Project::AlertingTest < ActiveSupport::TestCase
 
   test "uptime alert recipients are verified members who haven't muted the app's uptime alerts" do
     project = projects(:storefront)
-    assert_equal [ users(:jo), users(:philip) ].sort_by(&:id), project.uptime_alert_recipients.order(:id).to_a
+    assert_equal [ users(:jo), users(:alex) ].sort_by(&:id), project.uptime_alert_recipients.order(:id).to_a
 
     memberships(:jo_acme).update_notification_preference(project, uptime_alerts_muted: true)
-    assert_equal [ users(:philip) ], project.uptime_alert_recipients.to_a
+    assert_equal [ users(:alex) ], project.uptime_alert_recipients.to_a
     assert_includes project.alert_recipients, users(:jo), "muting uptime alerts keeps the issue alerts"
 
-    users(:philip).update!(email_verified_at: nil)
+    users(:alex).update!(email_verified_at: nil)
     assert_empty project.uptime_alert_recipients
   end
 
   test "muting issue alerts keeps uptime alerts" do
-    assert_equal [ users(:jo), users(:philip) ].sort_by(&:id), projects(:billing).uptime_alert_recipients.order(:id).to_a, "jo muted billing's issue alerts"
+    assert_equal [ users(:jo), users(:alex) ].sort_by(&:id), projects(:billing).uptime_alert_recipients.order(:id).to_a, "jo muted billing's issue alerts"
     assert_equal [ users(:outsider) ], projects(:umbrella_app).uptime_alert_recipients.to_a
   end
 
@@ -150,18 +150,18 @@ class Project::AlertingTest < ActiveSupport::TestCase
   test "alert recipients are verified members who haven't muted the app" do
     users(:jo).update!(email_verified_at: nil)
 
-    assert_equal [ users(:philip) ], projects(:storefront).alert_recipients.to_a
+    assert_equal [ users(:alex) ], projects(:storefront).alert_recipients.to_a
 
     users(:jo).update!(email_verified_at: Time.current)
-    assert_equal [ users(:jo), users(:philip) ].sort_by(&:id), projects(:storefront).alert_recipients.order(:id).to_a
-    assert_equal [ users(:philip) ], projects(:billing).alert_recipients.to_a, "jo muted billing"
+    assert_equal [ users(:jo), users(:alex) ].sort_by(&:id), projects(:storefront).alert_recipients.order(:id).to_a
+    assert_equal [ users(:alex) ], projects(:billing).alert_recipients.to_a, "jo muted billing"
   end
 
   test "digest recipients are verified members who haven't turned the digest off" do
     assert_equal 2, projects(:billing).digest_recipients.count, "muting alerts keeps the digest"
 
     memberships(:jo_acme).update_notification_preference(projects(:billing), digest_enabled: false)
-    assert_equal [ users(:philip) ], projects(:billing).digest_recipients.to_a
+    assert_equal [ users(:alex) ], projects(:billing).digest_recipients.to_a
   end
 
   test "outsiders never receive another account's alerts" do

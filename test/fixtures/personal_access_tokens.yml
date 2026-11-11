@@ -2,34 +2,34 @@
 <% digest = ->(name) { OpenSSL::Digest::SHA256.hexdigest(PAT_FIXTURE_TOKENS.fetch(name)) } %>
 <% last4 = ->(name) { PAT_FIXTURE_TOKENS.fetch(name).last(4) } %>
 
-philip_read:
-  user: philip
+alex_read:
+  user: alex
   account: acme
   name: Laptop
   scopes: [read]
-  token_digest: <%= digest.(:philip_read) %>
-  token_last4: <%= last4.(:philip_read) %>
+  token_digest: <%= digest.(:alex_read) %>
+  token_last4: <%= last4.(:alex_read) %>
   expires_at: <%= 80.days.from_now.to_fs(:db) %>
   created_at: <%= 10.days.ago.to_fs(:db) %>
 
-philip_triage:
-  user: philip
+alex_triage:
+  user: alex
   account: acme
   name: Claude Code
   scopes: [read, triage]
-  token_digest: <%= digest.(:philip_triage) %>
-  token_last4: <%= last4.(:philip_triage) %>
+  token_digest: <%= digest.(:alex_triage) %>
+  token_last4: <%= last4.(:alex_triage) %>
   expires_at: <%= 80.days.from_now.to_fs(:db) %>
   last_used_at: <%= 2.hours.ago.to_fs(:db) %>
   created_at: <%= 9.days.ago.to_fs(:db) %>
 
-philip_full:
-  user: philip
+alex_full:
+  user: alex
   account: acme
   name: Cursor
   scopes: [read, triage, request_data]
-  token_digest: <%= digest.(:philip_full) %>
-  token_last4: <%= last4.(:philip_full) %>
+  token_digest: <%= digest.(:alex_full) %>
+  token_last4: <%= last4.(:alex_full) %>
   expires_at:
   created_at: <%= 8.days.ago.to_fs(:db) %>
 
@@ -43,23 +43,23 @@ jo_read:
   expires_at: <%= 30.days.from_now.to_fs(:db) %>
   created_at: <%= 3.days.ago.to_fs(:db) %>
 
-philip_expired:
-  user: philip
+alex_expired:
+  user: alex
   account: acme
   name: Old laptop
   scopes: [read, triage]
-  token_digest: <%= digest.(:philip_expired) %>
-  token_last4: <%= last4.(:philip_expired) %>
+  token_digest: <%= digest.(:alex_expired) %>
+  token_last4: <%= last4.(:alex_expired) %>
   expires_at: <%= 1.day.ago.to_fs(:db) %>
   created_at: <%= 31.days.ago.to_fs(:db) %>
 
-philip_revoked:
-  user: philip
+alex_revoked:
+  user: alex
   account: acme
   name: Leaked token
   scopes: [read, triage]
-  token_digest: <%= digest.(:philip_revoked) %>
-  token_last4: <%= last4.(:philip_revoked) %>
+  token_digest: <%= digest.(:alex_revoked) %>
+  token_last4: <%= last4.(:alex_revoked) %>
   expires_at: <%= 60.days.from_now.to_fs(:db) %>
   revoked_at: <%= 1.day.ago.to_fs(:db) %>
   created_at: <%= 30.days.ago.to_fs(:db) %>

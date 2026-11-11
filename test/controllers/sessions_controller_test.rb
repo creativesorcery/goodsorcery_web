@@ -79,7 +79,7 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       post session_path, params: { email_address: @user.email_address, password: "password" }
     end
 
-    assert_no_match(/philip@example\.com/, output)
+    assert_no_match(/alex@example\.com/, output)
     assert_no_match(/"password"=>"password"|password: "password"/, output)
   end
 

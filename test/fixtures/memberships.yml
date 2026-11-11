@@ -1,6 +1,6 @@
-philip_acme:
+alex_acme:
   account: acme
-  user: philip
+  user: alex
   role: owner
   created_at: <%= 30.days.ago.to_fs(:db) %>
 

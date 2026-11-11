@@ -1,6 +1,6 @@
 require "test_helper"
 
-# db/seeds.rb creates the demo owner philip@example.com / password, whose
+# db/seeds.rb creates the demo owner alex@example.com / password, whose
 # credentials are printed in the README, so it must never reach production.
 class SeedsTest < ActiveSupport::TestCase
   test "db:prepare never seeds the production database" do

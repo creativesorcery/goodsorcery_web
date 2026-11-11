@@ -92,7 +92,7 @@ class SlackConnectionTest < ActiveSupport::TestCase
       assert connection.turn_off_after_rejection("channel_not_found")
       assert_not connection.turn_off_after_rejection("channel_not_found")
     end
-    assert_enqueued_email_with AlertsMailer, :slack_disabled, args: [ users(:philip), projects(:storefront) ]
+    assert_enqueued_email_with AlertsMailer, :slack_disabled, args: [ users(:alex), projects(:storefront) ]
     assert_equal [ false, Time.current, "channel_not_found" ], connection.reload.values_at(:enabled, :disabled_at, :disabled_reason)
   end
 
@@ -119,7 +119,7 @@ class SlackConnectionTest < ActiveSupport::TestCase
 
   test "a rejection of a URL replaced meanwhile changes nothing" do
     in_flight = SlackConnection.find(slack_connections(:storefront).id) # loaded before the post
-    SlackConnection.find(in_flight.id).paste_webhook_url(VALID, by: users(:philip))
+    SlackConnection.find(in_flight.id).paste_webhook_url(VALID, by: users(:alex))
 
     assert_no_enqueued_emails { assert_not in_flight.turn_off_after_rejection("invalid_token") }
     assert_equal [ VALID, "connected" ], SlackConnection.find(in_flight.id).then { [ it.webhook_url, it.status ] }
@@ -136,9 +136,9 @@ class SlackConnectionTest < ActiveSupport::TestCase
     freeze_time
     billing = slack_connections(:billing) # rejected
 
-    assert billing.paste_webhook_url(billing.webhook_url, by: users(:philip))
+    assert billing.paste_webhook_url(billing.webhook_url, by: users(:alex))
     billing.reload
-    assert_equal [ true, nil, nil, users(:philip), Time.current ],
+    assert_equal [ true, nil, nil, users(:alex), Time.current ],
                  [ billing.enabled, billing.disabled_at, billing.disabled_reason, billing.connected_by, billing.connected_at ]
   end
 
@@ -160,7 +160,7 @@ class SlackConnectionTest < ActiveSupport::TestCase
   end
 
   test "owners to notify are verified owners only" do
-    users(:philip).update_columns(email_verified_at: nil)
+    users(:alex).update_columns(email_verified_at: nil)
 
     assert_empty slack_connections(:storefront).owners_to_notify
     assert_equal [ users(:outsider) ], SlackConnection.new(project: projects(:umbrella_app)).owners_to_notify.to_a

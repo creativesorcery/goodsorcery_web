@@ -32,8 +32,8 @@ class StaffSystemTest < ApplicationSystemTestCase
     assert_selector "#entitlement_max_monitors", text: /5\s*Stored/
     assert_equal 5, accounts(:acme).reload.entitlement_values["max_monitors"]
 
-    press find_link("Philip Nguyen")
-    assert_selector "h1", text: "Philip Nguyen"
+    press find_link("Alex Rivera")
+    assert_selector "h1", text: "Alex Rivera"
     press find_link("Back to the app")
     assert_current_path root_path
   end

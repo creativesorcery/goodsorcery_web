@@ -69,7 +69,7 @@ class SlackPostJobTest < ActiveJob::TestCase
 
     connection = slack_connections(:storefront).reload
     assert_equal [ false, Time.current, "no_service" ], connection.values_at(:enabled, :disabled_at, :disabled_reason)
-    assert_enqueued_email_with AlertsMailer, :slack_disabled, args: [ users(:philip), @project ]
+    assert_enqueued_email_with AlertsMailer, :slack_disabled, args: [ users(:alex), @project ]
     assert_no_enqueued_jobs only: SlackPostJob
   end
 

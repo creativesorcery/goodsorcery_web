@@ -1,5 +1,5 @@
-philip_browser:
-  user: philip
+alex_browser:
+  user: alex
   account: acme
   ip_address: 127.0.0.1
   user_agent: Mozilla/5.0 (Macintosh) Fixture

@@ -4,9 +4,9 @@ class CurrentTest < ActiveSupport::TestCase
   teardown { Current.reset }
 
   test "user and account come from the session" do
-    Current.session = sessions(:philip_browser)
+    Current.session = sessions(:alex_browser)
 
-    assert_equal users(:philip), Current.user
+    assert_equal users(:alex), Current.user
     assert_equal accounts(:acme), Current.account
   end
 

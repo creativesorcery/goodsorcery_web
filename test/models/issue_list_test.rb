@@ -3,7 +3,7 @@ require "test_helper"
 class IssueListTest < ActiveSupport::TestCase
   setup do
     @project = projects(:storefront)
-    @philip = users(:philip)
+    @alex = users(:alex)
   end
 
   test "lists the query's issues sorted by last seen with assignees preloaded" do
@@ -85,7 +85,7 @@ class IssueListTest < ActiveSupport::TestCase
 
   private
     def list_for(query, page: 1, sort: nil)
-      IssueList.new(@project, IssueQuery.new(query, user: @philip), page:, sort:)
+      IssueList.new(@project, IssueQuery.new(query, user: @alex), page:, sort:)
     end
 
     def create_issues(count)

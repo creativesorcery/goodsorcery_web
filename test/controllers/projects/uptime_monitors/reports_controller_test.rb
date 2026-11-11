@@ -6,7 +6,7 @@ class Projects::UptimeMonitors::ReportsControllerTest < ActionDispatch::Integrat
   setup do
     @project = projects(:storefront)
     @monitor = uptime_monitors(:storefront_api)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "renders the report in its frame" do
@@ -32,7 +32,7 @@ class Projects::UptimeMonitors::ReportsControllerTest < ActionDispatch::Integrat
     get project_uptime_monitor_report_path(@project, @monitor)
     assert_response :not_found
 
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     get project_uptime_monitor_report_path(@project, uptime_monitors(:billing_checkout))
     assert_response :not_found
   end

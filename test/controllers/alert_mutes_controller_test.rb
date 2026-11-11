@@ -5,7 +5,7 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
                "(KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1".freeze
 
   setup do
-    @user = users(:philip)
+    @user = users(:alex)
     @project = projects(:storefront)
     @token = @user.alert_mute_token(@project)
   end
@@ -17,7 +17,7 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", "Mute email alerts?"
     assert_select "form[action=?][method=post][data-turbo=false] input[name=token][value=?]", alert_mute_path, @token
     assert_select "*", text: /storefront/
-    assert memberships(:philip_acme).receives_alerts?(@project)
+    assert memberships(:alex_acme).receives_alerts?(@project)
     assert_equal "no-store", response.headers["Cache-Control"]
   end
 
@@ -26,8 +26,8 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "h1", "Muted"
-    assert_not memberships(:philip_acme).reload.receives_alerts?(@project)
-    assert memberships(:philip_acme).receives_alerts?(projects(:billing))
+    assert_not memberships(:alex_acme).reload.receives_alerts?(@project)
+    assert memberships(:alex_acme).receives_alerts?(projects(:billing))
     assert memberships(:jo_acme).receives_alerts?(@project)
   end
 
@@ -38,7 +38,7 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
          headers: { "Content-Type" => "application/x-www-form-urlencoded" }
 
     assert_response :success
-    assert_not memberships(:philip_acme).reload.receives_alerts?(@project)
+    assert_not memberships(:alex_acme).reload.receives_alerts?(@project)
   ensure
     ActionController::Base.allow_forgery_protection = false
   end
@@ -50,8 +50,8 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", "Mute the daily digest?"
 
     post alert_mute_path, params: { token: }
-    assert_not memberships(:philip_acme).reload.receives_digest?(@project)
-    assert memberships(:philip_acme).receives_alerts?(@project)
+    assert_not memberships(:alex_acme).reload.receives_digest?(@project)
+    assert memberships(:alex_acme).receives_alerts?(@project)
   end
 
   test "an uptime link turns off that app's uptime alerts only" do
@@ -60,12 +60,12 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
     get alert_mute_path(token:)
     assert_response :success
     assert_select "h1", "Mute uptime alerts?"
-    assert memberships(:philip_acme).receives_uptime_alerts?(@project)
+    assert memberships(:alex_acme).receives_uptime_alerts?(@project)
 
     post alert_mute_path, params: { token: }
     assert_response :success
     assert_select "p", text: /won't get uptime alerts from\s+storefront/
-    membership = memberships(:philip_acme).reload
+    membership = memberships(:alex_acme).reload
     assert_not membership.receives_uptime_alerts?(@project)
     assert membership.receives_alerts?(@project)
     assert membership.receives_uptime_alerts?(projects(:billing))
@@ -82,13 +82,13 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
          headers: { "Content-Type" => "application/x-www-form-urlencoded" }
 
     assert_response :success
-    assert_not memberships(:philip_acme).reload.receives_uptime_alerts?(@project)
+    assert_not memberships(:alex_acme).reload.receives_uptime_alerts?(@project)
   ensure
     ActionController::Base.allow_forgery_protection = false
   end
 
   test "an already muted app says so" do
-    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+    memberships(:alex_acme).update_notification_preference(@project, alerts_muted: true)
 
     get alert_mute_path(token: @token)
 
@@ -105,7 +105,7 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
       post alert_mute_path, params: { token: @token }
       assert_response :not_found
     end
-    assert memberships(:philip_acme).reload.receives_alerts?(@project)
+    assert memberships(:alex_acme).reload.receives_alerts?(@project)
   end
 
   test "a tampered or missing token is refused" do
@@ -115,14 +115,14 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
     get alert_mute_path
     assert_response :not_found
 
-    assert memberships(:philip_acme).reload.receives_alerts?(@project)
+    assert memberships(:alex_acme).reload.receives_alerts?(@project)
   end
 
   test "a token for another app mutes only that app" do
     post alert_mute_path, params: { token: @user.alert_mute_token(projects(:billing)) }
 
-    assert memberships(:philip_acme).reload.receives_alerts?(@project)
-    assert_not memberships(:philip_acme).receives_alerts?(projects(:billing))
+    assert memberships(:alex_acme).reload.receives_alerts?(@project)
+    assert_not memberships(:alex_acme).receives_alerts?(projects(:billing))
   end
 
   test "an outsider's token can't reach another account's app" do
@@ -140,7 +140,7 @@ class AlertMutesControllerTest < ActionDispatch::IntegrationTest
 
     post alert_mute_path, params: { token: @token }, headers: headers
     assert_response :success
-    assert_not memberships(:philip_acme).reload.receives_alerts?(@project)
+    assert_not memberships(:alex_acme).reload.receives_alerts?(@project)
   end
 
   test "the dashboard still turns old browsers away" do

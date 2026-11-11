@@ -9,7 +9,7 @@ class Projects::SlackConnectionsControllerTest < ActionDispatch::IntegrationTest
 
   setup do
     @project = projects(:storefront)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "the Alerts page shows the connection masked, never the webhook URL" do
@@ -30,7 +30,7 @@ class Projects::SlackConnectionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "shows who connected the webhook and when, and flags someone who left the account" do
-    connected_at = slack_connections(:storefront).connected_at.in_time_zone(users(:philip).time_zone)
+    connected_at = slack_connections(:storefront).connected_at.in_time_zone(users(:alex).time_zone)
     get project_alerts_path(@project)
     assert_select "#slack_connected_by", "Connected by #{users(:jo).name} on #{connected_at.strftime('%b %-d, %Y')}"
 
@@ -62,7 +62,7 @@ class Projects::SlackConnectionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to project_alerts_path(projects(:marketing), anchor: "slack")
     assert_equal "Slack connected. Send a test message to check the channel.", flash[:notice]
     connection = projects(:marketing).reload.slack_connection
-    assert_equal [ NEW_URL, true, users(:philip) ], [ *connection.values_at(:webhook_url, :enabled), connection.connected_by ]
+    assert_equal [ NEW_URL, true, users(:alex) ], [ *connection.values_at(:webhook_url, :enabled), connection.connected_by ]
   end
 
   test "rejects a URL that isn't a Slack webhook, without echoing it back" do

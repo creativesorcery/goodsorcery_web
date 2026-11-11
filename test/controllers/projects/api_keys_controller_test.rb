@@ -2,7 +2,7 @@ require "test_helper"
 
 class Projects::ApiKeysControllerTest < ActionDispatch::IntegrationTest
   setup do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     @project = projects(:storefront)
   end
 
@@ -31,7 +31,7 @@ class Projects::ApiKeysControllerTest < ActionDispatch::IntegrationTest
 
     api_key = @project.api_keys.last
     assert_equal "review", api_key.environment
-    assert_equal users(:philip), api_key.created_by
+    assert_equal users(:alex), api_key.created_by
     assert_match(/\Ags_test_/, api_key.token)
     assert_equal "no-store", response.headers["Cache-Control"]
     assert_select "turbo-stream[action=append][target=?]", dom_id(@project, :api_keys) do

@@ -2,7 +2,7 @@ require "test_helper"
 
 class AccountTest < ActiveSupport::TestCase
   test "accessible only by members" do
-    assert accounts(:acme).accessible_by?(users(:philip))
+    assert accounts(:acme).accessible_by?(users(:alex))
     assert accounts(:acme).accessible_by?(users(:jo))
     assert_not accounts(:acme).accessible_by?(users(:outsider))
     assert_not accounts(:acme).accessible_by?(nil)

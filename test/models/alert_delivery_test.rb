@@ -2,7 +2,7 @@ require "test_helper"
 
 class AlertDeliveryTest < ActiveSupport::TestCase
   setup do
-    @user = users(:philip)
+    @user = users(:alex)
     @project = projects(:storefront)
     @issue = issues(:regressed)
   end
@@ -122,7 +122,7 @@ class AlertDeliveryTest < ActiveSupport::TestCase
   end
 
   test "deleting the issue, app or user deletes its deliveries" do
-    delivery = alert_deliveries(:philip_nomethod_new_issue)
+    delivery = alert_deliveries(:alex_nomethod_new_issue)
 
     issues(:nomethod).destroy
 

@@ -4,7 +4,7 @@ class IssueDetailTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
     @issue = issues(:nomethod)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "renders the hero, stats, chart and latest occurrence" do
@@ -160,7 +160,7 @@ class IssueDetailTest < ActionDispatch::IntegrationTest
     assert_no_match "mara@example.com\"", response.body.split("data-clipboard-target").first
     assert_select "a[href*='user%3A']", text: "all their errors"
     assert_select "div", text: /← suspicious/
-    assert_select "##{dom_id(@issue, :activities)} li", text: /Philip assigned themselves/
+    assert_select "##{dom_id(@issue, :activities)} li", text: /Alex assigned themselves/
     assert_select "##{dom_id(@issue, :activities)} p", text: /discontinued variants/
     assert_select "form##{dom_id(@issue, :note_form)} textarea[placeholder='Leave a note for the coven…']"
   end

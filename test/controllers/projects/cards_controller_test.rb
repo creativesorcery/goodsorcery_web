@@ -2,7 +2,7 @@ require "test_helper"
 
 class Projects::CardsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "renders one card in its frame without the layout" do

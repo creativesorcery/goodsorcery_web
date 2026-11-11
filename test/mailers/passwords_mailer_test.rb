@@ -2,7 +2,7 @@ require "test_helper"
 
 class PasswordsMailerTest < ActionMailer::TestCase
   test "reset" do
-    user = users(:philip)
+    user = users(:alex)
     mail = PasswordsMailer.reset(user)
 
     assert_equal "Reset your password", mail.subject
@@ -12,6 +12,6 @@ class PasswordsMailerTest < ActionMailer::TestCase
   end
 
   test "sender defaults to no-reply at the link host" do
-    assert_equal [ "no-reply@example.com" ], PasswordsMailer.reset(users(:philip)).from
+    assert_equal [ "no-reply@example.com" ], PasswordsMailer.reset(users(:alex)).from
   end
 end

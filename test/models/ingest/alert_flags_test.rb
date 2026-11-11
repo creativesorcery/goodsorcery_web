@@ -20,7 +20,7 @@ class Ingest::AlertFlagsTest < ActiveSupport::TestCase
 
   test "a regression flags regression once" do
     issue = process_event(event_json)
-    Issue.find(issue.id).resolve(by: users(:philip))
+    Issue.find(issue.id).resolve(by: users(:alex))
     clear_enqueued_jobs
 
     regressed = process_event(event_json)
@@ -46,7 +46,7 @@ class Ingest::AlertFlagsTest < ActiveSupport::TestCase
 
   test "a resolved staging issue regressing in production flags both rules" do
     issue = process_event(event_json, key: api_keys(:storefront_staging))
-    Issue.find(issue.id).resolve(by: users(:philip))
+    Issue.find(issue.id).resolve(by: users(:alex))
     clear_enqueued_jobs
 
     process_event(event_json)
@@ -55,7 +55,7 @@ class Ingest::AlertFlagsTest < ActiveSupport::TestCase
 
   test "events of an ignored issue flag nothing" do
     issue = process_event(event_json)
-    Issue.find(issue.id).ignore(by: users(:philip))
+    Issue.find(issue.id).ignore(by: users(:alex))
     clear_enqueued_jobs
 
     assert_no_enqueued_jobs(only: IssueAlertJob) { process_event(event_json) }
@@ -71,7 +71,7 @@ class Ingest::AlertFlagsTest < ActiveSupport::TestCase
 
   test "job arguments are integer ids and the kind, never captured data" do
     issue = process_event(event_json, key: api_keys(:storefront_staging))
-    Issue.find(issue.id).resolve(by: users(:philip))
+    Issue.find(issue.id).resolve(by: users(:alex))
     process_event(event_json)
 
     jobs = enqueued_jobs.select { |job| job["job_class"] == "IssueAlertJob" }

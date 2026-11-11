@@ -20,7 +20,7 @@ class Projects::SlackConnections::TestMessagesControllerTest < ActionDispatch::I
   test "one test message per 30 seconds per connection, whoever asks" do
     freeze_time
     post project_slack_connection_test_message_path(@project)
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
 
     assert_no_enqueued_jobs(only: SlackTestMessageJob) { post project_slack_connection_test_message_path(@project) }
     assert_equal "A test message was sent less than 30 seconds ago.", flash[:alert]

@@ -4,7 +4,7 @@ class Projects::BulkTriagesControllerTest < ActionDispatch::IntegrationTest
   setup do
     @project = projects(:storefront)
     @list_url = project_issues_url(@project, q: "is:unresolved env:production")
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
   end
 
   test "resolves the selected issues and returns to the list" do
@@ -19,7 +19,7 @@ class Projects::BulkTriagesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Resolved 2 issues.", flash[:notice]
     assert issues(:nomethod).reload.resolved?
     assert issues(:card_error).reload.resolved?
-    assert_equal users(:philip), IssueActivity.where(kind: "resolved").last.user
+    assert_equal users(:alex), IssueActivity.where(kind: "resolved").last.user
   end
 
   test "ignores and reopens" do

@@ -24,7 +24,7 @@ class ShellTest < ActionDispatch::IntegrationTest
   end
 
   test "signed-in dashboard renders the shell" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
 
     get root_path
 
@@ -37,7 +37,7 @@ class ShellTest < ActionDispatch::IntegrationTest
   end
 
   test "the sidebar keeps the project last worked in on pages without one" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     get project_issues_path(projects(:marketing))
 
     get root_path
@@ -47,7 +47,7 @@ class ShellTest < ActionDispatch::IntegrationTest
   end
 
   test "the sidebar links to the app's Performance page right after Issues" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
 
     get project_issues_path(projects(:storefront))
 
@@ -57,7 +57,7 @@ class ShellTest < ActionDispatch::IntegrationTest
   end
 
   test "the sidebar links to the app's Uptime page with a dot when a monitor is down" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
 
     get project_issues_path(projects(:storefront))
 
@@ -68,7 +68,7 @@ class ShellTest < ActionDispatch::IntegrationTest
   end
 
   test "the Uptime link has no dot when nothing is down, and paused monitors don't count" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
     uptime_monitors(:storefront_api).update_columns(paused_at: Time.current)
 
     get project_uptime_monitors_path(projects(:storefront))
@@ -79,7 +79,7 @@ class ShellTest < ActionDispatch::IntegrationTest
   end
 
   test "signing out from the user menu" do
-    sign_in_as users(:philip)
+    sign_in_as users(:alex)
 
     delete session_path
 

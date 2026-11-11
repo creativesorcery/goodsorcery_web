@@ -83,7 +83,7 @@ class Issue::BroadcastingTest < ActiveSupport::TestCase
   test "triage broadcasts the issue and its project" do
     assert_enqueued_jobs 1, only: BroadcastIssueChangesJob do
       assert_enqueued_jobs 1, only: BroadcastProjectChangesJob do
-        @issue.resolve(by: users(:philip))
+        @issue.resolve(by: users(:alex))
       end
     end
   end
@@ -93,7 +93,7 @@ class Issue::BroadcastingTest < ActiveSupport::TestCase
 
     assert_enqueued_jobs issues.count, only: BroadcastIssueChangesJob do
       assert_enqueued_jobs 1, only: BroadcastProjectChangesJob do
-        issues.resolve_all(by: users(:philip))
+        issues.resolve_all(by: users(:alex))
       end
     end
   end

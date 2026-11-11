@@ -1,5 +1,5 @@
-philip_nomethod_new_issue:
-  user: philip
+alex_nomethod_new_issue:
+  user: alex
   project: storefront
   issue: nomethod
   kind: new_issue

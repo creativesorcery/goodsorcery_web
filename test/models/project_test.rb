@@ -3,7 +3,7 @@ require "test_helper"
 class ProjectTest < ActiveSupport::TestCase
   include ActiveJob::TestHelper
 
-  setup { Current.session = sessions(:philip_browser) }
+  setup { Current.session = sessions(:alex_browser) }
   teardown { Current.reset }
 
   test "hosted, an account at its app limit can't create another" do
@@ -72,7 +72,7 @@ class ProjectTest < ActiveSupport::TestCase
     assert_equal "FW", project.issue_prefix
     assert_equal Project::COLORS[3 % 4], project.color
     assert_equal %w[production staging], project.environments
-    assert_equal users(:philip), project.api_keys.first.created_by
+    assert_equal users(:alex), project.api_keys.first.created_by
   end
 
   test "a new app opens on production, since it is created with a production key" do

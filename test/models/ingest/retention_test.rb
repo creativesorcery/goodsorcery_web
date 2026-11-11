@@ -111,7 +111,7 @@ class Ingest::RetentionTest < ActiveSupport::TestCase
   end
 
   test "deletes alert deliveries older than their keep window" do
-    recent = alert_deliveries(:philip_nomethod_new_issue)
+    recent = alert_deliveries(:alex_nomethod_new_issue)
     old = travel_to(31.days.ago) do
       AlertDelivery.record(user: users(:jo), project: projects(:storefront), kind: :new_issue, dedupe_key: "old")
     end

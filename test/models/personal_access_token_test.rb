@@ -105,7 +105,7 @@ class PersonalAccessTokenTest < ActiveSupport::TestCase
   end
 
   test "records usage at most once per few minutes" do
-    token = personal_access_tokens(:philip_read)
+    token = personal_access_tokens(:alex_read)
     assert_nil token.last_used_at
 
     token.record_usage
@@ -124,6 +124,6 @@ class PersonalAccessTokenTest < ActiveSupport::TestCase
   end
 
   test "the digest is filtered from inspect" do
-    assert_includes personal_access_tokens(:philip_read).inspect, "token_digest: [FILTERED]"
+    assert_includes personal_access_tokens(:alex_read).inspect, "token_digest: [FILTERED]"
   end
 end

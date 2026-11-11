@@ -1,7 +1,7 @@
 require "test_helper"
 
 class AccessTokensControllerTest < ActionDispatch::IntegrationTest
-  setup { sign_in_as users(:philip) }
+  setup { sign_in_as users(:alex) }
 
   def create_token(name: "Claude Code", scopes: %w[triage], expires_in: "90", format: :turbo_stream, **extra)
     post access_tokens_path, params: { personal_access_token: { name:, scopes:, expires_in:, **extra } },
@@ -26,18 +26,18 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", "MCP server"
     assert_select "title", /MCP server/
     assert_select "meta[name='turbo-cache-control'][content='no-cache']"
-    assert_select "##{dom_id(personal_access_tokens(:philip_triage))}" do
+    assert_select "##{dom_id(personal_access_tokens(:alex_triage))}" do
       assert_select "span", text: "Claude Code"
       assert_select ".chip", text: "Triage"
       assert_select "button", text: "Revoke"
       assert_select "details summary", text: "Recent activity (1)"
       assert_select "a[href=?]", project_issue_path(projects(:storefront), issues(:resolved_issue)), text: "GS-1020"
     end
-    assert_select "##{dom_id(personal_access_tokens(:philip_revoked))}" do
+    assert_select "##{dom_id(personal_access_tokens(:alex_revoked))}" do
       assert_select ".chip", text: "Revoked"
       assert_select "button", text: "Revoke", count: 0
     end
-    assert_select "##{dom_id(personal_access_tokens(:philip_expired))} .chip", text: "Expired"
+    assert_select "##{dom_id(personal_access_tokens(:alex_expired))} .chip", text: "Expired"
     assert_select "##{dom_id(personal_access_tokens(:jo_read))}", 0
     assert_select "##{dom_id(personal_access_tokens(:outsider_read))}", 0
     PAT_FIXTURE_TOKENS.each_value { |token| assert_not_includes response.body, token }
@@ -98,12 +98,12 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "creates a token and shows it once with client snippets" do
-    assert_difference -> { users(:philip).personal_access_tokens.count } do
+    assert_difference -> { users(:alex).personal_access_tokens.count } do
       create_token
     end
 
     assert_response :success
-    token = users(:philip).personal_access_tokens.recent_first.first
+    token = users(:alex).personal_access_tokens.recent_first.first
     plaintext = created_token_text
     assert_equal token, PersonalAccessToken.authenticate(plaintext)
     assert_equal %w[read triage], token.scopes
@@ -161,14 +161,14 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
   test "drops unknown scopes and defaults expiry" do
     create_token(scopes: %w[admin request_data], expires_in: "bogus")
 
-    token = users(:philip).personal_access_tokens.recent_first.first
+    token = users(:alex).personal_access_tokens.recent_first.first
     assert_equal %w[read request_data], token.scopes
     assert_in_delta 90.days.from_now, token.expires_at, 1.minute
   end
 
   test "never expiring tokens" do
     create_token(expires_in: "never")
-    assert_nil users(:philip).personal_access_tokens.recent_first.first.expires_at
+    assert_nil users(:alex).personal_access_tokens.recent_first.first.expires_at
   end
 
   test "422 with the error for an invalid token" do
@@ -187,17 +187,17 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "lets members of several accounts choose the account" do
-    accounts(:umbrella).memberships.create!(user: users(:philip))
+    accounts(:umbrella).memberships.create!(user: users(:alex))
 
     get access_tokens_path
     assert_select "select[name='personal_access_token[account_id]'] option", 2
 
     create_token(account_id: accounts(:umbrella).id)
-    assert_equal accounts(:umbrella), users(:philip).personal_access_tokens.recent_first.first.account
+    assert_equal accounts(:umbrella), users(:alex).personal_access_tokens.recent_first.first.account
   end
 
   test "creating a token needs a confirmed email address" do
-    users(:philip).update!(email_verified_at: nil)
+    users(:alex).update!(email_verified_at: nil)
 
     assert_no_difference -> { PersonalAccessToken.count } do
       create_token(format: :html)
@@ -206,11 +206,11 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "revokes the person's own token" do
-    delete access_token_path(personal_access_tokens(:philip_read))
+    delete access_token_path(personal_access_tokens(:alex_read))
 
     assert_redirected_to access_tokens_path
-    assert personal_access_tokens(:philip_read).reload.revoked?
-    assert_nil PersonalAccessToken.authenticate(PAT_FIXTURE_TOKENS[:philip_read])
+    assert personal_access_tokens(:alex_read).reload.revoked?
+    assert_nil PersonalAccessToken.authenticate(PAT_FIXTURE_TOKENS[:alex_read])
   end
 
   test "another person's token is a 404, in the same account or another" do
@@ -226,15 +226,15 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
     get access_tokens_path
 
     assert_select "##{dom_id(personal_access_tokens(:outsider_read))}"
-    assert_select "##{dom_id(personal_access_tokens(:philip_read))}", 0
+    assert_select "##{dom_id(personal_access_tokens(:alex_read))}", 0
     assert_select "a[href=?]", project_issue_path(projects(:storefront), issues(:resolved_issue)), 0
   end
 
   test "every active token stays listed and revocable however many ended tokens are newer" do
-    old = personal_access_tokens(:philip_full)
+    old = personal_access_tokens(:alex_full)
     old.update_columns(created_at: 1.year.ago, expires_at: nil)
     travel 1.minute do
-      55.times { |n| users(:philip).personal_access_tokens.create!(account: accounts(:acme), name: "Throwaway #{n}").revoke }
+      55.times { |n| users(:alex).personal_access_tokens.create!(account: accounts(:acme), name: "Throwaway #{n}").revoke }
     end
 
     get access_tokens_path
@@ -242,7 +242,7 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
     assert_select "##{dom_id(old)}" do
       assert_select "form[action=?]", access_token_path(old)
     end
-    assert_select "li[id^='personal_access_token_']", PersonalAccessToken.active.where(user: users(:philip)).count + AccessTokensController::ENDED_LIMIT
+    assert_select "li[id^='personal_access_token_']", PersonalAccessToken.active.where(user: users(:alex)).count + AccessTokensController::ENDED_LIMIT
   end
 
   test "renders in a fixed number of queries however many tokens and activities there are" do
@@ -250,7 +250,7 @@ class AccessTokensControllerTest < ActionDispatch::IntegrationTest
     baseline = count_queries { get access_tokens_path }
 
     3.times do |n|
-      token = users(:philip).personal_access_tokens.create!(account: accounts(:acme), name: "Extra #{n}")
+      token = users(:alex).personal_access_tokens.create!(account: accounts(:acme), name: "Extra #{n}")
       AccessTokenActivity.record(token, "ignore", [ issues(:card_error).id ])
     end
 

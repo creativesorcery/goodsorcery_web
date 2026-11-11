@@ -83,7 +83,7 @@ class SlackIssueAlertTest < ActiveSupport::TestCase
   end
 
   test "Slack and email are independent: muting every member's email still posts" do
-    memberships(:philip_acme).update_notification_preference(@project, alerts_muted: true)
+    memberships(:alex_acme).update_notification_preference(@project, alerts_muted: true)
     memberships(:jo_acme).update_notification_preference(@project, alerts_muted: true)
 
     assert post_later

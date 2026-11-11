@@ -45,7 +45,7 @@ class SignupTest < ActiveSupport::TestCase
   end
 
   test "rolls everything back when the user is invalid" do
-    form = signup(email_address: users(:philip).email_address)
+    form = signup(email_address: users(:alex).email_address)
 
     assert_no_difference -> { Account.count } do
       assert_equal false, form.save
