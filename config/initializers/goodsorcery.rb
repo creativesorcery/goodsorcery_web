@@ -7,7 +7,14 @@ GoodSorcery.configure do |config|
   # Looked up in ENV["GOODSORCERY_API_KEY"], then in Rails credentials
   # (goodsorcery.api_key). Use one key per environment. Never commit it.
   config.api_key = ENV["GOODSORCERY_API_KEY"]
-  config.endpoint = ENV.fetch("GOODSORCERY_ENDPOINT", "https://app.goodsorcery.com")
+  # GOODSORCERY_ENDPOINT, else https://app.goodsorcery.com when hosted, else
+  # this instance's GOODSORCERY_PUBLIC_URL. Self-hosted with neither, reporting
+  # stays off rather than sending this instance's errors to the hosted service.
+  if (endpoint = SelfReportingEndpoint.from_env(ENV, hosted: Rails.configuration.x.hosted))
+    config.endpoint = endpoint
+  else
+    config.enabled = false
+  end
 
   # --- Environments ----------------------------------------------------------
   # config.environment = Rails.env                       # or ENV["GOODSORCERY_ENV"]

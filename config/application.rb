@@ -14,6 +14,7 @@ require "rails/test_unit/railtie"
 require_relative "../lib/middleware/ingest_body_shield"
 require_relative "../lib/configuration/public_url"
 require_relative "../lib/configuration/http_url"
+require_relative "../lib/configuration/self_reporting_endpoint"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
