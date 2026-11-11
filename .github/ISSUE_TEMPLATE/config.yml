@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/creativesorcery/goodsorcery_web/security/advisories/new
+    about: Please report vulnerabilities privately, never in a public issue.
+  - name: Ruby client library (goodsorcery gem)
+    url: https://github.com/creativesorcery/goodsorcery-ruby/issues
+    about: Bugs and requests for the Ruby gem.
+  - name: Rust client library (goodsorcery crate)
+    url: https://github.com/creativesorcery/goodsorcery-rust/issues
+    about: Bugs and requests for the Rust crate.

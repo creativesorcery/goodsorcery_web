@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest an idea or a change to the Good Sorcery server.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. For a large change, please agree on the approach here before opening a pull request (see [CONTRIBUTING.md](https://github.com/creativesorcery/goodsorcery_web/blob/main/CONTRIBUTING.md)).
+
+        Requests for a client library belong in [goodsorcery-ruby](https://github.com/creativesorcery/goodsorcery-ruby/issues) or [goodsorcery-rust](https://github.com/creativesorcery/goodsorcery-rust/issues).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation you're in and why the current behaviour falls short.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where would you use it?
+      options:
+        - Self-hosted
+        - Hosted service (app.goodsorcery.com)
+        - Both

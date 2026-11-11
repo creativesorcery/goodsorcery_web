@@ -42,3 +42,6 @@
 
 # Playwright MCP browser session artifacts
 /.playwright-mcp/
+
+# Private, per-checkout agent notes (see CLAUDE.md)
+/CLAUDE.local.md

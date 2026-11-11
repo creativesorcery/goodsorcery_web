@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in the Good Sorcery server doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+
+        **Security problems don't belong here.** Report vulnerabilities privately as described in [SECURITY.md](https://github.com/creativesorcery/goodsorcery_web/blob/main/SECURITY.md).
+
+        Please don't paste captured error data, API keys, tokens, monitor URLs or other personal data into this issue. Redact them first.
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      options:
+        - Self-hosted instance
+        - Hosted service (app.goodsorcery.com)
+        - Local development (bin/dev)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The release tag or the commit SHA you're running (for Kamal, `bin/kamal app version`).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Redacted log lines, if any (web or Sidekiq). This is rendered as code.
+      render: text
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: How you deploy (Kamal, Docker, other), Postgres and Redis versions, browser, and the client library and version if ingest is involved.

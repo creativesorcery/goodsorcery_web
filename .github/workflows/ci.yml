@@ -160,9 +160,12 @@ jobs:
   # in the "production" environment, which only main may deploy from. Secrets
   # are passed to the deploy step alone; the server's IP is a secret too, so
   # GitHub masks it in this public log. See docs/DEPLOYMENT.md.
+  # Only the upstream repository deploys, so forks don't get a failing deploy
+  # job on every push. To deploy your own fork from CI, change the repository
+  # name below to yours (docs/DEPLOYMENT.md › "Deploying from a fork").
   deploy:
     needs: [ scan_ruby, scan_js, lint, test, system-test ]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'creativesorcery/goodsorcery_web' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -207,6 +210,7 @@ jobs:
           GOODSORCERY_HOST: ${{ vars.GOODSORCERY_HOST }}
           GOODSORCERY_MAIL_FROM: ${{ vars.GOODSORCERY_MAIL_FROM }}
           GOODSORCERY_ENABLE_SIGNUPS: ${{ vars.GOODSORCERY_ENABLE_SIGNUPS }}
+          GOODSORCERY_DISABLE_SIGNUPS: ${{ vars.GOODSORCERY_DISABLE_SIGNUPS }}
           GOODSORCERY_HOSTED: ${{ vars.GOODSORCERY_HOSTED }}
           GOODSORCERY_APM_RETENTION_DAYS: ${{ vars.GOODSORCERY_APM_RETENTION_DAYS }}
           GOODSORCERY_UPGRADE_URL: ${{ vars.GOODSORCERY_UPGRADE_URL }}
@@ -214,6 +218,9 @@ jobs:
           GOODSORCERY_PRIVACY_URL: ${{ vars.GOODSORCERY_PRIVACY_URL }}
           GOODSORCERY_ENDPOINT: ${{ vars.GOODSORCERY_ENDPOINT }}
           GOODSORCERY_PERFORMANCE_MONITORING: ${{ vars.GOODSORCERY_PERFORMANCE_MONITORING }}
+          # The GHCR image (without ghcr.io/). Defaults to this repository's
+          # name, lowercased below, so a fork pushes to its own package.
+          KAMAL_IMAGE: ${{ vars.KAMAL_IMAGE }}
           KAMAL_REGISTRY_USERNAME: ${{ github.actor }}
           KAMAL_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
           SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
@@ -225,12 +232,16 @@ jobs:
           GOODSORCERY_API_KEY: ${{ secrets.GOODSORCERY_API_KEY }}
         run: |
           missing=0
+          # POSTMARK_API_TOKEN is optional: without it, mail goes through the
+          # SMTP settings in config/environments/production.rb (README › Email).
           for name in KAMAL_WEB_HOST KAMAL_SSH_PORT GOODSORCERY_HOST SECRET_KEY_BASE ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY \
                       ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT \
-                      GOODSORCERY_WEB_DATABASE_PASSWORD POSTMARK_API_TOKEN; do
+                      GOODSORCERY_WEB_DATABASE_PASSWORD; do
             if [ -z "${!name}" ]; then echo "::error::$name is not set in the production environment"; missing=1; fi
           done
           [ "$missing" = 0 ] || exit 1
+          [ -n "$POSTMARK_API_TOKEN" ] || echo "::warning::POSTMARK_API_TOKEN is not set; mail needs SMTP configured instead"
+          export KAMAL_IMAGE="${KAMAL_IMAGE:-${GITHUB_REPOSITORY,,}}"
           bin/kamal deploy
 
       - name: Remove SSH key

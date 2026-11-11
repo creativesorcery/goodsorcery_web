@@ -50,3 +50,16 @@
 # Ignore Docker-related files
 /.dockerignore
 /Dockerfile*
+
+# Local agent and browser-automation artifacts (session logs, snapshots,
+# screenshots) and private notes: never ship them in an image.
+/.playwright-mcp/
+/CLAUDE.local.md
+
+# Documentation and contributor files aren't needed at runtime.
+/docs/
+/CLAUDE.md
+/AGENTS.md
+/CONTRIBUTING.md
+/CODE_OF_CONDUCT.md
+/SECURITY.md

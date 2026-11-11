@@ -2,7 +2,10 @@
 
 `CLAUDE.md` is this project's agent guide, whichever agent you are: read it
 first. It covers the stack, conventions, commands and the gotchas that have
-bitten before. `CONTRIBUTING.md` applies to you as well.
+bitten before. `CONTRIBUTING.md` applies to you as well: work on a branch and
+open a pull request against `main`; never push to `main`. Private,
+machine-specific notes belong in `CLAUDE.local.md`, which is git-ignored and
+must never be committed.
 
 ## Database migrations
 

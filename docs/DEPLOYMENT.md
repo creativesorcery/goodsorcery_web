@@ -2,7 +2,14 @@
 
 Every push to `main` (a direct push or a merged pull request) runs CI. Once
 every check passes, the `deploy` job in `.github/workflows/ci.yml` builds the
-image, pushes it to GHCR and runs `bin/kamal deploy` over SSH.
+image, pushes it to GHCR and runs `bin/kamal deploy` over SSH. The deploy job
+only runs in the upstream repository; to deploy your own fork, see
+[Deploying from a fork](#deploying-from-a-fork). You can also run
+`bin/kamal deploy` from your own machine with the same variables exported.
+
+Cloudflare terminates TLS here. If you deploy differently, the app must still
+be served over HTTPS (`force_ssl` is on); see "Plain Docker" in the README for
+Thruster's built-in TLS.
 
 Everything runs on one server:
 
@@ -80,10 +87,13 @@ only listen on the private `kamal` network.
    Fight Mode off, or add a WAF custom rule that skips them for
    `starts_with(http.request.uri.path, "/api/")`.
 
-### 3. Postmark
+### 3. Postmark (optional)
 
-Password-reset mail goes through Postmark's API, which also keeps the server's
-IP out of email headers.
+Mail (password resets, sign-up confirmations, alerts) goes through Postmark's
+API when `POSTMARK_API_TOKEN` is set, which also keeps the server's IP out of
+email headers. To use another provider over SMTP instead, skip this step and
+follow "Email" in the README; `SMTP_USERNAME` and `SMTP_PASSWORD` then need
+passing through as described in [Other variables](#other-variables).
 
 1. Create a server in Postmark and copy its **Server API token**
    (`POSTMARK_API_TOKEN`). Use the default transactional stream.
@@ -130,22 +140,26 @@ only `main`. Then add:
 | secret | `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` | from `db:encryption:init` |
 | secret | `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT` | from `db:encryption:init` |
 | secret | `GOODSORCERY_WEB_DATABASE_PASSWORD` | the database password |
-| secret | `POSTMARK_API_TOKEN` | the Postmark **server** API token (Servers → your server → API Tokens) |
-| secret | `GOODSORCERY_API_KEY` | optional: a production ingest key for an app that tracks this instance's own errors; unset, the gem sends nothing |
+| secret | `POSTMARK_API_TOKEN` | optional: the Postmark **server** API token (Servers → your server → API Tokens); without it, configure SMTP |
+| secret | `GOODSORCERY_API_KEY` | optional: an ingest key for an app that tracks this instance's own errors (create the app on this instance or another one); unset, the gem sends nothing. See "Self-reporting" in the README |
 | variable | `GOODSORCERY_HOST` | the public hostname, e.g. `errors.example.com` |
 | variable | `GOODSORCERY_MAIL_FROM` | optional: the sender, e.g. `Good Sorcery <no-reply@example.com>`; defaults to `no-reply@GOODSORCERY_HOST` |
+| variable | `GOODSORCERY_DISABLE_SIGNUPS` | recommended: `1` closes sign-up even before the first account exists; create the owner with `goodsorcery:create_owner` (step 6) |
 | variable | `GOODSORCERY_ENABLE_SIGNUPS` | optional: `1` keeps public sign-up open after the first account; unset or anything else closes it |
+| variable | `KAMAL_IMAGE` | optional: the GHCR image name without `ghcr.io/`, e.g. `your-user/goodsorcery_web` (lowercase). CI defaults it to the repository's own name; Kamal's own default is `creativesorcery/goodsorcery_web`, which only the upstream repository can push to |
 | variable | `KAMAL_SSH_USER` | optional: the server user Kamal logs in as, if not `deploy` |
 | variable | `GOODSORCERY_HOSTED` | optional: `1` turns on hosted mode (entitlements and "Upgrade to unlock"); unset is self-hosted. After switching, run `goodsorcery:fit_entitlements` (see below) |
 | variable | `GOODSORCERY_APM_RETENTION_DAYS` | optional, self-hosted only: days of performance data to keep, 1–30 (default 30) |
 | variable | `GOODSORCERY_UPGRADE_URL` | optional, hosted only: where "Upgrade to unlock" links to. Unset, locked options say "Coming soon" and no upgrade text shows |
 | variable | `GOODSORCERY_TERMS_URL` | optional: an http(s) link to your Terms of Service. Set, the sign-up page says "By signing up you agree to the Terms of Service." with it linked |
 | variable | `GOODSORCERY_PRIVACY_URL` | optional: an http(s) link to your Privacy Policy, linked the same way. With neither set, the sign-up page shows no agreement sentence |
-| variable | `GOODSORCERY_ENDPOINT` | optional: where this instance's gem reports its own errors and performance data; defaults to `https://app.goodsorcery.com` |
+| variable | `GOODSORCERY_ENDPOINT` | optional: where this instance's gem reports its own errors and performance data; self-hosted it defaults to this instance's own public URL (`https://GOODSORCERY_HOST`), hosted (`GOODSORCERY_HOSTED`) to `https://app.goodsorcery.com` |
 | variable | `GOODSORCERY_PERFORMANCE_MONITORING` | optional: `0` turns off performance monitoring of this instance (on by default, with `GOODSORCERY_API_KEY` set and a gem version that supports it) |
 
 The registry login uses the workflow's own `GITHUB_TOKEN`, so there's no
-registry secret. `CLOUDFLARE_TUNNEL_TOKEN` stays out of GitHub: only the
+registry secret. The image goes to `ghcr.io/KAMAL_IMAGE` (by default the
+repository's own package), and GHCR packages are private by default, which is
+fine: the server pulls with the same login. `CLOUDFLARE_TUNNEL_TOKEN` stays out of GitHub: only the
 one-time accessory boot below needs it.
 
 ### 5. Repository settings
@@ -164,7 +178,9 @@ one-time accessory boot below needs it.
 ### 6. First boot
 
 From your laptop, with the values from step 4 exported in your shell
-(including `KAMAL_WEB_HOST`, `KAMAL_SSH_PORT`, `GOODSORCERY_HOST` and, if
+(including `KAMAL_WEB_HOST`, `KAMAL_SSH_PORT`, `GOODSORCERY_HOST`,
+`KAMAL_IMAGE` (the same image name CI uses, e.g. `your-user/goodsorcery_web`;
+unset, Kamal uses `creativesorcery/goodsorcery_web`) and, if
 your server user isn't `deploy`, `KAMAL_SSH_USER`). Kamal passes its own user
 and port to SSH, overriding `User` and `Port` from an `~/.ssh/config` alias (plus a
 GitHub personal access token with `read:packages` as `KAMAL_REGISTRY_PASSWORD`
@@ -177,8 +193,22 @@ bin/kamal accessory boot all     # Postgres, Redis and the tunnel
 Then push to `main` (or re-run the latest CI run). The deploy job starts
 kamal-proxy, boots the web and job containers and runs migrations
 (`bin/docker-entrypoint` runs `db:prepare`; it never loads the development
-demo data in `db/seeds.rb`). Open `https://GOODSORCERY_HOST` and sign up;
-sign-up closes after the first account.
+demo data in `db/seeds.rb`).
+
+**Create the first owner straight away.** Until the first account exists,
+anyone who finds `https://GOODSORCERY_HOST` can sign up and become the
+instance's owner. Either set `GOODSORCERY_DISABLE_SIGNUPS=1` (step 4) before
+this first deploy and create the owner from your laptop:
+
+```sh
+bin/kamal app exec -i --reuse 'bin/rails goodsorcery:create_owner EMAIL=you@example.com NAME="Your Name" ACCOUNT="Acme"'
+```
+
+It prompts for the password without echoing it; add `STAFF=1` inside the
+quotes to also grant the staff area. Or, without that variable, open
+`https://GOODSORCERY_HOST` and sign up the moment the deploy finishes; sign-up
+closes after the first account. Grant staff later with
+`bin/kamal app exec --reuse 'bin/rails goodsorcery:make_staff EMAIL=you@example.com'`.
 
 Request bodies over 4 MiB get a 413 before they are read: Puma enforces
 `http_content_length_limit` (`config/puma.rb`) and Thruster `MAX_REQUEST_BODY`
@@ -192,9 +222,10 @@ without Cloudflare in front still refuses oversized uploads.
   Neither runs migrations backwards, so the previous release runs against the new schema. Migrations keep that working: a column the code stops using stays (ignored with `ignored_columns`) and is dropped one release later. The full rules are in [MIGRATIONS.md](MIGRATIONS.md).
 - **Console, logs:** `bin/kamal console`, `bin/kamal logs`, `bin/kamal logs -r job`, `bin/kamal dbc`.
 - **Scheduled jobs:** sidekiq-cron runs `config/schedule.yml` inside the job
-  container: the retention sweep daily, the stale-event requeue every 10
-  minutes, the uptime scheduler every minute and the performance trace trim
-  hourly. The rake tasks still work by hand: `bin/kamal app exec "bin/rails goodsorcery:prune"`.
+  container (the full list is under "Scheduled tasks" in the README), so the
+  server needs no cron. If the job container is down, retention, alerts,
+  digests and uptime checks all stop. The rake tasks still work by hand:
+  `bin/kamal app exec "bin/rails goodsorcery:prune"`.
 - **Performance data:** batches from the gem (`config.performance_monitoring`)
   are processed on the `apm` Sidekiq queue (weight 2, after `ingest`). Each job
   is short and database-bound; a gem process sends at most two batches a
@@ -206,7 +237,10 @@ without Cloudflare in front still refuses oversized uploads.
   and the total is that times `SIDEKIQ_CONCURRENCY`. With many monitors, add a
   job role that runs only that queue (`bundle exec sidekiq -q uptime`, with its
   own `SIDEKIQ_CONCURRENCY`) so slow checks never hold up ingest or alerts.
-  Each due monitor is claimed once, so several processes can share the queue.
+  Keep the existing `job` role on `config/sidekiq.yml`, which runs every queue:
+  a process started with a hand-picked `-q` list silently skips the queues it
+  leaves out. Each due monitor is claimed once, so several processes can share
+  the queue.
   After switching `GOODSORCERY_HOSTED` on or off, or editing
   `config/entitlements.yml`, run
   `bin/kamal app exec "bin/rails goodsorcery:fit_entitlements"` (formerly
@@ -215,6 +249,32 @@ without Cloudflare in front still refuses oversized uploads.
   monitors paused under hosted limits unchecked.
 - **Accessories:** `bin/kamal accessory logs tunnel`. Upgrading Postgres to a
   new major version needs a dump and restore.
+
+## Other variables
+
+`config/deploy.yml` passes only some of the README's environment variables to
+the containers: the required ones and the optional variables listed in the
+table above. To use another one (for example `GOODSORCERY_EXTRA_HOSTS`,
+`GOODSORCERY_DOCS_URL`, `REDIS_CACHE_URL`, `SIDEKIQ_CONCURRENCY`,
+`WEB_CONCURRENCY`, or `SMTP_USERNAME` / `SMTP_PASSWORD`), add it to `env.clear`
+(or `env.secret` and `.kamal/secrets` for secrets) in `config/deploy.yml`, and
+to the deploy step's `env` in `.github/workflows/ci.yml` (from `vars.` or
+`secrets.`) if CI deploys. A variable set only in GitHub has no effect on its
+own.
+
+## Deploying from a fork
+
+The `deploy` job is guarded by `github.repository == 'creativesorcery/goodsorcery_web'`,
+so forks run the checks but never try to deploy. To deploy your fork from CI:
+
+1. Change that repository name in `.github/workflows/ci.yml` to your fork's
+   (`your-user/goodsorcery_web`).
+2. Do the one-time setup above in your fork's settings. `KAMAL_IMAGE` defaults
+   to your repository's name in lowercase, which is where the workflow's
+   `GITHUB_TOKEN` can push; set the `KAMAL_IMAGE` variable only to use another
+   name, and export the same value when you run Kamal locally.
+3. Keep your fork's `main` in sync with upstream to get fixes; each deploy runs
+   the new migrations at boot (see [MIGRATIONS.md](MIGRATIONS.md)).
 
 ## Accessories are managed by hand
 

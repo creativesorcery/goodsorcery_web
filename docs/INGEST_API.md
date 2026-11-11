@@ -549,7 +549,7 @@ gzip -c event.json | curl -sS https://app.goodsorcery.com/api/v1/events \
 
 ```sh
 bin/send_test_event gs_test_... http://localhost:3000
-GOODSORCERY_API_KEY=gs_live_... GOODSORCERY_HOST=https://errors.example.com bin/send_test_event
+GOODSORCERY_API_KEY=gs_live_... GOODSORCERY_ENDPOINT=https://errors.example.com bin/send_test_event
 EVENT_ID=0192f7a4-6c1e-7b3a-9d21-5f0c8e1b0aa1 bin/send_test_event gs_test_...   # same id twice: counted once
 GZIP=1 EXCEPTION_CLASS=Demo::OtherError bin/send_test_event gs_test_...          # gzip body, a different issue
 BATCH=25 GZIP=1 bin/send_test_event gs_test_...                                  # 25 events in one batch request
@@ -572,18 +572,8 @@ TRACES=0 bin/send_test_apm gs_test_...                                          
 
 It prints each status and body and exits non-zero unless both are `202`.
 
-## Operating (self-hosted)
+## Running a server
 
-- Events are processed by Sidekiq on the `ingest` queue, with weights `ingest: 3`, `default: 2`, `mailers: 1`.
-- Run `bin/rails goodsorcery:prune` daily (cron or a Kamal accessory). It deletes occurrences older than each project's retention period (30, 60 or 90 days, chosen in Settings › General; 30 by default, and on the hosted service 30 unless the account includes longer retention), affected-user records and tag values of issues not seen within that period, hourly issue counts older than 31 days, hourly project counts older than 90 days and inbound events that failed to process for over a day. Each issue keeps at most its newest 100 stored occurrences, and each project at most 3,000 (`CapStoredOccurrencesJob`, every 5 minutes): the issues with the most stored copies lose their oldest first, and every issue keeps its newest. Every event is still counted.
-- Performance data is processed on the `apm` queue. `goodsorcery:prune` also deletes per-minute performance rows after 2 days, hourly rows and traces past the retention (`GOODSORCERY_APM_RETENTION_DAYS`, default and maximum 30 days on a self-hosted instance) and performance batches after a day. An hourly job trims each closed hour to the 3 slowest traces per transaction.
-- `bin/rails goodsorcery:requeue_stale` re-enqueues events that were accepted but have not been processed after 10 minutes (for example after a Redis outage). Processing is idempotent, so a requeued event that was in fact processed is a no-op.
-- Accepted bodies wait in the `inbound_events` table (encrypted) until processed; job arguments hold only the record's GlobalID, so Redis never sees event data. Events that turn out to be malformed or duplicates are discarded and logged by id only.
-- Production needs the Active Record encryption keys as the env vars `ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY`, `ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY` and `ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT`. Generate them with `bin/rails db:encryption:init`. Losing them makes stored events unreadable.
-- Other environment variables:
-  - `GOODSORCERY_PUBLIC_URL` (**required in production**, for example `https://errors.example.com`) is this instance's public URL. It is the endpoint shown in the setup page's install snippets, the host of links in emails (password resets) and the only host the app answers to (DNS rebinding protection; `/up` answers on any host). Production refuses to boot without it.
-  - `GOODSORCERY_EXTRA_HOSTS` adds comma-separated host names the app also answers to.
-  - `GOODSORCERY_MAIL_FROM` sets the sender of emails; the default is `Good Sorcery <no-reply@<public host>>`.
-  - Sign-up is open only until the first account exists. `GOODSORCERY_ENABLE_SIGNUPS=1` keeps it open (the hosted service); `GOODSORCERY_DISABLE_SIGNUPS=1` turns it off completely and sends visitors to sign-in.
-  - `GOODSORCERY_HOSTED=1` marks the instance as the hosted service; leave it unset when self-hosting.
-  - `GOODSORCERY_APM_RETENTION_DAYS` (1–30, default 30) is how many days a self-hosted instance keeps performance data.
+This document is the wire contract for client authors. How to run a Good Sorcery server (processes, Sidekiq queues, scheduled jobs, environment variables and secrets) is covered in the server's [README](../README.md#production) and [docs/DEPLOYMENT.md](DEPLOYMENT.md).
+
+Two server behaviours matter to clients: accepted bodies wait encrypted in Postgres until a background job processes them (usually within a second, so a `202` means "stored", not "grouped"), and processing is idempotent by `event_id` / `batch_id`, so retrying a request whose response was lost never double-counts.
