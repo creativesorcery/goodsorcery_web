@@ -3,4 +3,5 @@
 module Ingest::RateLimitStore
   def self.increment(...) = Rails.cache.increment(...)
   def self.decrement(...) = Rails.cache.decrement(...)
+  def self.read_counter(...) = Rails.cache.read_counter(...)
 end

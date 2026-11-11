@@ -1,7 +1,9 @@
 require "test_helper"
 
 class PasswordsControllerTest < ActionDispatch::IntegrationTest
-  setup { @user = users(:philip) }
+  include CableTestHelper
+
+  setup { @user = users(:alex) }
 
   test "new" do
     get new_password_path
@@ -65,6 +67,30 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
     assert_notice "Password has been reset"
   end
 
+  test "update closes the live-update connections of every ended session" do
+    sessions = [ sessions(:alex_browser), @user.sessions.create!(account: accounts(:acme)) ]
+    others = users(:jo).sessions.create!(account: accounts(:acme))
+
+    put password_path, params: { token: @user.password_reset_token, password: "new-secret-9", password_confirmation: "new-secret-9" }
+
+    sessions.each { assert_cable_disconnected it }
+    assert_cable_not_disconnected others
+  end
+
+  test "a completed reset lets that browser sign in although the address is locked out" do
+    with_memory_cache do
+      FailedSignIns::LIMIT.times { |n| post session_path, params: { email_address: @user.email_address, password: "wrong" }, env: { "REMOTE_ADDR" => "10.1.0.#{n}" } }
+      post session_path, params: { email_address: @user.email_address, password: "password" }, env: { "REMOTE_ADDR" => "10.2.0.1" }
+      assert_equal "Try again later.", flash[:alert], "locked out before the reset"
+
+      put password_path, params: { token: @user.password_reset_token, password: "new-secret-9", password_confirmation: "new-secret-9" }
+      post session_path, params: { email_address: @user.email_address, password: "new-secret-9" }, env: { "REMOTE_ADDR" => "10.2.0.1" }
+
+      assert_redirected_to root_path
+      assert cookies[:session_id].present?
+    end
+  end
+
   test "update confirms the email address, since the link reached the inbox" do
     @user.update!(email_verified_at: nil)
     put password_path, params: { token: @user.password_reset_token, password: "new-secret-9", password_confirmation: "new-secret-9" }
@@ -97,7 +123,9 @@ class PasswordsControllerTest < ActionDispatch::IntegrationTest
       assert_enqueued_emails 5
 
       post passwords_path, params: { email_address: " #{@user.email_address.upcase}" }, env: { "REMOTE_ADDR" => "10.0.1.1" }
-      assert_redirected_to new_password_path
+      assert_redirected_to new_session_path, "the same answer as a request that sent mail"
+      assert_equal PasswordsController::RESET_NOTICE, flash[:notice]
+      assert_nil flash[:alert]
       assert_enqueued_emails 5
       assert Rails.cache.instance_variable_get(:@data).keys.none? { it.include?("@") }, "no email address in cache keys"
     end

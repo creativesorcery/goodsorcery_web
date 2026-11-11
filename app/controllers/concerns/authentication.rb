@@ -40,7 +40,10 @@ module Authentication
       session.delete(:return_to_after_authenticating) || root_url
     end
 
+    # A fresh Rails session (new CSRF token, nothing left from before) for the
+    # signed-in user; only the page they were heading to carries over.
     def start_new_session_for(user)
+      reset_session_keeping_return_to
       session_attributes = { account: user.default_account, user_agent: request.user_agent, ip_address: request.remote_ip }
       user.sessions.create!(session_attributes).tap do |session|
         Current.session = session
@@ -49,7 +52,14 @@ module Authentication
     end
 
     def terminate_session
-      Current.session.destroy
+      Current.session.terminate
       cookies.delete(:session_id)
+      reset_session
+    end
+
+    def reset_session_keeping_return_to
+      return_to = session[:return_to_after_authenticating]
+      reset_session
+      session[:return_to_after_authenticating] = return_to if return_to
     end
 end

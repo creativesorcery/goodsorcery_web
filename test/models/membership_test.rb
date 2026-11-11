@@ -1,6 +1,8 @@
 require "test_helper"
 
 class MembershipTest < ActiveSupport::TestCase
+  include CableTestHelper
+
   test "roles" do
     assert memberships(:alex_acme).owner?
     assert memberships(:jo_acme).member?
@@ -19,6 +21,18 @@ class MembershipTest < ActiveSupport::TestCase
 
     assert_not Session.exists?(session.id)
     assert_not accounts(:acme).accessible_by?(users(:jo))
+  end
+
+  test "removing a member closes the live-update connections of their sessions in that account only" do
+    in_account = users(:jo).sessions.create!(account: accounts(:acme))
+    elsewhere = users(:jo).sessions.create!(account: accounts(:umbrella))
+    teammate = sessions(:alex_browser)
+
+    memberships(:jo_acme).destroy
+
+    assert_cable_disconnected in_account
+    assert_cable_not_disconnected elsewhere
+    assert_cable_not_disconnected teammate
   end
 
   test "without a saved preference a member gets alerts and the digest" do

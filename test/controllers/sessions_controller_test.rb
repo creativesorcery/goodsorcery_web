@@ -1,7 +1,9 @@
 require "test_helper"
 
 class SessionsControllerTest < ActionDispatch::IntegrationTest
-  setup { @user = users(:philip) }
+  include CableTestHelper
+
+  setup { @user = users(:alex) }
 
   test "new" do
     get new_session_path
@@ -55,16 +57,76 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "sign-in attempts are limited per email address across IPs" do
-    original = Rails.cache
-    Rails.cache = ActiveSupport::Cache::MemoryStore.new
-    20.times { |n| post session_path, params: { email_address: @user.email_address, password: "wrong" }, env: { "REMOTE_ADDR" => "10.1.0.#{n}" } }
+  test "after too many failed sign-ins for an address, a new browser is refused even with the right password" do
+    with_memory_cache do
+      fail_sign_ins(FailedSignIns::LIMIT)
 
-    post session_path, params: { email_address: @user.email_address, password: "password" }, env: { "REMOTE_ADDR" => "10.2.0.1" }
+      post session_path, params: { email_address: @user.email_address, password: "password" }, env: { "REMOTE_ADDR" => "10.2.0.1" }
+      assert_redirected_to new_session_path
+      assert_equal "Try again later.", flash[:alert]
+      assert_nil cookies[:session_id]
+    end
+  end
+
+  test "a browser that signed in to the address before is never locked out by other IPs' failures" do
+    with_memory_cache do
+      sign_in_with_password
+      delete session_path
+      fail_sign_ins(FailedSignIns::LIMIT + 5)
+
+      sign_in_with_password(ip: "10.2.0.1")
+      assert_redirected_to root_path
+      assert cookies[:session_id].present?
+    end
+  end
+
+  test "only failures count: successful sign-ins never use up the address's allowance" do
+    with_memory_cache do
+      FailedSignIns::LIMIT.times { |n| sign_in_with_password(ip: "10.3.0.#{n}") }
+      cookies.delete(:known_sign_ins)
+      fail_sign_ins(FailedSignIns::LIMIT - 1)
+
+      sign_in_with_password(ip: "10.2.0.1")
+      assert_redirected_to root_path
+    end
+  end
+
+  test "the failure counter and the remembered-browser cookie hold no email address" do
+    with_memory_cache do
+      fail_sign_ins(1)
+      sign_in_with_password
+
+      assert Rails.cache.instance_variable_get(:@data).keys.none? { it.include?("@") }, "no email address in cache keys"
+      assert cookies[:known_sign_ins].present?
+      assert_not_includes cookies[:known_sign_ins], "alex"
+    end
+  end
+
+  test "signing in starts a fresh Rails session but keeps the page to return to" do
+    get projects_path
     assert_redirected_to new_session_path
-    assert_nil cookies[:session_id]
-  ensure
-    Rails.cache = original
+    session_before = session.id.to_s
+    assert session_before.present?
+
+    sign_in_with_password
+    assert_redirected_to projects_url
+    assert_not_equal session_before, session.id.to_s
+  end
+
+  test "signing out resets the Rails session and closes only that browser's live-update connection" do
+    get projects_path # leaves a return-to page in the Rails session
+    session_before = session.id.to_s
+    sign_in_as @user
+    other_browser = @user.sessions.create!(account: accounts(:acme))
+    signed_out = Current.session
+
+    delete session_path
+
+    assert_not_equal session_before, session.id.to_s
+    assert_nil session[:return_to_after_authenticating]
+    assert_not Session.exists?(signed_out.id)
+    assert_cable_disconnected signed_out
+    assert_cable_not_disconnected other_browser
   end
 
   test "create with invalid credentials" do
@@ -98,6 +160,25 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   private
+    def sign_in_with_password(ip: "127.0.0.1")
+      post session_path, params: { email_address: @user.email_address, password: "password" }, env: { "REMOTE_ADDR" => ip }
+    end
+
+    # Spread over IPs, so the per-IP limit never kicks in.
+    def fail_sign_ins(count)
+      count.times do |n|
+        post session_path, params: { email_address: " #{@user.email_address.upcase}", password: "wrong" }, env: { "REMOTE_ADDR" => "10.1.#{n / 200}.#{n % 200}" }
+      end
+    end
+
+    def with_memory_cache
+      original = Rails.cache
+      Rails.cache = ActiveSupport::Cache::MemoryStore.new
+      yield
+    ensure
+      Rails.cache = original
+    end
+
     def capture_log
       io = StringIO.new
       original = Rails.logger

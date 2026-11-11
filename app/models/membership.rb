@@ -52,7 +52,7 @@ class Membership < ApplicationRecord
 
   private
     def end_sessions
-      Session.where(user_id:, account_id:).delete_all
+      Session.where(user_id:, account_id:).terminate_all
     end
 
     def revoke_access_tokens

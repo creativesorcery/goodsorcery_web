@@ -86,6 +86,22 @@ class ShellTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_session_path
   end
 
+  test "every response gets a fresh random CSP nonce, used by the header, the meta tag and importmap" do
+    sign_in_as users(:alex)
+
+    nonces = 2.times.map do
+      get projects_path
+      nonce = response.headers["Content-Security-Policy"][/script-src 'self' 'nonce-([^']+)'/, 1]
+      assert_select "meta[name=csp-nonce][content=?]", nonce
+      assert_select "script[type=importmap][nonce=?]", nonce
+      assert_select "script[type=module][nonce=?]", nonce
+      assert_not_equal session.id.to_s, nonce
+      nonce
+    end
+
+    assert_not_equal(*nonces)
+  end
+
   private
     def assert_strict_csp
       policy = response.headers["Content-Security-Policy"]

@@ -1,6 +1,7 @@
 # Per-address throttling on top of the per-IP limits, against distributed
-# credential stuffing and reset-mail floods. The counter is keyed by an HMAC
-# of the address, so no email address reaches the cache store.
+# reset-mail floods. The counter is keyed by an HMAC of the address, so no
+# email address reaches the cache store. (Sign-in counts only failures
+# instead: SignInThrottling.)
 module EmailRateLimited
   extend ActiveSupport::Concern
 
