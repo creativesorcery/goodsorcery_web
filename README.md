@@ -6,7 +6,7 @@ libraries (Ruby and Rust today) to a language-neutral ingest API. The server
 groups errors into issues, shows backtraces and request data, tracks slow
 endpoints and traces, checks your URLs, and alerts you by email or Slack. The
 dashboard updates live. Use it hosted at
-[app.goodsorcery.com](https://app.goodsorcery.com), or run it yourself under
+[goodsorcery.com](https://goodsorcery.com), or run it yourself under
 the MIT License.
 
 Built with Rails 8.1, Hotwire (Turbo and Stimulus), Action Cable, Postgres,
