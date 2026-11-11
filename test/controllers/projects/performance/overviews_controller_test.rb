@@ -239,12 +239,12 @@ class Projects::Performance::OverviewsControllerTest < ActionDispatch::Integrati
 
   test "the overview costs the same number of statements for 1 or 5 transactions" do
     project = projects(:billing)
-    one = count_request_queries { get project_performance_path(project) }
+    one = request_statements { get project_performance_path(project) }
     4.times { |i| create_apm_transaction(project, "More#{i}Controller#show") }
-    five = count_request_queries { get project_performance_path(project) }
+    five = request_statements { get project_performance_path(project) }
 
     assert_select "section[aria-label=Endpoints] a.font-mono", 5
-    assert_equal one, five
+    assert_equal one.size, five.size, -> { "Only with 5:\n#{(five - one).join("\n")}\nOnly with 1:\n#{(one - five).join("\n")}" }
   end
 
   test "sends no-store, has no inline styles and never shows trace data" do

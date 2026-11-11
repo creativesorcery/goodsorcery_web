@@ -34,9 +34,19 @@ module PerformancePagesTestHelper
 
   # Statements a request runs, without schema loads and query-cache hits.
   def count_request_queries(&block)
-    count = 0
-    counter = ->(*, payload) { count += 1 unless payload[:name] == "SCHEMA" || payload[:cached] }
-    ActiveSupport::Notifications.subscribed(counter, "sql.active_record", &block)
-    count
+    request_statements(&block).size
+  end
+
+  # The SQL a request runs on this thread. Notifications are global, so
+  # statements from other threads (a job or probe thread still finishing
+  # from an earlier test in the same worker) are left out.
+  def request_statements(&block)
+    thread = Thread.current
+    statements = []
+    recorder = lambda do |*, payload|
+      statements << payload[:sql] unless Thread.current != thread || payload[:name] == "SCHEMA" || payload[:cached]
+    end
+    ActiveSupport::Notifications.subscribed(recorder, "sql.active_record", &block)
+    statements
   end
 end
