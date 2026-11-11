@@ -185,4 +185,20 @@ class UptimeMonitorTest < ActiveSupport::TestCase
 
     assert_equal "[FILTERED]", filter.filter("uptime_monitor" => { "url" => "https://x.example/?token=#{SECRET}" }).dig("uptime_monitor", "url")
   end
+
+  test "hosted refuses URLs on non-web service ports, without echoing the URL" do
+    with_hosted_mode do
+      monitor = build(url: "https://shop.example:6379/up?token=uptime-port-secret")
+
+      assert_not monitor.valid?
+      assert_equal [ UptimeMonitor::PORT_MESSAGE ], monitor.errors[:url]
+      assert_no_match(/uptime-port-secret|6379/, monitor.errors.full_messages.join)
+      assert_empty build(url: "https://shop.example:8443/up").tap(&:validate).errors[:url]
+    end
+  end
+
+  test "self-hosted allows any port" do
+    assert build(url: "http://shop.example:6379/").valid?
+    assert build(url: "http://shop.example:22/").valid?
+  end
 end

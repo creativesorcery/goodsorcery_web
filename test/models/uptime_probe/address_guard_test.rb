@@ -16,12 +16,17 @@ class UptimeProbe::AddressGuardTest < ActiveSupport::TestCase
     "IPv6 discard" => "100::1", "IPv6 documentation" => "2001:db8::1",
     "IPv4-mapped loopback" => "::ffff:127.0.0.1", "IPv4-mapped metadata" => "::ffff:169.254.169.254",
     "IPv4-mapped private" => "::ffff:10.0.0.1", "NAT64 private" => "64:ff9b::a00:1", "NAT64 loopback" => "64:ff9b::7f00:1",
-    "6to4 loopback" => "2002:7f00:1::1", "6to4 metadata" => "2002:a9fe:a9fe::1", "IPv4-compatible loopback" => "::7f00:1"
+    "6to4 loopback" => "2002:7f00:1::1", "6to4 metadata" => "2002:a9fe:a9fe::1", "IPv4-compatible loopback" => "::7f00:1",
+    "6to4 private 10/8" => "2002:a00:1::1", "6to4 private 192.168/16" => "2002:c0a8:101:5::1", "6to4 CGNAT" => "2002:6440:1::",
+    "local-use NAT64 metadata" => "64:ff9b:1::a9fe:a9fe", "local-use NAT64 public-looking" => "64:ff9b:1:808:8:800::",
+    "Teredo" => "2001:0:4136:e378:8000:63bf:3fff:fdd2", "Teredo top" => "2001:0:ffff:ffff:ffff:ffff:ffff:ffff",
+    "ORCHIDv2" => "2001:20::1"
   }.freeze
 
   PUBLIC = %w[
     8.8.8.8 1.1.1.1 93.184.216.34 11.0.0.1 100.63.255.255 100.128.0.1 172.32.0.1 192.169.0.1 223.255.255.255
     2606:4700:4700::1111 2a00:1450:4001::200e ::ffff:8.8.8.8 64:ff9b::808:808 2002:808:808::1
+    2001:4860:4860::8888 2001:1::1 64:ff9b:2::1
   ].freeze
 
   BLOCKED.each do |label, address|

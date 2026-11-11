@@ -225,6 +225,22 @@ class UptimeProbeTest < ActiveSupport::TestCase
     assert_not_includes log, SECRET
   end
 
+
+  test "hosted, a redirect to a non-web service port ends the check as blocked" do
+    serve { |_, client| client.write(http_response(302, "Location" => "http://status.example.test:6379/")) }
+
+    result = with_hosted_mode { probe.check }
+
+    assert_equal [ "down", "blocked_address" ], [ result.status, result.error_kind ]
+    assert_equal 1, @server.requests.size
+  end
+
+  test "hosted, a monitor URL on a non-web service port is never requested" do
+    result = with_hosted_mode { UptimeProbe.new("http://status.example.test:22/", guard: local_guard).check }
+
+    assert_equal [ "down", "blocked_address" ], [ result.status, result.error_kind ]
+  end
+
   private
     # A server that never stops sending is cut off by the read cap, long
     # before the time budget runs out.

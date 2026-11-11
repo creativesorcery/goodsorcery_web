@@ -102,7 +102,11 @@ class UptimeProbe
       nil
     end
 
+    # Redirect hops and monitors saved before hosted mode was switched on
+    # get the hosted port check too.
     def fetch(uri, deadline)
+      raise BlockedAddress unless UptimeUrl.port_allowed?(uri.port)
+
       ip = @guard.vet(uri.hostname, timeout: deadline.remaining!)
       http = connection(uri, ip, deadline.remaining!)
       http.start { read_response(http, uri, deadline) }

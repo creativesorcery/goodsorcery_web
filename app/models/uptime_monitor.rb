@@ -19,6 +19,7 @@ class UptimeMonitor < ApplicationRecord
   # The shortest gap between "Check now" requests (UptimeMonitor::Checking#check_now_gap).
   RECHECK_GAP = 30.seconds
   URL_MESSAGE = "must be a public http:// or https:// address".freeze
+  PORT_MESSAGE = "uses a port reserved for non-web services such as SSH, mail or databases".freeze
   LIMIT_COMING_SOON = "Cannot add more yet, but it's coming soon".freeze
 
   belongs_to :project, inverse_of: :uptime_monitors
@@ -84,11 +85,15 @@ class UptimeMonitor < ApplicationRecord
       self.name = host.to_s.first(60) if name.blank?
     end
 
-    # The message never echoes the value.
+    # The messages never echo the value. Service ports are refused only
+    # hosted (UptimeUrl::SERVICE_PORTS).
     def url_public
       return errors.add(:url, :blank) if url.blank?
 
-      errors.add(:url, URL_MESSAGE) unless UptimeUrl.new(url).public?
+      uptime_url = UptimeUrl.new(url)
+      return errors.add(:url, URL_MESSAGE) unless uptime_url.public?
+
+      errors.add(:url, PORT_MESSAGE) unless uptime_url.allowed_port?
     end
 
     def interval_entitled

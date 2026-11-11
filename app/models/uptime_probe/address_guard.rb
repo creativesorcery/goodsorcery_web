@@ -17,8 +17,12 @@ class UptimeProbe::AddressGuard
     192.88.99.0/24 192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 224.0.0.0/4 240.0.0.0/4 255.255.255.255/32
   ].map { |range| IPAddr.new(range) }.freeze
 
+  # Also blocked outright: local-use NAT64 64:ff9b:1::/48 (RFC 8215; its IPv4
+  # sits in prefix-length-dependent bits, so it can't be unwrapped safely),
+  # Teredo 2001::/32 (relayed to an IPv4 we never vet) and ORCHIDv2 2001:20::/28.
   BLOCKED_IPV6 = %w[
     ::/128 ::1/128 fc00::/7 fe80::/10 fec0::/10 ff00::/8 100::/64 2001:db8::/32
+    64:ff9b:1::/48 2001::/32 2001:20::/28
   ].map { |range| IPAddr.new(range) }.freeze
 
   # IPv6 ranges that carry an IPv4 address, with the bits to its right.

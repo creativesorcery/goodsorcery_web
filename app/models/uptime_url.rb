@@ -11,8 +11,19 @@
 class UptimeUrl
   MAX_LENGTH = 2_048
   SCHEMES = %w[http https].freeze
+  # Well-known ports of non-web services (FTP, SSH, Telnet, mail, SMB, SQL
+  # Server, Oracle, Docker, MySQL, RDP, Postgres, AMQP, VNC, Redis,
+  # Elasticsearch, Memcached, MongoDB). The hosted service refuses them, so
+  # its probes can't be pointed at other people's non-web servers;
+  # self-hosted installs may monitor any port.
+  SERVICE_PORTS = Set[21, 22, 23, 25, 110, 143, 445, 465, 587, 993, 995, 1433, 1521, 2375, 2376,
+                      3306, 3389, 5432, 5672, 5900, 6379, 9200, 11211, 27017].freeze
 
   def self.parse(string) = new(string).uri
+
+  def self.port_allowed?(port, hosted: Rails.configuration.x.hosted)
+    !hosted || !SERVICE_PORTS.include?(port)
+  end
 
   # The normalised string when it parses, else the input stripped (for validation).
   def self.normalize(string) = parse(string)&.to_s || string.to_s.strip
@@ -30,6 +41,8 @@ class UptimeUrl
   def public?
     valid? && !UptimeProbe::AddressGuard.refused_literal?(uri.hostname)
   end
+
+  def allowed_port? = valid? && self.class.port_allowed?(uri.port)
 
   private
     def build(string)

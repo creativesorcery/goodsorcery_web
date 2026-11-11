@@ -36,4 +36,23 @@ class UptimeUrlTest < ActiveSupport::TestCase
     assert_equal "https://example.com/", UptimeUrl.normalize(" https://example.com ")
     assert_equal "nope", UptimeUrl.normalize(" nope ")
   end
+
+  test "port_allowed? refuses non-web service ports only when hosted" do
+    UptimeUrl::SERVICE_PORTS.each do |port|
+      assert UptimeUrl.port_allowed?(port, hosted: false), port
+      assert_not UptimeUrl.port_allowed?(port, hosted: true), port
+    end
+    [ 80, 443, 3000, 8080, 8443 ].each { |port| assert UptimeUrl.port_allowed?(port, hosted: true), port }
+  end
+
+  test "allowed_port? reads the URL's port, explicit or implied by the scheme" do
+    with_hosted_mode do
+      assert UptimeUrl.new("https://example.com/up").allowed_port?
+      assert UptimeUrl.new("http://example.com:8080/").allowed_port?
+      assert_not UptimeUrl.new("http://example.com:5432/").allowed_port?
+      assert_not UptimeUrl.new("https://example.com:3389/").allowed_port?
+      assert_not UptimeUrl.new("not a url").allowed_port?
+    end
+    assert UptimeUrl.new("http://example.com:5432/").allowed_port?
+  end
 end
