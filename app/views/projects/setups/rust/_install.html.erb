@@ -11,7 +11,7 @@
   </div>
 
   <div id="install_cargo" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4 space-y-3">
-<%= render layout: "projects/setups/snippet", locals: { label: "terminal" } do %><span class="text-iris-400 select-none" data-clipboard-skip>$ </span>cargo add goodsorcery --git https://github.com/creativesorcery/goodsorcery-rust
+<%= render layout: "projects/setups/snippet", locals: { label: "terminal" } do %><span class="text-iris-400 select-none" data-clipboard-skip>$ </span>cargo add goodsorcery
 <span class="text-iris-400 select-none" data-clipboard-skip>$ </span>export GOODSORCERY_API_KEY=<span class="tok-s"><%= install_key_hint(api_key) %></span><%= rust_endpoint_export %><% end %>
 <%= render layout: "projects/setups/snippet", locals: { label: "src/main.rs" } do %><span class="tok-sym">#[tokio::main]</span>
 <span class="tok-k">async fn</span> main() {

@@ -191,7 +191,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1 + p", text: /Add the crate, drop in your key/
     assert_select "[aria-label='Install method'] [role=tab]", count: 2
     assert_select "[role=tab][aria-selected=true][aria-controls=install_cargo]", "Cargo"
-    assert_select "#install_cargo pre", text: %r{\$ cargo add goodsorcery --git https://github\.com/creativesorcery/goodsorcery-rust\s+\$ export GOODSORCERY_API_KEY=gs_live_Mark…0001}
+    assert_select "#install_cargo pre", text: %r{\$ cargo add goodsorcery\s+\$ export GOODSORCERY_API_KEY=gs_live_Mark…0001}
     assert_select "#install_cargo pre", text: %r{export GOODSORCERY_ENDPOINT=http://www\.example\.com}
     assert_select "#install_cargo pre", text: /let _guard = goodsorcery::init\(\s+goodsorcery::Config::from_env\(\)/
     assert_select "#install_cargo pre .tok-c", text: "// .performance_monitoring(true)"
@@ -212,7 +212,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
 
     pre = css_select("#install_cargo pre").first.dup
     pre.css("[data-clipboard-skip]").each(&:remove)
-    assert_equal "cargo add goodsorcery --git https://github.com/creativesorcery/goodsorcery-rust\nexport GOODSORCERY_API_KEY=YOUR_PRODUCTION_KEY\nexport GOODSORCERY_ENDPOINT=http://www.example.com",
+    assert_equal "cargo add goodsorcery\nexport GOODSORCERY_API_KEY=YOUR_PRODUCTION_KEY\nexport GOODSORCERY_ENDPOINT=http://www.example.com",
                  pre.text.strip
   end
 
