@@ -29,7 +29,7 @@ Sidekiq, Redis and Tailwind. No single-page JavaScript framework and no Node.js.
   still happening, daily digest) with environment scope and per-person
   switches, plus one Slack channel per app through an incoming webhook.
 - **MCP server:** AI clients (Claude Code, Codex, Cursor, VS Code) can search,
-  read and triage issues with personal access tokens (`docs/MCP.md`).
+  read and triage issues with personal access tokens ([docs/MCP.md](docs/MCP.md)).
 - **Privacy first:** everything captured with an error is encrypted at rest,
   scrubbed again on ingest, and never put in Redis, job arguments, the cache or
   logs. User identities are stored only as HMAC digests.
@@ -181,7 +181,7 @@ curl -i -X POST http://localhost:3000/api/v1/events \
 processes it, usually within a second. The issue then appears on the app's
 issue list without a reload. Only `exception.class` is required. Events with
 the same exception class and top in-app frame (file and method) group into one
-issue. See `docs/INGEST_API.md` for every field and error code.
+issue. See [docs/INGEST_API.md](docs/INGEST_API.md) for every field and error code.
 
 For a fuller sample event (code context, locals, headers, session, breadcrumbs
 and tags), use the bundled script:
@@ -305,7 +305,7 @@ Every variable below is read by the server's code or config.
 | `RAILS_LOG_LEVEL` | no | `info` | Keep `info`. `debug` logs SQL, which includes the (redacted) issue titles. |
 | `GOODSORCERY_ENABLE_SIGNUPS` | no | sign-up is open only until the first account exists | `1` keeps public sign-up open (the hosted service). |
 | `GOODSORCERY_DISABLE_SIGNUPS` | no | none | `1` closes sign-up completely, even before the first account exists. It overrides `ENABLE`. Recommended for a public self-hosted instance; create the owner with `goodsorcery:create_owner` (see "First owner"). |
-| `GOODSORCERY_HOSTED` | no | `false` | `true` (or `1`) marks this as the managed hosting service. Leave it unset when self-hosting. Read once at boot. It turns on entitlements: each account's stored values (`accounts.entitlement_values`) decide its uptime intervals, monitors per app, apps per account, monthly event quota (ingest answers `429 quota_exceeded` past it) and error retention choices, falling back to `config/entitlements.yml`. It also restricts uptime monitor URLs to web ports (see "Uptime checks"), shows "Hosted" in the sidebar and drops the endpoint line from install snippets. Self-hosted (unset), every entitlement is unlimited. After switching it on or off, run `bin/rails goodsorcery:fit_entitlements`. See `docs/ARCHITECTURE.md` §12.2–12.3. |
+| `GOODSORCERY_HOSTED` | no | `false` | `true` (or `1`) marks this as the managed hosting service. Leave it unset when self-hosting. Read once at boot. It turns on entitlements: each account's stored values (`accounts.entitlement_values`) decide its uptime intervals, monitors per app, apps per account, monthly event quota (ingest answers `429 quota_exceeded` past it) and error retention choices, falling back to `config/entitlements.yml`. It also restricts uptime monitor URLs to web ports (see "Uptime checks"), shows "Hosted" in the sidebar and drops the endpoint line from install snippets. Self-hosted (unset), every entitlement is unlimited. After switching it on or off, run `bin/rails goodsorcery:fit_entitlements`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §12.2–12.3. |
 | `GOODSORCERY_APM_RETENTION_DAYS` | no | `30` | Self-hosted only: days of performance data (hourly figures and slow-request traces) to keep, 1–30. Read once at boot. Hosted accounts use their `apm_retention_days` entitlement instead. Per-minute figures are always kept 2 days. |
 | `GOODSORCERY_UPGRADE_URL` | no | none | Hosted mode only. Where the "Upgrade to unlock" link next to locked options goes. Unset, locked options say "Coming soon" and no upgrade text shows. |
 | `GOODSORCERY_TERMS_URL` | no | none | An http(s) link to your Terms of Service. Read once at boot. When set, the sign-up page says "By signing up you agree to the Terms of Service." with it linked. |
@@ -504,10 +504,10 @@ context, locals, request params, headers, session, user, breadcrumbs and
 environment. It is encrypted at rest. The server scrubs secrets again on
 ingest, and user identities are stored only as HMAC digests. Only an id goes
 through Redis/Sidekiq, never the payload, and dashboard pages send
-`Cache-Control: no-store`. See `docs/ARCHITECTURE.md` and the privacy section
-of `docs/INGEST_API.md`. The MCP endpoint returns captured data to the member's
+`Cache-Control: no-store`. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the privacy section
+of [docs/INGEST_API.md](docs/INGEST_API.md). The MCP endpoint returns captured data to the member's
 AI client only as the dashboard shows it; request data, user details and
-unredacted messages need a token with the request data scope (`docs/MCP.md`).
+unredacted messages need a token with the request data scope ([docs/MCP.md](docs/MCP.md)).
 
 ## Troubleshooting
 
@@ -518,7 +518,7 @@ unredacted messages need a token with the request data scope (`docs/MCP.md`).
 - **"Blocked hosts" error page in production.** The request's host isn't the public URL's host. Add it to `GOODSORCERY_EXTRA_HOSTS`.
 - **Events return 202 but never appear (production).** Sidekiq isn't running, or it can't reach `REDIS_URL` (Redis 7.0+ is required). Once fixed, run `bin/rails goodsorcery:requeue_stale`.
 - **Events return 202 but never appear (development).** Check `log/development.log` for job errors. The async adapter runs jobs inside the server process.
-- **401 / 413 / 415 / 422 / 429 from ingest.** See the error table in `docs/INGEST_API.md`. A rotated key is rejected right away.
+- **401 / 413 / 415 / 422 / 429 from ingest.** See the error table in [docs/INGEST_API.md](docs/INGEST_API.md). A rotated key is rejected right away.
 - **`PG::ConnectionBad`, "database does not exist" or `role "..." does not exist`.** Start Postgres, create a role for your OS user on Linux (see "Requirements"), then run `bin/rails db:prepare`.
 - **Migration fails with `extension "pg_trgm" is not available`.** Install the Postgres contrib package (`postgresql-contrib` on Debian/Ubuntu; Homebrew's postgresql includes it).
 - **Styles missing or stale.** Run `bin/dev` (it starts the Tailwind watcher), or `bin/rails tailwindcss:build` once.
