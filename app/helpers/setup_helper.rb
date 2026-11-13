@@ -36,18 +36,10 @@ module SetupHelper
       data: { tabs_target: "tab", action: "tabs#select" }
   end
 
-  # Install snippets show the short masked key ("gs_live_9f2c…e81a"); the full
-  # key is behind Reveal. Copy skips the masked key and takes a placeholder
-  # instead, so a copied command never contains an unusable key.
+  # Install snippets carry the default key in full, so a copied command works as
+  # pasted. The page is no-store and opts out of Turbo's snapshot cache.
   def install_key_hint(api_key)
-    return PLACEHOLDER_KEY unless api_key
-
-    safe_join [ tag.span(api_key.short_masked_token, data: { clipboard_skip: true }),
-                tag.span(install_key_placeholder(api_key), hidden: true) ]
-  end
-
-  def install_key_placeholder(api_key)
-    "YOUR_#{api_key.environment.upcase.tr('-', '_')}_KEY"
+    api_key ? api_key.token : PLACEHOLDER_KEY
   end
 
   # Where the client should send events: this instance (overridable for proxies).

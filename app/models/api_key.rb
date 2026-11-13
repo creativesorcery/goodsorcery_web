@@ -61,11 +61,6 @@ class ApiKey < ApplicationRecord
     "#{token_prefix}••••••••••••#{token_last4}"
   end
 
-  # The compact form for install snippets.
-  def short_masked_token
-    "#{token_prefix}…#{token_last4}"
-  end
-
   def default?
     project.default_api_key == self
   end

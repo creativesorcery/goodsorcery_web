@@ -56,14 +56,14 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "install tabs show only the masked default key" do
+  test "install tabs show the default key in full" do
     get project_setup_path(projects(:storefront))
 
     api_key = api_keys(:storefront_production)
     assert_select "[role=tab]", count: 3
     assert_select "[role=tab][aria-selected=true]", "Generator"
     assert_select "#install_generator pre", text: /bundle add goodsorcery/
-    assert_select "#install_generator pre [data-clipboard-skip]", text: "gs_live_Stor…0001"
+    assert_select "#install_generator pre .tok-s", text: FIXTURE_TOKENS[:storefront_production]
     assert_select "#install_manual[hidden] pre", text: /GoodSorcery\.configure/
     assert_select "#install_manual pre", text: /plugin "goodsorcery"/, count: 0
     assert_select "#install_manual pre", text: /config\.api_key\s+= Rails\.application\.credentials\.dig\(:goodsorcery, :api_key\)/
@@ -72,23 +72,26 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#install_generator p", text: /plugin "goodsorcery"/, count: 0
     assert_select "#install_env[hidden] pre", text: /GOODSORCERY_ENV=production/
     assert_select "#install_env p", count: 0
-    assert_select "*", text: /Reveal your key under/
+    assert_select "#install_env pre", text: /GOODSORCERY_API_KEY=#{FIXTURE_TOKENS[:storefront_production]}/
     assert_select "pre", text: /bin\/rails goodsorcery:test/
   end
 
-  test "Copy takes a placeholder instead of the masked key" do
+  test "Copy takes the full default key, ready to paste" do
     get project_setup_path(projects(:storefront))
 
     pre = css_select("#install_generator pre").first.dup
     pre.css("[data-clipboard-skip]").each(&:remove) # what clipboard_controller.js copies
-    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install --api-key=YOUR_PRODUCTION_KEY", pre.text.strip
-    assert_select "#install_env pre [hidden]", text: "YOUR_PRODUCTION_KEY"
+    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install " \
+                 "--api-key=#{FIXTURE_TOKENS[:storefront_production]}", pre.text.strip
   end
 
-  test "the page never contains a full token" do
+  test "the page shows only the default key in full, and is never stored" do
     get project_setup_path(projects(:storefront))
 
-    FIXTURE_TOKENS.each_value { |token| assert_not_includes response.body, token }
+    assert_includes response.body, FIXTURE_TOKENS[:storefront_production]
+    FIXTURE_TOKENS.except(:storefront_production).each_value { |token| assert_not_includes response.body, token }
+    assert_includes response.headers["Cache-Control"], "no-store"
+    assert_select "meta[name=turbo-cache-control][content=no-cache]"
   end
 
   test "self-hosted instances point config.endpoint at this instance" do
@@ -126,7 +129,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[aria-label='Install method'] [role=tab]", count: 2
     assert_select "[role=tab][aria-selected=true][aria-controls=install_manual]", "Manual"
     assert_select "#install_manual:not([hidden]) pre", text: /bundle add goodsorcery/
-    assert_select "#install_manual pre [data-clipboard-skip]", text: "gs_live_Mark…0001"
+    assert_select "#install_manual pre .tok-s", text: FIXTURE_TOKENS[:marketing_production]
     assert_select "#install_manual pre", text: /require "goodsorcery"\s+GoodSorcery\.configure do \|config\|/
     assert_select "#install_manual pre", text: /config\.api_key\s+= ENV\["GOODSORCERY_API_KEY"\]/
     assert_select "#install_manual pre .tok-c", text: /# config\.environment = "production"\s+# default: GOODSORCERY_ENV, RACK_ENV or APP_ENV/
@@ -138,14 +141,14 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/bin\/rails|generate goodsorcery|Rails\.application|Rails\.env|credentials/, response.body)
   end
 
-  test "ruby apps copy a placeholder instead of the masked key" do
+  test "ruby apps copy the full default key" do
     projects(:marketing).update!(platform: "ruby")
 
     get project_setup_path(projects(:marketing))
 
     pre = css_select("#install_manual pre").first.dup
     pre.css("[data-clipboard-skip]").each(&:remove)
-    assert_equal "bundle add goodsorcery\nexport GOODSORCERY_API_KEY=YOUR_PRODUCTION_KEY", pre.text.strip
+    assert_equal "bundle add goodsorcery\nexport GOODSORCERY_API_KEY=#{FIXTURE_TOKENS[:marketing_production]}", pre.text.strip
   end
 
   test "ruby apps hook in rack, sidekiq, rake and notify, then test with rake" do
@@ -191,7 +194,7 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1 + p", text: /Add the crate, drop in your key/
     assert_select "[aria-label='Install method'] [role=tab]", count: 2
     assert_select "[role=tab][aria-selected=true][aria-controls=install_cargo]", "Cargo"
-    assert_select "#install_cargo pre", text: %r{\$ cargo add goodsorcery\s+\$ export GOODSORCERY_API_KEY=gs_live_Mark…0001}
+    assert_select "#install_cargo pre", text: %r{\$ cargo add goodsorcery\s+\$ export GOODSORCERY_API_KEY=#{FIXTURE_TOKENS[:marketing_production]}}
     assert_select "#install_cargo pre", text: %r{export GOODSORCERY_ENDPOINT=http://www\.example\.com}
     assert_select "#install_cargo pre", text: /let _guard = goodsorcery::init\(\s+goodsorcery::Config::from_env\(\)/
     assert_select "#install_cargo pre .tok-c", text: "// .performance_monitoring(true)"
@@ -205,14 +208,15 @@ class Projects::SetupsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/bundle|GoodSorcery\.|config\.endpoint|rake|Rails|\bgem\b/, response.body)
   end
 
-  test "rust apps copy a placeholder instead of the masked key" do
+  test "rust apps copy the full default key" do
     projects(:marketing).update!(platform: "rust")
 
     get project_setup_path(projects(:marketing))
 
     pre = css_select("#install_cargo pre").first.dup
     pre.css("[data-clipboard-skip]").each(&:remove)
-    assert_equal "cargo add goodsorcery\nexport GOODSORCERY_API_KEY=YOUR_PRODUCTION_KEY\nexport GOODSORCERY_ENDPOINT=http://www.example.com",
+    assert_equal "cargo add goodsorcery\nexport GOODSORCERY_API_KEY=#{FIXTURE_TOKENS[:marketing_production]}\n" \
+                 "export GOODSORCERY_ENDPOINT=http://www.example.com",
                  pre.text.strip
   end
 

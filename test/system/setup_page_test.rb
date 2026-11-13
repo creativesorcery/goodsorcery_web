@@ -25,14 +25,14 @@ class SetupPageSystemTest < ApplicationSystemTestCase
     assert_selector "#hook_rack", visible: false
   end
 
-  test "copying the Ruby install snippet leaves out the prompts and the masked key" do
+  test "copying the Ruby install snippet leaves out the prompts and keeps the full key" do
     @project.update!(platform: "ruby")
     visit_connected project_setup_path(@project)
     stub_clipboard
 
     within("#install_manual") { press first(:button, "Copy") }
 
-    assert_equal "bundle add goodsorcery\nexport GOODSORCERY_API_KEY=YOUR_PRODUCTION_KEY", copied_text
+    assert_equal "bundle add goodsorcery\nexport GOODSORCERY_API_KEY=#{FIXTURE_TOKENS[:marketing_production]}", copied_text
   end
 
   test "desktop code panes keep their plain look: no scroll shadow and the small Copy" do

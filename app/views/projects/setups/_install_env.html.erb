@@ -1,5 +1,5 @@
 <%# locals: (api_key:, note: nil) -%>
-<%# The "ENV only" install tab and the Reveal pointer, shared by every platform; note is an optional platform hint. -%>
+<%# The "ENV only" install tab, shared by every platform; note is an optional platform hint. -%>
 <div id="install_env" role="tabpanel" data-tabs-target="panel" class="p-5 pt-4" hidden>
 <%= render layout: "projects/setups/snippet", locals: { label: ".env / platform config" } do %>GOODSORCERY_API_KEY=<span class="tok-s"><%= install_key_hint(api_key) %></span>
 GOODSORCERY_ENV=<span class="tok-s"><%= api_key&.environment || "production" %></span><%= endpoint_env_line %><% end %>
@@ -7,5 +7,3 @@ GOODSORCERY_ENV=<span class="tok-s"><%= api_key&.environment || "production" %><
   <p class="mt-3 text-[13px] text-ink-400"><%= note %></p>
 <% end %>
 </div>
-
-<p class="px-5 pb-4 text-[12.5px] text-ink-400">Reveal your key under <a href="#api_keys" class="tap-link text-iris-300 hover:underline">API keys</a> below.</p>

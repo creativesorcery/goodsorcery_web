@@ -93,7 +93,6 @@ class ApiKeyTest < ActiveSupport::TestCase
   test "masked token" do
     key = api_keys(:storefront_production)
     assert_equal "gs_live_Stor••••••••••••0001", key.masked_token
-    assert_equal "gs_live_Stor…0001", key.short_masked_token
   end
 
   test "record_usage writes at most once a minute" do

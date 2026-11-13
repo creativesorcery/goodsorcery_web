@@ -57,13 +57,14 @@ class IssuePageSystemTest < ApplicationSystemTestCase
     assert_selector "#ask_your_ai button span[aria-hidden]", text: "✦"
   end
 
-  test "copying the install snippet leaves out the prompt and the masked key" do
+  test "copying the install snippet leaves out the prompt and keeps the full key" do
     visit_connected project_setup_path(@project)
     stub_clipboard
 
     within("#install_generator") { press find_button("Copy") }
 
-    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install --api-key=YOUR_PRODUCTION_KEY", copied_text
+    assert_equal "bundle add goodsorcery\nbin/rails generate goodsorcery:install " \
+                 "--api-key=#{FIXTURE_TOKENS[:storefront_production]}", copied_text
   end
 
   test "dropdowns close on Escape and on outside clicks" do
