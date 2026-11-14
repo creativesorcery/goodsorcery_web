@@ -183,6 +183,14 @@ class Ingest::ProcessorTest < ActiveSupport::TestCase
     assert_equal 1, issue.reload.users_count
   end
 
+  test "an event backdated into last month counts toward this month's quota" do
+    travel_to Time.utc(2026, 11, 13, 12) do
+      assert_difference -> { accounts(:acme).events_this_month }, 1 do
+        process_event(minimal_json(occurred_at: "2026-10-31T23:00:00Z"))
+      end
+    end
+  end
+
   test "merges identity digests seen for the same user" do
     issue = process_event(minimal_json(user: { id: "77" }))
     process_event(minimal_json(user: { id: "77", email: "x@example.com" }))
