@@ -19,7 +19,7 @@ class Ingest::JobSection
 
   def summary
     @job.slice(*FIELDS).select { |_, value| value.is_a?(String) || value.is_a?(Numeric) }
-      .transform_values { |value| @scrubber.scrub_text(Ingest::TreeLimiter.truncate(value, Ingest::Limits::JOB_FIELD)) }
+      .transform_values { |value| @scrubber.scrub_text(value, limit: Ingest::Limits::JOB_FIELD) }
       .compact_blank
   end
 
@@ -30,6 +30,6 @@ class Ingest::JobSection
 
   private
     def bounded_arguments
-      @scrubber.scrub(Ingest::TreeLimiter.new.limit(@job["arguments"]))
+      Ingest::TreeLimiter.new.limit(@scrubber.scrub(@job["arguments"]))
     end
 end

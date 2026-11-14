@@ -20,7 +20,7 @@ class Ingest::TagSet
 
     def client
       valid = @client_tags.select { |key, value| key.match?(Ingest::Limits::TAG_KEY) && SCALARS.any? { value.is_a?(it) } }
-      @scrubber.scrub(valid.first(Ingest::Limits::TAGS).to_h { |key, value| [ key, tag_value(value) ] }).compact_blank
+      @scrubber.scrub(valid.first(Ingest::Limits::TAGS).to_h).transform_values { tag_value(it) }.compact_blank
     end
 
     def tag_value(value)
