@@ -44,11 +44,11 @@ class Ingest::Scrubber
     end
   end
 
-  def scrub_text(text)
-    text = scrub_card_numbers(text)
-    text = text.gsub(CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(TOKEN_CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(JWT, FILTERED)
-    text = text.gsub(QUERY_PARAM) { sensitive_key?($2) ? "#{$1}#{$2}=#{FILTERED}" : $& }
-    scrub_free_text_keys(text.gsub(URL_PASSWORD) { "#{$1}#{FILTERED}@" })
+  # Scrubs before cutting to limit, so a cut can't leave part of a secret
+  # (a card number's first digits fail the Luhn check) behind.
+  def scrub_text(text, limit: nil)
+    scrubbed = scrub_secrets(text.to_s)
+    limit ? Ingest::TreeLimiter.truncate(scrubbed, limit) : scrubbed
   end
 
   def sensitive_key?(key)
@@ -57,6 +57,13 @@ class Ingest::Scrubber
   end
 
   private
+    def scrub_secrets(text)
+      text = scrub_card_numbers(text)
+      text = text.gsub(CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(TOKEN_CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(JWT, FILTERED)
+      text = text.gsub(QUERY_PARAM) { sensitive_key?($2) ? "#{$1}#{$2}=#{FILTERED}" : $& }
+      scrub_free_text_keys(text.gsub(URL_PASSWORD) { "#{$1}#{FILTERED}@" })
+    end
+
     def scrub_card_numbers(text)
       text.gsub(CARD_NUMBER_OR_ID) { |found| $~[:id] || !Ingest::Luhn.valid?(found) ? found : FILTERED }
     end

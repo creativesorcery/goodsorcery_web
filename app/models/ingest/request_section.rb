@@ -10,7 +10,7 @@ class Ingest::RequestSection
   # { "url", "method", "format", "request_id", "remote_ip" } as scrubbed strings.
   def summary
     @request.slice(*SUMMARY_FIELDS).select { |_, value| value.is_a?(String) || value.is_a?(Numeric) }
-      .transform_values { |value| @scrubber.scrub_text(Ingest::TreeLimiter.truncate(value, Ingest::Limits::STRING)) }
+      .transform_values { |value| @scrubber.scrub_text(value, limit: Ingest::Limits::STRING) }
   end
 
   def params = tree("params")
@@ -22,6 +22,6 @@ class Ingest::RequestSection
   private
     def tree(key)
       value = @request[key]
-      value.is_a?(Hash) ? @scrubber.scrub(Ingest::TreeLimiter.new.limit(value)) : {}
+      value.is_a?(Hash) ? Ingest::TreeLimiter.new.limit(@scrubber.scrub(value)) : {}
     end
 end

@@ -29,7 +29,7 @@ class Ingest::Event
   end
 
   def message
-    @message ||= @scrubber.scrub_text(text(exception["message"], Ingest::Limits::MESSAGE))
+    @message ||= @scrubber.scrub_text(scalar(exception["message"]), limit: Ingest::Limits::MESSAGE)
   end
 
   def redacted_message
@@ -50,7 +50,7 @@ class Ingest::Event
 
   # Scrubbed but unredacted; stored only in the encrypted payload.
   def transaction
-    @transaction ||= @scrubber.scrub_text(text(@data["transaction"], Ingest::Limits::TRANSACTION)).squish.presence
+    @transaction ||= @scrubber.scrub_text(scalar(@data["transaction"]), limit: Ingest::Limits::TRANSACTION).squish.presence
   end
 
   # Plaintext issue column (and search index): redacted like the title.
@@ -103,9 +103,9 @@ class Ingest::Event
 
     def hash_at(key) = @data[key].is_a?(Hash) ? @data[key] : {}
 
-    def bounded(value) = @scrubber.scrub(Ingest::TreeLimiter.new.limit(value))
+    def bounded(value) = Ingest::TreeLimiter.new.limit(@scrubber.scrub(value))
 
-    def text(value, max)
-      value.is_a?(String) || value.is_a?(Numeric) ? Ingest::TreeLimiter.truncate(value, max) : ""
-    end
+    def text(value, max) = Ingest::TreeLimiter.truncate(scalar(value), max)
+
+    def scalar(value) = value.is_a?(String) || value.is_a?(Numeric) ? value : ""
 end

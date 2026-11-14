@@ -148,6 +148,14 @@ class Ingest::EventTest < ActiveSupport::TestCase
     assert_equal 20, crumbs.first.data.size
   end
 
+  test "scrubs card numbers that straddle a length limit before cutting them" do
+    card = "4111111111111111"
+    json = minimal_json(exception: { message: "#{'m' * 9_990} #{card}" }, request: { params: { note: "#{'n' * 4_085} #{card}" } })
+    event = build_event(json)
+    assert_not_includes event.message.last(20), "41111111"
+    assert_not_includes event.request.params["note"].last(20), "41111111"
+  end
+
   test "normalises breadcrumbs with offsets relative to occurred_at" do
     crumbs = @event.breadcrumbs
     assert_equal %w[request sql custom], crumbs.map(&:category)

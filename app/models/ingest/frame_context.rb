@@ -5,7 +5,7 @@ class Ingest::FrameContext
   def self.locals(value, scrubber:)
     return {} unless value.is_a?(Hash)
 
-    scrubbed = scrubber.scrub(Ingest::TreeLimiter.new.limit(value.first(Ingest::Limits::LOCALS).to_h))
+    scrubbed = Ingest::TreeLimiter.new.limit(scrubber.scrub(value.first(Ingest::Limits::LOCALS).to_h))
     scrubbed.to_h { |name, local| [ name, Ingest::TreeLimiter.truncate(local_text(local), Ingest::Limits::LOCAL_VALUE) ] }
   end
 
@@ -29,7 +29,7 @@ class Ingest::FrameContext
 
     def lines
       @lines ||= Array(@value["lines"]).first(Ingest::Limits::CONTEXT_LINES).map do |line|
-        @scrubber.scrub_text(Ingest::TreeLimiter.truncate(line, Ingest::Limits::CONTEXT_LINE))
+        @scrubber.scrub_text(line, limit: Ingest::Limits::CONTEXT_LINE)
       end
     end
 end
