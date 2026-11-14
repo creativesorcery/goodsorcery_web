@@ -31,6 +31,7 @@ module Apm::JsonShape
     at if at && at.sec.zero? && at.subsec.zero?
   end
 
-  # A string cut to max characters, or nil for anything that is not a string.
-  def text(value, max) = value.is_a?(String) ? value.first(max) : nil
+  # A string without null bytes (Postgres can't store them), cut to max
+  # characters, or nil for anything that is not a string.
+  def text(value, max) = value.is_a?(String) ? value.delete("\u0000").first(max) : nil
 end

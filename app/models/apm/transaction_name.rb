@@ -7,7 +7,7 @@ module Apm::TransactionName
   module_function
 
   def clean(kind, name)
-    name = name.to_s.strip.first(Apm::Limits::NAME)
+    name = name.to_s.delete("\u0000").strip.first(Apm::Limits::NAME)
     name == ApmTransaction::TOTAL_NAMES[kind] ? ApmTransaction::OTHER_NAME : name
   end
 
