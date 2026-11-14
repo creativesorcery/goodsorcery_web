@@ -21,7 +21,10 @@ class Ingest::Rollups
     increment_user
   end
 
+  # Counted in the hour the event arrived, since the monthly quota sums these
+  # rows and a client can backdate occurred_at by up to 30 days.
   def increment_project
+    hour = TimeSeries.align(@event.received_at, 1.hour)
     ProjectHourlyCount.upsert({ project_id: @project.id, environment: @event.environment, hour:, count: 1 },
                               on_duplicate: Arel.sql("count = project_hourly_counts.count + 1"), record_timestamps: false)
   end

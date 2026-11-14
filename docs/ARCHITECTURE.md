@@ -516,7 +516,7 @@ Ignored issues stay ignored. Only `resolved` regresses.
 
 **Rollups** (`Ingest::Rollups#increment_issue`, then `#increment_project` last), all `upsert`/`upsert_all` with `on_duplicate: Arel.sql(...)` and `record_timestamps: false`:
 - `issue_hourly_counts (issue_id, hour)`: `count = issue_hourly_counts.count + 1`
-- `project_hourly_counts (project_id, environment, hour)`: `count + 1`
+- `project_hourly_counts (project_id, environment, hour)`: `count + 1`, in the hour the event was received rather than its `occurred_at`, so backdated events still count toward this month's quota
 - `issue_tag_counts`: one multi-row upsert, rows **sorted by `[key, value_digest]`** to avoid deadlocks; `count + 1`. The encrypted `value` is written only on insert. `Ingest::TagRows` bounds the table per issue: at most `IssueTagCount::VALUES_PER_KEY` (100) values per key, later new values counting towards one "Other values" row (`value_digest = "other"`), and at most `KEYS_PER_ISSUE` (40) keys, later new keys being dropped. Known values cost one indexed lookup.
 - `issue_users` (when the event has an identity): `on_duplicate: "events_count = issue_users.events_count + 1, last_seen_at = GREATEST(issue_users.last_seen_at, EXCLUDED.last_seen_at)"`, `returning: Arel.sql("(xmax = 0) AS inserted")`, so `new_user? = inserted`.
 
