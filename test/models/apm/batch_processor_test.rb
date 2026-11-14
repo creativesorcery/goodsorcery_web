@@ -115,6 +115,13 @@ class Apm::BatchProcessorTest < ActiveSupport::TestCase
     assert_equal 3, minute_row(other).requests_count
   end
 
+  test "null bytes are dropped from names and labels instead of failing the batch" do
+    process_batch(metrics_body([ metrics_transaction(name: "Orders#\u0000show", route: "/orders/\u0000:id") ]))
+    transaction = @project.apm_transactions.find_by!(environment: "production", kind: "web", name: "Orders#show")
+    assert_equal "/orders/:id", transaction.route
+    assert_equal 3, minute_row(transaction).requests_count
+  end
+
   test "labels and last_seen_at are refreshed at most hourly" do
     @checkout.update_columns(last_seen_at: 2.hours.ago, route: "/old")
     process_batch(metrics_body)
