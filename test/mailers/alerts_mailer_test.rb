@@ -14,6 +14,12 @@ class AlertsMailerTest < ActionMailer::TestCase
     @issue = issues(:nomethod)
   end
 
+  test "alert emails are delivered through the mailers queue" do
+    assert_enqueued_with(job: ActionMailer::MailDeliveryJob, queue: "mailers") do
+      AlertsMailer.issue_alert(@user, @issue, "new_issue").deliver_later
+    end
+  end
+
   test "an issue alert names the rule, app, issue and environments, and links to the issue" do
     mail = AlertsMailer.issue_alert(@user, @issue, "new_issue")
     html = mail.html_part.body.to_s
