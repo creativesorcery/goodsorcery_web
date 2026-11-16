@@ -20,10 +20,11 @@ class Ingest::TagSet
 
     def client
       valid = @client_tags.select { |key, value| key.match?(Ingest::Limits::TAG_KEY) && SCALARS.any? { value.is_a?(it) } }
-      @scrubber.scrub(valid.first(Ingest::Limits::TAGS).to_h { |key, value| [ key, tag_value(value) ] }).compact_blank
+      pairs = valid.first(Ingest::Limits::TAGS).to_h { |key, value| [ key, value.to_s ] }
+      @scrubber.scrub(pairs).transform_values { tag_value(it) }.compact_blank
     end
 
     def tag_value(value)
-      Ingest::TreeLimiter.truncate(value, Ingest::Limits::TAG_VALUE).strip.presence unless value.nil?
+      @scrubber.scrub_text(value, limit: Ingest::Limits::TAG_VALUE).strip.presence unless value.nil?
     end
 end

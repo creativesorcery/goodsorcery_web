@@ -3,6 +3,22 @@ require "test_helper"
 class Ingest::ScrubberTest < ActiveSupport::TestCase
   setup { @scrubber = Ingest::Scrubber.new(extra_keys: [ "Loyalty" ]) }
 
+  test "scrub_text with a limit scrubs, cuts, then scrubs again within the limit" do
+    assert_equal "#{'m' * 20} [FILTERED]…", @scrubber.scrub_text("#{'m' * 20} 41111111111111111225", limit: 38)
+    assert_operator @scrubber.scrub_text(";password:x?,=" * 10, limit: 100).length, :<=, 100
+  end
+
+  test "scrub_bounded scrubs a card the tree's string limit cuts loose and keeps the bound" do
+    scrubbed = @scrubber.scrub_bounded({ "note" => [ "#{'n' * 4_078} 4111111111111111abcd" ], "q" => ";password:x?,=" * 400 })
+
+    assert_not_includes scrubbed["note"].first, "4111111111111111"
+    assert_operator scrubbed["q"].length, :<=, Ingest::Limits::STRING
+  end
+
+  test "scrub_cards filters card numbers only" do
+    assert_equal "card [FILTERED], token: [token]", @scrubber.scrub_cards("card 4111111111111111, token: [token]")
+  end
+
   test "filters values under sensitive keys, case-insensitively and deeply" do
     input = { "password" => "hunter2", "Authorization" => "Basic xyz", "Cookie" => "a=b", "X-CSRF-Token" => "t",
               "credit_card" => "4111", "card-number" => "4111", "cvv" => "123", "card_cvc" => "123", "user_ssn" => "1",

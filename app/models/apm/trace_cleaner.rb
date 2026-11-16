@@ -1,6 +1,6 @@
 # The string cleaning applied to every captured trace string
-# (docs/ARCHITECTURE.md §13.5): null bytes dropped, capped, scrubbed of secrets by
-# Ingest::Scrubber; paths lose any leading scheme://user:pass@host or //host,
+# (docs/ARCHITECTURE.md §13.5): null bytes dropped, scrubbed of secrets by
+# Ingest::Scrubber, capped, then scrubbed and capped again; paths lose any leading scheme://user:pass@host or //host,
 # their query string and fragment, hosts their user:pass@ part, files are
 # made app-relative, SQL is re-normalised.
 class Apm::TraceCleaner
@@ -10,10 +10,11 @@ class Apm::TraceCleaner
     @paths = Ingest::PathNormalizer.new
   end
 
-  # Null bytes go first: Postgres can't store them in a text column, and
-  # dropping them before scrubbing means one can't split a secret apart.
+  # Scrubbed, cut, then scrubbed and cut again, so a cut can't expose a
+  # secret the whole string hid (Ingest::Scrubber#scrub_text). Scrubbing drops
+  # null bytes first: Postgres can't store them, and one can't split a secret.
   def text(value, max)
-    @scrubber.scrub_text(value.delete("\u0000")).first(max) if value.is_a?(String)
+    @scrubber.scrub_text(@scrubber.scrub_text(value).first(max)).first(max) if value.is_a?(String)
   end
 
   ORIGIN = %r{\A(?:[a-z][a-z0-9+.-]*:)?//[^/?#]*}i

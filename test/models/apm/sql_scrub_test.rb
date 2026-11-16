@@ -5,6 +5,10 @@ class Apm::SqlScrubTest < ActiveSupport::TestCase
 
   def scrub(sql) = Apm::SqlScrub.new.scrub(sql)
 
+  test "a card the cut separates from the digits after it is scrubbed" do
+    assert scrub("SELECT #{'a' * 1_974}, c41111111111111111225 FROM t").end_with?(", c[FILTERED]")
+  end
+
   test "literals become ?, placeholders and identifiers stay" do
     assert_equal %(SELECT "users".* FROM "users" WHERE "users"."email" = ? AND "id" = $1 AND t2.n > ? LIMIT ?),
                  scrub(%(SELECT "users".* FROM "users" WHERE "users"."email" = 'mara@example.com' AND "id" = $1 AND t2.n > 42.5 LIMIT 10))

@@ -44,21 +44,41 @@ class Ingest::Scrubber
     end
   end
 
-  def scrub_text(text)
-    text = scrub_card_numbers(text)
-    text = text.gsub(CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(TOKEN_CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(JWT, FILTERED)
-    text = text.gsub(QUERY_PARAM) { sensitive_key?($2) ? "#{$1}#{$2}=#{FILTERED}" : $& }
-    scrub_free_text_keys(text.gsub(URL_PASSWORD) { "#{$1}#{FILTERED}@" })
+  # Scrubs, cuts to limit, then scrubs again. The first pass sees whole
+  # secrets (a cut card number's first digits fail the Luhn check); the second
+  # catches one the cut exposed (a card glued to an expiry is no card until
+  # the cut separates them). The last cut keeps the limit when a placeholder
+  # is longer than what it replaced.
+  def scrub_text(text, limit: nil)
+    scrubbed = scrub_secrets(text.to_s.delete("\u0000"))
+    return scrubbed unless limit
+
+    Ingest::TreeLimiter.truncate(scrub_secrets(Ingest::TreeLimiter.truncate(scrubbed, limit)), limit)
+  end
+
+  # The same for a tree: scrubbed whole, bounded, scrubbed again and bounded
+  # again (a second pass can lengthen a string: `;password:x?,=`).
+  def scrub_bounded(value, limiter: Ingest::TreeLimiter.new)
+    limiter.limit(scrub(limiter.limit(scrub(value))))
+  end
+
+  # Card numbers only, for text already redacted (the issue title): the other
+  # patterns would rewrite the redactor's placeholders and regroup issues.
+  def scrub_cards(text)
+    text.gsub(CARD_NUMBER_OR_ID) { |found| $~[:id] || !Ingest::Luhn.valid?(found) ? found : FILTERED }
   end
 
   def sensitive_key?(key)
-    key = key.to_s
+    key = key.to_s.delete("\u0000")
     key.match?(KEY_PATTERN) || @extra_keys.any? { |extra| key.downcase.include?(extra) }
   end
 
   private
-    def scrub_card_numbers(text)
-      text.gsub(CARD_NUMBER_OR_ID) { |found| $~[:id] || !Ingest::Luhn.valid?(found) ? found : FILTERED }
+    def scrub_secrets(text)
+      text = scrub_cards(text)
+      text = text.gsub(CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(TOKEN_CREDENTIAL) { "#{$1} #{FILTERED}" }.gsub(JWT, FILTERED)
+      text = text.gsub(QUERY_PARAM) { sensitive_key?($2) ? "#{$1}#{$2}=#{FILTERED}" : $& }
+      scrub_free_text_keys(text.gsub(URL_PASSWORD) { "#{$1}#{FILTERED}@" })
     end
 
     def scrub_hash(hash)

@@ -42,7 +42,8 @@ class Apm::SqlScrub
   def scrub(sql)
     text = without_literals(sql.to_s.first(Apm::Limits::SQL * 2))
     text = text.gsub(IN_LIST, "IN (…)").gsub(VALUES_ROWS) { "#{$1}, …" }
-    @scrubber.scrub_text(text.squish).first(Apm::Limits::SQL)
+    cut = @scrubber.scrub_text(text.squish).first(Apm::Limits::SQL)
+    @scrubber.scrub_text(cut).first(Apm::Limits::SQL)
   end
 
   private

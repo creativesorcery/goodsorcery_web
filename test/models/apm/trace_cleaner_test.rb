@@ -21,6 +21,10 @@ class Apm::TraceCleanerTest < ActiveSupport::TestCase
     assert_equal "/checkout", @cleaner.path("/checkout?card=4242")
   end
 
+  test "text scrubs a card the cut separates from the digits after it" do
+    assert_equal "#{'m' * 83} [FILTERED]", @cleaner.text("#{'m' * 83} 41111111111111111225", 100)
+  end
+
   test "non-strings give nil" do
     assert_nil @cleaner.path(nil)
   end
