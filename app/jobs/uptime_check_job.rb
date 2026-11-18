@@ -7,6 +7,9 @@
 # queue holding several jobs for one monitor therefore probes it once, and a
 # scheduled job and a "Check now" job running together record one check.
 #
+# With confirm_down on, a first failure is checked again CONFIRM_AFTER later, by the
+# same job with the same single argument (UptimeMonitor::Checking).
+#
 # The check is recorded at the time it started, so last_checked_at compares
 # with enqueued_at however long the probe took.
 class UptimeCheckJob < ApplicationJob
@@ -22,6 +25,7 @@ class UptimeCheckJob < ApplicationJob
     started_at = Time.current
     incident, kind = monitor.record_check(monitor.run_check, at: started_at, unless_checked_since: enqueued_at)
     monitor.alert_later(incident, kind) if incident
+    monitor.recheck_later if kind == "suspected"
     monitor.broadcast_checked
   end
 end
