@@ -88,7 +88,7 @@ is documented in [docs/INGEST_API.md](docs/INGEST_API.md).
 
 | Tool | Version | Needed for | Notes |
 |---|---|---|---|
-| Ruby | 4.0.7 | everything | Pinned in `.ruby-version`. With rbenv: `rbenv install 4.0.7`. |
+| Ruby | 4.0.10 | everything | Pinned in `.ruby-version`. With rbenv: `rbenv install 4.0.10`. |
 | Bundler | ships with Ruby | everything | `bin/setup` runs `bundle install`. |
 | PostgreSQL | 14 or newer (the Kamal setup uses 18) | everything | Migrations enable the `pg_trgm` extension (trigram search), which some distributions ship in a separate contrib package. |
 | Valkey or Redis | Valkey 7.2 or newer, or Redis 7.0 or newer (the Kamal setup uses Valkey 9.1) | production only | Sidekiq jobs, the cache store and Action Cable: one server, or one each with `REDIS_CACHE_URL` and `REDIS_CABLE_URL`. Sidekiq 8 refuses older versions. Development and test need neither. |
@@ -103,10 +103,10 @@ your OS user (no password). On macOS with Homebrew:
 ```sh
 brew install rbenv postgresql@16
 brew services start postgresql@16
-rbenv install 4.0.7
+rbenv install 4.0.10
 ```
 
-On Debian or Ubuntu (install Ruby 4.0.7 with rbenv, mise or asdf):
+On Debian or Ubuntu (install Ruby 4.0.10 with rbenv, mise or asdf):
 
 ```sh
 sudo apt install postgresql postgresql-contrib libpq-dev build-essential libyaml-dev

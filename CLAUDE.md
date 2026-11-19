@@ -4,7 +4,7 @@ Guide for contributors and AI coding agents (`AGENTS.md` points here). `README.m
 
 ## Stack and conventions
 
-1. **Stack:** Ruby 4.0.7, Rails 8.1, Postgres, Tailwind v4 (standalone binary, no Node.js), importmaps. No Solid Queue, Solid Cache or Solid Cable.
+1. **Stack:** Ruby 4.0.10, Rails 8.1, Postgres, Tailwind v4 (standalone binary, no Node.js), importmaps. No Solid Queue, Solid Cache or Solid Cable.
    - Production: Sidekiq for jobs, Redis cache store, Redis adapter for Action Cable, on any Redis-compatible server (`REDIS_URL`, `REDIS_CACHE_URL`, `REDIS_CABLE_URL`; the latter two fall back to `REDIS_URL`). Our Kamal deploy runs three Valkey instances (jobs persisted and `noeviction`; cache `allkeys-lru`, unpersisted; cable).
    - Development and test: async jobs, memory store, async Action Cable. No Redis or Valkey needed.
 2. **Rails conventions, old-school style:** Hotwire (Turbo and Stimulus) and Action Cable, RESTful controllers with CRUD action names, server-rendered ERB. No single-page JavaScript framework and no chart JS (charts are server-rendered SVG).

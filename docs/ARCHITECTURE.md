@@ -4,7 +4,7 @@ Design notes for contributors. This document describes how Good Sorcery is put t
 
 Read the sections for the area you are changing before you change it, especially the ground rules (§0), encryption (§1.4), the ingest pipeline (§2), authorization (§6) and the security checklist (§9). `docs/INGEST_API.md` is the public payload spec for client authors, and `CLAUDE.md` / `CONTRIBUTING.md` hold the day-to-day conventions.
 
-Stack: Ruby 4.0.7, Rails 8.1.4, Postgres (pg_trgm), Propshaft, importmap, Turbo, Stimulus, tailwindcss-rails 4 (Tailwind v4), Sidekiq, the Redis cache store and Action Cable's Redis adapter in production (any Redis-compatible server; the Kamal deploy runs one Valkey each for jobs, cache and cable via `REDIS_URL`, `REDIS_CACHE_URL` and `REDIS_CABLE_URL`), async adapters in development. There are no Solid gems.
+Stack: Ruby 4.0.10, Rails 8.1.4, Postgres (pg_trgm), Propshaft, importmap, Turbo, Stimulus, tailwindcss-rails 4 (Tailwind v4), Sidekiq, the Redis cache store and Action Cable's Redis adapter in production (any Redis-compatible server; the Kamal deploy runs one Valkey each for jobs, cache and cable via `REDIS_URL`, `REDIS_CACHE_URL` and `REDIS_CABLE_URL`), async adapters in development. There are no Solid gems.
 
 ---
 
