@@ -31,6 +31,32 @@ class UptimeCheckJobTest < ActiveJob::TestCase
     assert_equal [ [ :alert_later, incident.id, "monitor_down" ], [ :broadcast_checked, @monitor.id ] ], calls
   end
 
+  test "a first failure never schedules a recheck by default" do
+    with_fake_probe(down_result("timeout"), down_result("timeout")) { UptimeCheckJob.perform_now(@monitor.id) }
+
+    assert_predicate @monitor.reload, :down?
+    assert_no_enqueued_jobs only: UptimeCheckJob
+  end
+
+  test "with confirm_down, a first failure schedules one recheck and doesn't alert; the recheck's failure alerts" do
+    freeze_time
+    with_uptime_confirm_down do
+      calls = hook_calls do
+        with_fake_probe(down_result("timeout"), down_result("timeout")) { UptimeCheckJob.perform_now(@monitor.id) }
+      end
+      assert_equal [ [ :broadcast_checked, @monitor.id ] ], calls
+      assert_enqueued_with(job: UptimeCheckJob, args: [ @monitor.id ], at: UptimeMonitor::CONFIRM_AFTER.from_now)
+      assert_enqueued_jobs 1, only: UptimeCheckJob
+
+      travel UptimeMonitor::CONFIRM_AFTER
+      calls = hook_calls do
+        with_fake_probe(down_result("timeout"), down_result("timeout")) { UptimeCheckJob.perform_now(@monitor.id) }
+      end
+      assert_equal [ [ :alert_later, @monitor.open_incident.id, "monitor_down" ], [ :broadcast_checked, @monitor.id ] ], calls
+      assert_enqueued_jobs 1, only: UptimeCheckJob
+    end
+  end
+
   test "skips deleted, paused and monitors checked since the job was enqueued" do
     with_fake_probe do |probe|
       UptimeCheckJob.perform_now(0)
