@@ -3,12 +3,24 @@
 #
 #   incident, kind = monitor.record_check(monitor.run_check)
 #   monitor.alert_later(incident, kind) if incident
+#   monitor.recheck_later if kind == "suspected"
 #
 # State machine (status → result → status, side effect, alert kind):
 #   pending/up → up   → up      none
-#   pending/up → down → down    down_since, opens an incident   monitor_down
+#   pending/up → down → down    down_since, opens an incident    monitor_down
 #   down       → down → down    none (the incident stays open)
 #   down       → up   → up      clears down_since, resolves it   monitor_recovered
+#
+# With GOODSORCERY_UPTIME_CONFIRM_DOWN (config.x.uptime.confirm_down, off by
+# default), a down result is confirmed first: one failed check can be a
+# network blip between the checker and the site. The first one only marks the
+# monitor suspected (its status stays, last_error_kind is set) and the job
+# checks again CONFIRM_AFTER later; a second down in a row takes it down, with
+# down_since and the incident dated from the first failure:
+#   pending/up → down → same    suspected, a check CONFIRM_AFTER later
+#   suspected  → down → down    down_since, opens an incident    monitor_down
+#   suspected  → up   → up      clears the suspicion
+# Check rows and hourly counts record every result as it was.
 #
 # Flapping: going down again within flap_grace of the last incident's
 # recovery reopens that incident instead of opening a new one, with no down
@@ -18,6 +30,11 @@
 module UptimeMonitor::Checking
   FLAP_GRACE_INTERVALS = 3
   FLAP_GRACE_MAX = 30.minutes
+  CONFIRM_AFTER = 30.seconds
+  # Intervals a suspicion stays fresh. An older one (a monitor paused after a
+  # failed check, a stalled queue) counts as no suspicion, so an incident is
+  # never dated from a failure long ago.
+  SUSPICION_LASTS = 2
 
   HOURLY_ON_DUPLICATE = <<~SQL.squish.freeze
     checks_count = uptime_hourly_counts.checks_count + 1,
@@ -37,7 +54,8 @@ module UptimeMonitor::Checking
   # Stores the check, its hourly rollup and the state transition in one
   # transaction under the monitor's row lock. `at` is when the check
   # started. Returns [incident, alert kind] when the monitor went down or
-  # recovered, else nil. Records nothing when another check started at or
+  # recovered, [nil, "suspected"] for a failure that awaits confirmation,
+  # else nil. Records nothing when another check started at or
   # after unless_checked_since (the job's enqueued_at) got there first.
   def record_check(result, at: Time.current, unless_checked_since: nil)
     transaction do
@@ -46,8 +64,9 @@ module UptimeMonitor::Checking
 
       insert_check(result, at)
       count_check_hour(result, at)
-      transition = transition_for(result, at)
-      update_columns(state_after(result, at))
+      started_at = down_started_at(result, at)
+      transition = transition_for(result, at, started_at)
+      update_columns(state_after(result, at, started_at))
       transition
     end
   end
@@ -70,6 +89,15 @@ module UptimeMonitor::Checking
     [ UptimeMonitor::RECHECK_GAP, entitlements.uptime_intervals.min.minutes ].max
   end
 
+  def confirm_down? = Rails.configuration.x.uptime.confirm_down
+
+  # A down result while not down: the last check failed and waits for a
+  # second one to confirm it (only with confirm_down?).
+  def suspected? = !down? && last_error_kind.present?
+
+  # The confirming check. The id is the only argument, as for scheduled checks.
+  def recheck_later = UptimeCheckJob.set(wait: CONFIRM_AFTER).perform_later(id)
+
   # Three intervals, at most 30 minutes.
   def flap_grace = [ (interval_minutes * FLAP_GRACE_INTERVALS).minutes, FLAP_GRACE_MAX ].min
 
@@ -87,10 +115,21 @@ module UptimeMonitor::Checking
       )
     end
 
-    def transition_for(result, at)
-      return open_incident_for(result, at) if result.down? && !down?
+    # When the monitor is down after this result: its down_since, or the first
+    # failure of a suspected monitor (its last check). Nil when it isn't.
+    def down_started_at(result, at)
+      return unless result.down?
+      return down_since || at if down?
+      return at unless confirm_down?
 
-      resolve_open_incident(at) if result.up? && down?
+      last_checked_at if suspected? && last_checked_at >= at - SUSPICION_LASTS * interval_minutes.minutes
+    end
+
+    def transition_for(result, at, started_at)
+      return resolve_open_incident(at) if result.up? && down?
+      return if result.up? || down?
+
+      started_at ? open_incident_for(result, started_at) : [ nil, "suspected" ]
     end
 
     # An incident left open (say, by a hand-edited status) makes this a
@@ -120,9 +159,15 @@ module UptimeMonitor::Checking
       [ incident, "monitor_recovered" ]
     end
 
-    def state_after(result, at)
-      { status: result.status, last_checked_at: at, last_response_time_ms: result.response_time_ms,
-        last_http_status: result.http_status, last_error_kind: result.error_kind,
-        down_since: result.up? ? nil : (down_since || at) }
+    def state_after(result, at, started_at)
+      { status: status_after(result, started_at), last_checked_at: at, last_response_time_ms: result.response_time_ms,
+        last_http_status: result.http_status, last_error_kind: result.error_kind, down_since: started_at }
+    end
+
+    # A suspected monitor keeps its status until the failure is confirmed.
+    def status_after(result, started_at)
+      return "down" if started_at
+
+      result.up? ? "up" : status
     end
 end

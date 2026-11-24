@@ -1714,10 +1714,10 @@ schedule_uptime_checks:
 1. `UptimeMonitor.find_by(id:)` with `includes(:project)`. It returns if the monitor is missing, paused, or `checked_since?(enqueued_at)`.
 2. `started_at = Time.current`; `result = monitor.run_check`. This is network I/O outside any transaction.
 3. `monitor.record_check(result, at: started_at, unless_checked_since: enqueued_at)` (below).
-4. After commit: `monitor.alert_later(incident, kind)` when there was a transition (§12.9), and `monitor.broadcast_checked` (§12.8).
+4. After commit: `monitor.alert_later(incident, kind)` when there was a transition (§12.9), `monitor.recheck_later` when the result was a first failure awaiting confirmation (`kind == "suspected"`, below; only with `GOODSORCERY_UPTIME_CONFIRM_DOWN`), and `monitor.broadcast_checked` (§12.8).
 
 **`UptimeMonitor::Checking`** (concern):
-- `#run_check` calls `UptimeProbe.new(url).check`. If the result is down and its `error_kind` isn't `blocked_address`, it probes **once more immediately** and keeps the second result. One check row is stored either way.
+- `#run_check` calls `UptimeProbe.new(url).check`. If the result is down and its `error_kind` isn't `blocked_address`, it probes **once more immediately** and keeps the second result. One check row is stored either way. With `GOODSORCERY_UPTIME_CONFIRM_DOWN`, a down result also needs a second check to confirm it (below).
 - `#record_check(result, at: Time.current, unless_checked_since: nil)` runs one transaction (`at` is when the check started):
   1. `lock("FOR NO KEY UPDATE")`, which reloads the monitor row and serialises the transition. It returns nil, recording nothing, when `checked_since?(unless_checked_since)`.
   2. `UptimeCheck.insert`.
@@ -1725,20 +1725,23 @@ schedule_uptime_checks:
   4. The state transition (below).
   5. An update of the monitor's `status`, `last_checked_at`, `last_response_time_ms`, `last_http_status`, `last_error_kind` and `down_since`.
 
-  It returns `[incident, kind]` or nil.
+  It returns `[incident, kind]` for a transition, `[nil, "suspected"]` for a first failure awaiting confirmation, or nil.
 - `#check_soon` is the "Check now" gate (§12.8). It returns true when `Rails.cache.write(["uptime_check_now", id], 1, unless_exist: true, expires_in: check_now_gap)` succeeds and the monitor wasn't checked within `check_now_gap`. The caller then enqueues `UptimeCheckJob.perform_later(id)`. The cache holds an id only. It does not touch `next_check_at`.
 - `#check_now_gap` is `RECHECK_GAP` (30 seconds) self-hosted, and hosted the longer of that and the account's shortest entitled interval (10 minutes for the hosted defaults). "Check now" therefore can't check more often than the entitlements allow.
 - `#flap_grace` is three intervals, at most 30 minutes (below).
 
-**State machine** (`UptimeMonitor::Checking#transition_for(result)`):
+**Confirming a failure** (opt-in: `GOODSORCERY_UPTIME_CONFIRM_DOWN=1`, read at boot into `config.x.uptime.confirm_down`, `#confirm_down?`; off by default, so one failed check takes a monitor down as in the table's default rows): one failed check (after `run_check`'s immediate retry) doesn't take a monitor down. A blip on the network between the checker and the site, lasting longer than both attempts (about 20 seconds when both time out), would otherwise open an incident and alert for a site that was up. The first down result leaves the monitor **suspected**: its status stays, `last_error_kind` is set (`#suspected?` is `!down? && last_error_kind.present?`), and the job enqueues one more `UptimeCheckJob` `CONFIRM_AFTER` (30 seconds) later, with the id as its only argument (`#recheck_later`). A down result while suspected confirms the failure: the monitor goes down and the incident and `down_since` are dated from the first failure (the suspected monitor's `last_checked_at`). An up result clears the suspicion. A suspicion older than `SUSPICION_LASTS` (2) intervals counts as none, so a monitor paused after a failed check, or a stalled queue, never dates an incident from long ago. If the recheck doesn't run, the next scheduled check confirms or clears it. Check rows and hourly counts record every result as it was, so the failed check still counts against uptime. A real outage alerts about 30 seconds later than before; hosted, the recheck is one extra probe per failure, not a shorter interval.
+
+**State machine** (`UptimeMonitor::Checking#transition_for(result, at, started_at)`):
 
 | from | result | to | side effect | alert kind |
 |---|---|---|---|---|
-| pending | up | up | — | — |
-| pending / up | down | down | `down_since = at`; insert `UptimeIncident(started_at: at, error_kind, http_status)` | `monitor_down` |
+| pending / up | up | up | clears a suspicion | — |
+| pending / up, confirm off | down | down | `down_since = at`; insert `UptimeIncident(started_at: at, error_kind, http_status)` | `monitor_down` |
+| pending / up, confirm on, not suspected | down | unchanged (suspected) | `last_error_kind` set; `UptimeCheckJob` again in `CONFIRM_AFTER` | — |
+| suspected (confirm on) | down | down | `down_since` = the first failure; insert `UptimeIncident(started_at: first failure, error_kind, http_status)` | `monitor_down` |
 | down | down | down | — (the incident stays open) | — |
 | down | up | up | `down_since = nil`; set the open incident's `resolved_at = at` | `monitor_recovered` |
-| up | up | up | — | — |
 
 **Flapping:** going down within `flap_grace` of the last incident's recovery reopens that incident (`resolved_at = nil`) with no `monitor_down` alert, instead of opening a new one. Its recoveries still report `monitor_recovered`, but the per-incident delivery keys let only one recovered email through, so a flapping monitor sends one down and one recovered email rather than a pair per cycle (uptime alerts skip the hourly cap).
 

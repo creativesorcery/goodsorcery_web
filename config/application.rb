@@ -77,6 +77,11 @@ module GoodsorceryWeb
     config.x.uptime.allow_private_addresses =
       ENV["GOODSORCERY_UPTIME_ALLOW_PRIVATE_ADDRESSES"] == "1" && !Rails.env.production?
 
+    # Uptime: a failed check takes a monitor down only when a second check,
+    # CONFIRM_AFTER later, fails too (UptimeMonitor::Checking). Off by default.
+    config.x.uptime.confirm_down =
+      %w[1 true yes on].include?(ENV["GOODSORCERY_UPTIME_CONFIRM_DOWN"].to_s.strip.downcase)
+
     # Backlog-aware ingest admission (Ingest::Backlog): the ingest queue
     # latency, in seconds, at which ingest starts (0: never) and stops
     # answering 429 server_busy. Invalid values fall back to the defaults.

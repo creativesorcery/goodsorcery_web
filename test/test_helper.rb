@@ -59,6 +59,16 @@ module ActiveSupport
       Rails.configuration.x.hosted = previous
     end
 
+    # GOODSORCERY_UPTIME_CONFIRM_DOWN is read once at boot into
+    # config.x.uptime.confirm_down; off by default.
+    def with_uptime_confirm_down(confirm = true)
+      previous = Rails.configuration.x.uptime.confirm_down
+      Rails.configuration.x.uptime.confirm_down = confirm
+      yield
+    ensure
+      Rails.configuration.x.uptime.confirm_down = previous
+    end
+
     # GOODSORCERY_UPGRADE_URL is read once at boot into config.x.upgrade_url;
     # nil means no upgrade is offered and hosted limits say "coming soon".
     def with_upgrade_url(url = "https://billing.example/upgrade")
